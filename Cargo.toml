@@ -1,0 +1,14 @@
+[package]
+name = "neovim-gtk"
+version = "0.1.0"
+authors = ["daa84 <daa84@inbox.ru>"]
+build = "build.rs"
+
+[dependencies]
+cairo-rs = "0.0.8"
+glib = "0.0.8"
+
+[dependencies.gtk]
+version = "0.0.7"
+features = ["v3_10"]
+
