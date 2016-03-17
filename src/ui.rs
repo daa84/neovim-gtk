@@ -1,7 +1,7 @@
 use cairo;
 use gtk;
 use gtk::prelude::*;
-use gtk::{Window, WindowType, DrawingArea, Grid, Button, ButtonBox, Orientation};
+use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientation, Image};
 
 pub struct Ui;
 
@@ -17,8 +17,21 @@ impl Ui {
         let grid = Grid::new();
 
         let button_bar = ButtonBox::new(Orientation::Horizontal);
-        let save = Button::new_with_label("Save");
-        button_bar.add(&save);
+        button_bar.set_hexpand(true);
+        button_bar.set_layout(gtk::ButtonBoxStyle::Start);
+
+        let open_image = Image::new_from_icon_name("document-open", 50);
+        let open_btn = ToolButton::new(Some(&open_image), None);
+        button_bar.add(&open_btn);
+
+        let save_image = Image::new_from_icon_name("document-save", 50);
+        let save_btn = ToolButton::new(Some(&save_image), None);
+        button_bar.add(&save_btn);
+
+        let exit_image = Image::new_from_icon_name("application-exit", 50);
+        let exit_btn = ToolButton::new(Some(&exit_image), None);
+        button_bar.add(&exit_btn);
+
         grid.attach(&button_bar, 0, 0, 1, 1);
 
         let drawing_area = DrawingArea::new();
