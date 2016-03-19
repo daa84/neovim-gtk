@@ -5,7 +5,7 @@ dependencies = [
  "cairo-rs 0.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk 0.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "neovim-lib 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "neovim-lib 0.1.0",
  "rmp 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -195,7 +195,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "neovim-lib"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "rmp 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rmp-serialize 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
