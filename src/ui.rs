@@ -5,14 +5,18 @@ use gtk::{Window, WindowType, DrawingArea, Grid, Button, ButtonBox, Orientation}
 
 use ui_model::UiModel;
 
-pub struct Ui;
+pub struct Ui {
+    model: UiModel,
+}
 
 impl Ui {
     pub fn new() -> Ui {
-        Ui
+        Ui {
+            model: UiModel::empty(),
+        }
     }
 
-    pub fn start(&self) {
+    pub fn show(&self) {
         gtk::init().expect("Failed to initialize GTK");
         let window = Window::new(WindowType::Toplevel);
 

@@ -17,6 +17,10 @@ pub struct UiModel {
 }
 
 impl UiModel {
+    pub fn empty() -> UiModel {
+        UiModel::new(0, 0)
+    }
+
     pub fn new(columns: u64, rows: u64) -> UiModel {
         let cells = (columns * rows) as usize;
         let mut model = Vec::with_capacity(cells);
