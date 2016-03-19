@@ -3,6 +3,8 @@ use gtk;
 use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, Button, ButtonBox, Orientation};
 
+use ui_model::UiModel;
+
 pub struct Ui;
 
 impl Ui {
