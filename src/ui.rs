@@ -53,7 +53,6 @@ impl Ui {
             Inhibit(false)
         });
 
-        gtk::main();       
     }
 
     fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
