@@ -4,6 +4,7 @@ use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, Button, ButtonBox, Orientation};
 
 use ui_model::UiModel;
+use nvim::RedrawEvents;
 
 pub struct Ui {
     model: UiModel,
@@ -53,3 +54,7 @@ impl Ui {
         Inhibit(true)
     }
 }
+
+impl RedrawEvents for Ui {
+}
+

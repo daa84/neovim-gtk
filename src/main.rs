@@ -11,7 +11,8 @@ use ui::Ui;
 use nvim::Nvim;
 
 fn main() {
-    let nvim = Nvim::start().expect("Can't start nvim instance");
-    Ui::new().show();
+    let ui = Ui::new();
+    let nvim = Nvim::start(ui).expect("Can't start nvim instance");
+    ui.show();
 }
 
