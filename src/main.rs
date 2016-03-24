@@ -14,7 +14,7 @@ fn main() {
     let ui = Ui::new();
     ui.show();
 
-    Nvim::start(ui).expect("Can't start nvim instance");
+    let nvim = Nvim::start(ui).expect("Can't start nvim instance");
 
     gtk::main();       
 }

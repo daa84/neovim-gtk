@@ -13,7 +13,11 @@ pub trait RedrawEvents {
 impl Nvim {
     pub fn start(mut ui: Ui) -> Result<Nvim> {
         // let mut session = try!(Session::new_tcp("127.0.0.1:6666"));
-        let mut session = try!(Session::new_child());
+        let mut session = if cfg!(target_os = "windows") {
+            Session::new_child_path("E:\\Neovim\\bin\\nvim.exe").unwrap()
+        } else {
+            Session::new_child().unwrap()
+        };
         let mut nvim = Neovim::new(session);
 
         nvim.session.start_event_loop_cb(move |m, p| Nvim::cb(&mut ui, m, p));
