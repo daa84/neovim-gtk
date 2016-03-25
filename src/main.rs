@@ -3,6 +3,7 @@ extern crate cairo;
 extern crate neovim_lib;
 extern crate rmp;
 
+mod ui_mutex;
 mod nvim;
 mod ui_model;
 mod ui;
