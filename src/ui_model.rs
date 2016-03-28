@@ -9,11 +9,11 @@ impl Cell {
 }
 
 pub struct UiModel {
-    columns: u64,
-    rows: u64,
-    cur_row: u64,
-    cur_col: u64,
-    model: Vec<Cell>,
+    columns: usize,
+    rows: usize,
+    cur_row: usize,
+    cur_col: usize,
+    model: Vec<Vec<Cell>>,
 }
 
 impl UiModel {
@@ -21,16 +21,18 @@ impl UiModel {
         UiModel::new(0, 0)
     }
 
-    pub fn new(columns: u64, rows: u64) -> UiModel {
-        let cells = (columns * rows) as usize;
-        let mut model = Vec::with_capacity(cells);
-        for i in 0..cells {
-            model[i] = Cell::new(' ');
+    pub fn new(rows: u64, columns: u64) -> UiModel {
+        let mut model = Vec::with_capacity(rows as usize);
+        for i in 0..rows as usize {
+            model.push(Vec::with_capacity(columns as usize));
+            for _ in 0..columns as usize{
+                model[i].push(Cell::new(' '));
+            }
         }
 
         UiModel { 
-            columns: columns,
-            rows: rows,
+            columns: columns as usize,
+            rows: rows as usize,
             cur_row: 0,
             cur_col: 0,
             model: model,
@@ -38,7 +40,12 @@ impl UiModel {
     }
 
     pub fn set_cursor(&mut self, row: u64, col: u64) {
-        self.cur_col = col;
-        self.cur_row = row;
+        self.cur_col = col as usize;
+        self.cur_row = row as usize;
+    }
+
+    pub fn put(&mut self, text: &str) {
+        self.model[self.cur_row][self.cur_col].ch = text.chars().last().unwrap();
+        self.cur_col += 1;
     }
 }

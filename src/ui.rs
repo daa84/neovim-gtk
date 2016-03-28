@@ -8,7 +8,7 @@ use ui_model::UiModel;
 use nvim::RedrawEvents;
 
 pub struct Ui {
-    model: UiModel,
+    pub model: UiModel,
     nvim: Option<Neovim>,
 }
 
@@ -81,6 +81,10 @@ impl Ui {
 impl RedrawEvents for Ui {
     fn on_cursor_goto(&mut self, row: u64, col: u64) {
         self.model.set_cursor(row, col);
+    }
+
+    fn on_put(&mut self, text: &str) {
+        self.model.put(text);
     }
 }
 
