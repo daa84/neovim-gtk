@@ -9,13 +9,12 @@ mod ui_model;
 mod ui;
 
 use ui::Ui;
-use nvim::Nvim;
 
 fn main() {
     let ui = Ui::new();
     ui.show();
 
-    let nvim = Nvim::start(ui).expect("Can't start nvim instance");
+    let nvim = nvim::initialize(ui).expect("Can't start nvim instance");
 
     gtk::main();       
 }

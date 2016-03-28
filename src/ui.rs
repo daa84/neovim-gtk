@@ -2,19 +2,30 @@ use cairo;
 use gtk;
 use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientation, Image};
+use neovim_lib::Neovim;
 
 use ui_model::UiModel;
 use nvim::RedrawEvents;
 
 pub struct Ui {
     model: UiModel,
+    nvim: Option<Neovim>,
 }
 
 impl Ui {
     pub fn new() -> Ui {
         Ui {
             model: UiModel::empty(),
+            nvim: None,
         }
+    }
+
+    pub fn set_nvim(&mut self, nvim: Neovim) {
+        self.nvim = Some(nvim);
+    }
+
+    pub fn nvim(&mut self) -> &mut Neovim {
+        self.nvim.as_mut().unwrap()
     }
 
     pub fn show(&self) {
