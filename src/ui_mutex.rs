@@ -20,8 +20,9 @@ impl<T> UiMutex<T> {
     }
 
     pub fn borrow_mut(&self) -> RefMut<T> {
-        if thread::current().name().map(|v| v.to_owned()) != self.main_thread_name {
-            panic!("Can access value only from main thread");
+        let current_thread_name = thread::current().name().map(|v| v.to_owned());
+        if current_thread_name != self.main_thread_name {
+            panic!("Can access value only from main thread, {:?}/{:?}", current_thread_name, self.main_thread_name);
         }
 
         self.data.borrow_mut()

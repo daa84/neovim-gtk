@@ -6,7 +6,7 @@ use ui_mutex::UiMutex;
 use rmp::Value;
 use rmp::value::Integer;
 use ui::Ui;
-use gtk;
+use glib;
 
 pub type SharedUi = Arc<UiMutex<Ui>>;
 
@@ -88,12 +88,12 @@ fn call(ui: &SharedUi, method: &str, args: Vec<Value>) {
 }
 
 fn safe_call<F>(mutex: SharedUi, cb: F)
-    where F: Fn(&UiMutex<Ui>) -> result::Result<(), String> + 'static
+    where F: Fn(&UiMutex<Ui>) -> result::Result<(), String> + 'static + Send
 {
-    gtk::idle_add(move || {
+    glib::idle_add(move || {
         if let Err(msg) = cb(&*mutex) {
             println!("Error call function: {}", msg);
         }
-        gtk::Continue(false)
+        glib::Continue(false)
     });
 }
