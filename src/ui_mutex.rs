@@ -1,8 +1,6 @@
 
 use std::cell::{RefCell, RefMut};
 use std::thread;
-use std::sync::Arc;
-use gtk;
 
 pub struct UiMutex<T: Sized> {
     data: RefCell<T>,
@@ -27,16 +25,6 @@ impl<T> UiMutex<T> {
         }
 
         self.data.borrow_mut()
-    }
-
-    pub fn safe_call<F, I>(mutex: Arc<UiMutex<I>>, cb: F)
-        where I: 'static,
-              F: Fn(&UiMutex<I>) + 'static
-    {
-        gtk::idle_add(move || {
-            cb(&*mutex);
-            gtk::Continue(false)
-        });
     }
 }
 

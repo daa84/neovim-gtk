@@ -79,5 +79,8 @@ impl Ui {
 }
 
 impl RedrawEvents for Ui {
+    fn on_cursor_goto(&mut self, row: u64, col: u64) {
+        self.model.set_cursor(row, col);
+    }
 }
 

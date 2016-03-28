@@ -37,7 +37,7 @@ impl UiModel {
         }
     }
 
-    pub fn set_cursor(&mut self, col: u64, row: u64) {
+    pub fn set_cursor(&mut self, row: u64, col: u64) {
         self.cur_col = col;
         self.cur_row = row;
     }
