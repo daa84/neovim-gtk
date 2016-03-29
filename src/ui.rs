@@ -90,5 +90,9 @@ impl RedrawEvents for Ui {
     fn on_clear(&mut self) {
         self.model.clear();
     }
+
+    fn on_resize(&mut self, columns: u64, rows: u64) {
+        self.model = UiModel::new(rows, columns);
+    }
 }
 

@@ -17,6 +17,8 @@ pub trait RedrawEvents {
     fn on_put(&mut self, text: &str);
 
     fn on_clear(&mut self);
+
+    fn on_resize(&mut self, columns: u64, rows: u64);
 }
 
 macro_rules! try_str {
@@ -102,6 +104,12 @@ fn call(ui: &SharedUi, method: &str, args: Vec<Value>) {
                 ui.borrow_mut().on_clear();
                 Ok(())
             })
+        }
+        "resize" => {
+            safe_call(ui, move |ui| { 
+                ui.borrow_mut().on_resize(try_int!(args[0]), try_int!(args[1]));
+                Ok(())
+            });
         }
         _ => println!("Event {}", method),
     };
