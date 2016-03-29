@@ -15,6 +15,8 @@ pub trait RedrawEvents {
     fn on_cursor_goto(&mut self, row: u64, col: u64);
 
     fn on_put(&mut self, text: &str);
+
+    fn on_clear(&mut self);
 }
 
 macro_rules! try_str {
@@ -84,14 +86,20 @@ fn nvim_cb(ui: &SharedUi, method: &str, params: Vec<Value>) {
 fn call(ui: &SharedUi, method: &str, args: Vec<Value>) {
     match method {
         "cursor_goto" => {
-            safe_call(ui.clone(), move |ui| {
+            safe_call(ui, move |ui| {
                 ui.borrow_mut().on_cursor_goto(try_int!(args[0]), try_int!(args[1]));
                 Ok(())
             })
-        },
+        }
         "put" => {
-            safe_call(ui.clone(), move |ui| {
+            safe_call(ui, move |ui| {
                 ui.borrow_mut().on_put(try_str!(args[0]));
+                Ok(())
+            })
+        }
+        "clear" => {
+            safe_call(ui, move |ui| {
+                ui.borrow_mut().on_clear();
                 Ok(())
             })
         }
@@ -99,11 +107,12 @@ fn call(ui: &SharedUi, method: &str, args: Vec<Value>) {
     };
 }
 
-fn safe_call<F>(mutex: SharedUi, cb: F)
+fn safe_call<F>(ui: &SharedUi, cb: F)
     where F: Fn(&UiMutex<Ui>) -> result::Result<(), String> + 'static + Send
 {
+    let sent_ui = ui.clone();
     glib::idle_add(move || {
-        if let Err(msg) = cb(&*mutex) {
+        if let Err(msg) = cb(&*sent_ui) {
             println!("Error call function: {}", msg);
         }
         glib::Continue(false)

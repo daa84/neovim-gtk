@@ -86,5 +86,9 @@ impl RedrawEvents for Ui {
     fn on_put(&mut self, text: &str) {
         self.model.put(text);
     }
+
+    fn on_clear(&mut self) {
+        self.model.clear();
+    }
 }
 

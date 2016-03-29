@@ -6,6 +6,10 @@ impl Cell {
     pub fn new(ch: char) -> Cell {
         Cell { ch: ch }
     }
+
+    fn clear(&mut self) {
+         self.ch = ' ';
+    }
 }
 
 pub struct UiModel {
@@ -47,5 +51,13 @@ impl UiModel {
     pub fn put(&mut self, text: &str) {
         self.model[self.cur_row][self.cur_col].ch = text.chars().last().unwrap();
         self.cur_col += 1;
+    }
+
+    pub fn clear(&mut self) {
+        for row in 0..self.rows {
+            for col in 0..self.columns {
+                self.model[row][col].clear();
+            }
+        }
     }
 }
