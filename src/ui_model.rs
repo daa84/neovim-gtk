@@ -43,6 +43,10 @@ impl UiModel {
         }
     }
 
+    pub fn lines(&self) -> Vec<String> {
+        self.model.iter().map(|r| r.iter().map(|c| c.ch).collect::<String>()).collect()
+    }
+
     pub fn set_cursor(&mut self, row: u64, col: u64) {
         self.cur_col = col as usize;
         self.cur_row = row as usize;

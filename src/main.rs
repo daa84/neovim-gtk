@@ -4,18 +4,18 @@ extern crate cairo;
 extern crate neovim_lib;
 extern crate rmp;
 
-mod ui_mutex;
 mod nvim;
 mod ui_model;
 mod ui;
 
-use ui::Ui;
-
 fn main() {
-    let ui = Ui::new();
-    ui.show();
+    gtk::init().expect("Failed to initialize GTK");
+    ui::UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+        ui.init();
 
-    let nvim = nvim::initialize(ui).expect("Can't start nvim instance");
+        nvim::initialize(&mut *ui).expect("Can't start nvim instance");
+    });
 
     gtk::main();       
 }

@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::thread;
+
 use cairo;
 use gtk;
 use gtk::prelude::*;
@@ -7,15 +10,26 @@ use neovim_lib::Neovim;
 use ui_model::UiModel;
 use nvim::RedrawEvents;
 
+thread_local!(pub static UI: RefCell<Ui> = {
+    let thread = thread::current();
+    let current_thread_name = thread.name();
+    if current_thread_name != Some("<main>") {
+        panic!("Can create UI  only from main thread, {:?}", current_thread_name);
+    }
+    RefCell::new(Ui::new())
+});
+
 pub struct Ui {
     pub model: UiModel,
     nvim: Option<Neovim>,
+    drawing_area: DrawingArea,
 }
 
 impl Ui {
     pub fn new() -> Ui {
         Ui {
             model: UiModel::empty(),
+            drawing_area: DrawingArea::new(),
             nvim: None,
         }
     }
@@ -28,8 +42,8 @@ impl Ui {
         self.nvim.as_mut().unwrap()
     }
 
-    pub fn show(&self) {
-        gtk::init().expect("Failed to initialize GTK");
+    pub fn init(&mut self) {
+
         let window = Window::new(WindowType::Toplevel);
 
         let grid = Grid::new();
@@ -52,30 +66,41 @@ impl Ui {
 
         grid.attach(&button_bar, 0, 0, 1, 1);
 
-        let drawing_area = DrawingArea::new();
-        drawing_area.set_size_request(500, 500);
-        drawing_area.connect_draw(Self::gtk_draw);
-        grid.attach(&drawing_area, 0, 1, 1, 1);
+        self.drawing_area.set_size_request(500, 500);
+        self.drawing_area.set_hexpand(true);
+        self.drawing_area.set_vexpand(true);
+        grid.attach(&self.drawing_area, 0, 1, 1, 1);
+        self.drawing_area.connect_draw(gtk_draw);
 
         window.add(&grid);
         window.show_all();
-        window.connect_delete_event(|_,_| {
+        window.connect_delete_event(|_, _| {
             gtk::main_quit();
             Inhibit(false)
         });
-
     }
+}
 
-    fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
-        let width = drawing_area.get_allocated_width() as f64;
-        let height = drawing_area.get_allocated_height() as f64;
-        ctx.set_source_rgb(1.0, 0.0, 0.0);
-        ctx.arc(width / 2.0, height / 2.0,
-                width / 2.0,
-                0.0, 2.0 * 3.14);
-        ctx.fill();
-        Inhibit(true)
-    }
+fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
+    let width = drawing_area.get_allocated_width() as f64;
+    let height = drawing_area.get_allocated_height() as f64;
+
+    let font_face = cairo::FontFace::toy_create("",
+                                                cairo::enums::FontSlant::Normal,
+                                                cairo::enums::FontWeight::Normal);
+    ctx.set_font_face(font_face);
+    UI.with(|ui_cell| {
+        ctx.set_source_rgb(0.0, 0.0, 0.0);
+        let ui = ui_cell.borrow();
+        let mut line_y = 30.0;
+        for line in ui.model.lines() {
+            ctx.move_to(0.0, line_y);
+            ctx.show_text(&line);
+            line_y += 30.0;
+        }
+    });
+
+    Inhibit(true)
 }
 
 impl RedrawEvents for Ui {
@@ -95,4 +120,3 @@ impl RedrawEvents for Ui {
         self.model = UiModel::new(rows, columns);
     }
 }
-
