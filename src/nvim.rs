@@ -58,11 +58,13 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
         for ev in params {
             if let Value::Array(ev_args) = ev {
                 if let Value::String(ref ev_name) = ev_args[0] {
-                    let args = match ev_args[1] {
-                        Value::Array(ref ar) => ar.clone(),
-                        _ => vec![],
-                    };
-                    call(ev_name, args);
+                    for ref local_args in ev_args.iter().skip(1) {
+                        let args = match *local_args {
+                            &Value::Array(ref ar) => ar.clone(),
+                            _ => vec![],
+                        };
+                        call(ev_name, args);
+                    }
                 } else {
                     println!("Unsupported event {:?}", ev_args);
                 }
