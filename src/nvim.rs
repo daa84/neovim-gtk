@@ -16,6 +16,8 @@ pub trait RedrawEvents {
     fn on_clear(&mut self);
 
     fn on_resize(&mut self, columns: u64, rows: u64);
+
+    fn on_redraw(&self);
 }
 
 macro_rules! try_str {
@@ -72,6 +74,11 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
                 println!("Unsupported event type {:?}", ev);
             }
         }
+
+        safe_call(move |ui| {
+            ui.on_redraw();
+            Ok(())
+        });
     } else {
         println!("Notification {}", method);
     }

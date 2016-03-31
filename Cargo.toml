@@ -7,6 +7,7 @@ build = "build.rs"
 [dependencies]
 cairo-rs = "0.0.8"
 glib = "0.0.8"
+gdk = "0.3.0"
 #neovim-lib = "0.1"
 rmp = "0.7"
 

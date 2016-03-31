@@ -1,4 +1,5 @@
 extern crate gtk;
+extern crate gdk;
 extern crate glib;
 extern crate cairo;
 extern crate neovim_lib;
