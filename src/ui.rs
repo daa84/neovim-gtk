@@ -1,5 +1,10 @@
 use std::cell::RefCell;
 use std::thread;
+use std::collections::HashMap;
+use std::mem;
+
+use rmp::Value;
+use rmp::value::Integer;
 
 use cairo;
 use gtk;
@@ -9,7 +14,7 @@ use gdk;
 use gdk::EventKey;
 use neovim_lib::{Neovim, NeovimApi};
 
-use ui_model::UiModel;
+use ui_model::{UiModel, Attrs, Color};
 use nvim::RedrawEvents;
 
 thread_local!(pub static UI: RefCell<Ui> = {
@@ -25,6 +30,7 @@ pub struct Ui {
     pub model: UiModel,
     nvim: Option<Neovim>,
     drawing_area: DrawingArea,
+    cur_attrs: Option<Attrs>,
 }
 
 impl Ui {
@@ -33,6 +39,7 @@ impl Ui {
             model: UiModel::empty(),
             drawing_area: DrawingArea::new(),
             nvim: None,
+            cur_attrs: None,
         }
     }
 
@@ -104,6 +111,10 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     let width = drawing_area.get_allocated_width() as f64;
     let height = drawing_area.get_allocated_height() as f64;
 
+    ctx.set_source_rgb(0.0, 0.0, 0.0);
+    ctx.paint();
+    ctx.set_source_rgb(1.0, 1.0, 1.0);
+
     let font_face = cairo::FontFace::toy_create("",
                                                 cairo::enums::FontSlant::Normal,
                                                 cairo::enums::FontWeight::Normal);
@@ -113,11 +124,23 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     UI.with(|ui_cell| {
         let ui = ui_cell.borrow();
 
-        ctx.set_source_rgb(0.0, 0.0, 0.0);
         let mut line_y = font_extents.height;
-        for line in ui.model.lines() {
-            ctx.move_to(0.0, line_y);
-            ctx.show_text(&line);
+        for line in ui.model.model() {
+            ctx.move_to(0.0, line_y - font_extents.descent);
+            for cell in line {
+                let bg = &cell.attrs.background;
+                ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                //ctx.set_source_rgb(1.0, 0.0 , 0.0);
+                let text_extents = ctx.text_extents(&cell.ch.to_string());
+                let current_point = ctx.get_current_point();
+                ctx.rectangle(current_point.0, line_y - font_extents.height, text_extents.width, font_extents.height);
+                ctx.fill();
+
+                 ctx.move_to(current_point.0, current_point.1);
+                let fg = &cell.attrs.foreground;
+                ctx.set_source_rgb(fg.0, fg.1, fg.2);
+                ctx.show_text(&cell.ch.to_string());
+            }
             line_y += font_extents.height;
         }
     });
@@ -131,7 +154,7 @@ impl RedrawEvents for Ui {
     }
 
     fn on_put(&mut self, text: &str) {
-        self.model.put(text);
+        self.model.put(text, &self.cur_attrs);
     }
 
     fn on_clear(&mut self) {
@@ -145,4 +168,26 @@ impl RedrawEvents for Ui {
     fn on_redraw(&self) {
         self.drawing_area.queue_draw();
     }
+
+    // highlight_set([Map([(String("bold"), Boolean(true)), (String("foreground"), Integer(U64(255)))])])
+    fn on_highlight_set(&mut self, attrs: &HashMap<String, Value>) {
+        let mut model_attrs = Attrs::new();
+        if let Some(&Value::Integer(Integer::U64(fg))) = attrs.get("foreground") {
+            model_attrs.foreground = split_color(fg);
+        }
+        if let Some(&Value::Integer(Integer::U64(fg))) = attrs.get("background") {
+            model_attrs.background = split_color(fg);
+        }
+        if attrs.contains_key("reverse") {
+            mem::swap(&mut model_attrs.foreground, &mut model_attrs.background);
+        }
+        self.cur_attrs = Some(model_attrs);
+    }
+}
+
+fn split_color(indexed_color: u64) -> Color {
+    let r = ((indexed_color >> 16) & 0xff) as f64;
+    let g = ((indexed_color >> 8) & 0xff) as f64;
+    let b = (indexed_color & 0xff) as f64;
+    Color(255.0 / r, 255.0 / g, 255.0 / b)
 }

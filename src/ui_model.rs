@@ -1,14 +1,40 @@
+
+#[derive(Clone)]
+pub struct Color(pub f64, pub f64, pub f64);
+
+const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);
+const COLOR_WHITE: Color = Color(1.0, 1.0, 1.0);
+
+#[derive(Clone)]
+pub struct Attrs {
+    pub foreground: Color,
+    pub background: Color,
+}
+
+impl Attrs {
+    pub fn new() -> Attrs {
+        Attrs {
+            foreground: COLOR_WHITE,
+            background: COLOR_BLACK,
+        }
+    }
+}
+
 pub struct Cell {
-    ch: char,
+    pub ch: char,
+    pub attrs: Attrs,
 }
 
 impl Cell {
     pub fn new(ch: char) -> Cell {
-        Cell { ch: ch }
+        Cell {
+            ch: ch,
+            attrs: Attrs::new(),
+        }
     }
 
     fn clear(&mut self) {
-         self.ch = ' ';
+        self.ch = ' ';
     }
 }
 
@@ -29,12 +55,12 @@ impl UiModel {
         let mut model = Vec::with_capacity(rows as usize);
         for i in 0..rows as usize {
             model.push(Vec::with_capacity(columns as usize));
-            for _ in 0..columns as usize{
+            for _ in 0..columns as usize {
                 model[i].push(Cell::new(' '));
             }
         }
 
-        UiModel { 
+        UiModel {
             columns: columns as usize,
             rows: rows as usize,
             cur_row: 0,
@@ -43,8 +69,8 @@ impl UiModel {
         }
     }
 
-    pub fn lines(&self) -> Vec<String> {
-        self.model.iter().map(|r| r.iter().map(|c| c.ch).collect::<String>()).collect()
+    pub fn model(&self) -> &Vec<Vec<Cell>> {
+        &self.model
     }
 
     pub fn set_cursor(&mut self, row: u64, col: u64) {
@@ -52,8 +78,10 @@ impl UiModel {
         self.cur_row = row as usize;
     }
 
-    pub fn put(&mut self, text: &str) {
-        self.model[self.cur_row][self.cur_col].ch = text.chars().last().unwrap();
+    pub fn put(&mut self, text: &str, attrs: &Option<Attrs>) {
+        let mut cell = &mut self.model[self.cur_row][self.cur_col];
+        cell.ch = text.chars().last().unwrap();
+        cell.attrs = attrs.as_ref().map(|o| o.clone()).unwrap_or_else(|| Attrs::new());
         self.cur_col += 1;
     }
 
