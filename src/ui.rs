@@ -115,10 +115,7 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     ctx.paint();
     ctx.set_source_rgb(1.0, 1.0, 1.0);
 
-    let font_face = cairo::FontFace::toy_create("",
-                                                cairo::enums::FontSlant::Normal,
-                                                cairo::enums::FontWeight::Normal);
-    ctx.set_font_face(font_face);
+
 
     let font_extents = ctx.font_extents();
     UI.with(|ui_cell| {
@@ -128,15 +125,33 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
         for line in ui.model.model() {
             ctx.move_to(0.0, line_y - font_extents.descent);
             for cell in line {
+                let slant = if cell.attrs.italic {
+                    cairo::enums::FontSlant::Italic
+                } else {
+                    cairo::enums::FontSlant::Normal
+                };
+
+                let weight = if cell.attrs.bold {
+                    cairo::enums::FontWeight::Bold
+                } else {
+                    cairo::enums::FontWeight::Normal
+                };
+
+                let font_face = cairo::FontFace::toy_create("", slant, weight);
+                ctx.set_font_face(font_face);
+
                 let bg = &cell.attrs.background;
                 ctx.set_source_rgb(bg.0, bg.1, bg.2);
-                //ctx.set_source_rgb(1.0, 0.0 , 0.0);
+                // ctx.set_source_rgb(1.0, 0.0 , 0.0);
                 let text_extents = ctx.text_extents(&cell.ch.to_string());
                 let current_point = ctx.get_current_point();
-                ctx.rectangle(current_point.0, line_y - font_extents.height, text_extents.width, font_extents.height);
+                ctx.rectangle(current_point.0,
+                              line_y - font_extents.height,
+                              text_extents.width,
+                              font_extents.height);
                 ctx.fill();
 
-                 ctx.move_to(current_point.0, current_point.1);
+                ctx.move_to(current_point.0, current_point.1);
                 let fg = &cell.attrs.foreground;
                 ctx.set_source_rgb(fg.0, fg.1, fg.2);
                 ctx.show_text(&cell.ch.to_string());
@@ -169,7 +184,6 @@ impl RedrawEvents for Ui {
         self.drawing_area.queue_draw();
     }
 
-    // highlight_set([Map([(String("bold"), Boolean(true)), (String("foreground"), Integer(U64(255)))])])
     fn on_highlight_set(&mut self, attrs: &HashMap<String, Value>) {
         let mut model_attrs = Attrs::new();
         if let Some(&Value::Integer(Integer::U64(fg))) = attrs.get("foreground") {
@@ -181,6 +195,8 @@ impl RedrawEvents for Ui {
         if attrs.contains_key("reverse") {
             mem::swap(&mut model_attrs.foreground, &mut model_attrs.background);
         }
+        model_attrs.bold = attrs.contains_key("bold");
+        model_attrs.italic = attrs.contains_key("italic");
         self.cur_attrs = Some(model_attrs);
     }
 }

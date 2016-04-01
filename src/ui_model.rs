@@ -7,6 +7,8 @@ const COLOR_WHITE: Color = Color(1.0, 1.0, 1.0);
 
 #[derive(Clone)]
 pub struct Attrs {
+    pub italic: bool,
+    pub bold: bool,
     pub foreground: Color,
     pub background: Color,
 }
@@ -16,6 +18,8 @@ impl Attrs {
         Attrs {
             foreground: COLOR_WHITE,
             background: COLOR_BLACK,
+            italic: false,
+            bold: false,
         }
     }
 }
