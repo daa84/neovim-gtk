@@ -7,6 +7,8 @@ use rmp::Value;
 use rmp::value::Integer;
 
 use cairo;
+use cairo::TextExtents;
+use cairo::enums::{FontWeight, FontSlant};
 use gtk;
 use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientation, Image};
@@ -16,6 +18,9 @@ use neovim_lib::{Neovim, NeovimApi};
 
 use ui_model::{UiModel, Attrs, Color};
 use nvim::RedrawEvents;
+
+const FONT_NAME: &'static str = "Droid Sans Mono for Powerline";
+const FONT_SIZE: f64 = 16.0;
 
 thread_local!(pub static UI: RefCell<Ui> = {
     let thread = thread::current();
@@ -107,6 +112,13 @@ fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
     Inhibit(true)
 }
 
+fn calc_char_bounds(ctx: &cairo::Context) -> TextExtents {
+    let font_face = cairo::FontFace::toy_create(FONT_NAME, FontSlant::Normal, FontWeight::Bold);
+    ctx.set_font_size(FONT_SIZE);
+    ctx.set_font_face(font_face);
+    ctx.text_extents("A")
+}
+
 fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     let width = drawing_area.get_allocated_width() as f64;
     let height = drawing_area.get_allocated_height() as f64;
@@ -115,9 +127,9 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     ctx.paint();
     ctx.set_source_rgb(1.0, 1.0, 1.0);
 
-
-
+    let char_bounds = calc_char_bounds(ctx);
     let font_extents = ctx.font_extents();
+
     UI.with(|ui_cell| {
         let ui = ui_cell.borrow();
 
@@ -126,28 +138,27 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
             ctx.move_to(0.0, line_y - font_extents.descent);
             for cell in line {
                 let slant = if cell.attrs.italic {
-                    cairo::enums::FontSlant::Italic
+                    FontSlant::Italic
                 } else {
-                    cairo::enums::FontSlant::Normal
+                    FontSlant::Normal
                 };
 
                 let weight = if cell.attrs.bold {
-                    cairo::enums::FontWeight::Bold
+                    FontWeight::Bold
                 } else {
-                    cairo::enums::FontWeight::Normal
+                    FontWeight::Normal
                 };
 
-                let font_face = cairo::FontFace::toy_create("", slant, weight);
+                let font_face = cairo::FontFace::toy_create(FONT_NAME, slant, weight);
                 ctx.set_font_face(font_face);
+                ctx.set_font_size(FONT_SIZE);
 
                 let bg = &cell.attrs.background;
                 ctx.set_source_rgb(bg.0, bg.1, bg.2);
-                // ctx.set_source_rgb(1.0, 0.0 , 0.0);
-                let text_extents = ctx.text_extents(&cell.ch.to_string());
                 let current_point = ctx.get_current_point();
                 ctx.rectangle(current_point.0,
                               line_y - font_extents.height,
-                              text_extents.width,
+                              char_bounds.width,
                               font_extents.height);
                 ctx.fill();
 
@@ -155,6 +166,7 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
                 let fg = &cell.attrs.foreground;
                 ctx.set_source_rgb(fg.0, fg.1, fg.2);
                 ctx.show_text(&cell.ch.to_string());
+                ctx.move_to(current_point.0 + char_bounds.width, current_point.1);
             }
             line_y += font_extents.height;
         }
