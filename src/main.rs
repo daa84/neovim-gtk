@@ -4,6 +4,7 @@ extern crate glib;
 extern crate cairo;
 extern crate neovim_lib;
 extern crate rmp;
+extern crate phf;
 
 mod nvim;
 mod ui_model;

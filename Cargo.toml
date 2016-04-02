@@ -10,6 +10,10 @@ glib = "0.0.8"
 gdk = "0.3.0"
 #neovim-lib = "0.1"
 rmp = "0.7"
+phf = "0.7"
+
+[build-dependencies]
+phf_codegen = "0.7"
 
 [dependencies.neovim-lib]
 path = "../neovim-lib/"

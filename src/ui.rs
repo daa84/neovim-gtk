@@ -96,6 +96,13 @@ impl Ui {
     }
 }
 
+use phf;
+include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
+
+fn convert_keyval(input: &str) -> Option<&'static str> {
+    KEYVAL_MAP.get(input).cloned()
+}
+
 fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
     let keyval = ev.get_keyval();
     if let Some(keyval_name) = gdk::keyval_name(keyval) {
@@ -106,7 +113,13 @@ fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
             } else {
                 keyval_name
             };
-            ui.nvim().input(&input).expect("Error run input command to nvim");
+
+            let converted_input: &str = if let Some(cnvt) = convert_keyval(&input) {
+                cnvt
+            } else {
+                &input
+            };
+            ui.nvim().input(converted_input).expect("Error run input command to nvim");
         });
     }
     Inhibit(true)
