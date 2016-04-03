@@ -82,7 +82,7 @@ impl Ui {
 
         grid.attach(&button_bar, 0, 0, 1, 1);
 
-        self.drawing_area.set_size_request(500, 500);
+        self.drawing_area.set_size_request(500, 300);
         self.drawing_area.set_hexpand(true);
         self.drawing_area.set_vexpand(true);
         grid.attach(&self.drawing_area, 0, 1, 1, 1);
@@ -164,9 +164,6 @@ fn calc_char_bounds(ctx: &cairo::Context) -> TextExtents {
 }
 
 fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
-    let width = drawing_area.get_allocated_width() as f64;
-    let height = drawing_area.get_allocated_height() as f64;
-
     ctx.set_source_rgb(0.0, 0.0, 0.0);
     ctx.paint();
     ctx.set_source_rgb(1.0, 1.0, 1.0);
@@ -214,9 +211,25 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
             }
             line_y += font_extents.height;
         }
+
+        request_width(&drawing_area, &ui, font_extents.height, char_bounds.width);
+        
     });
 
+
+    
     Inhibit(true)
+}
+
+fn request_width(drawing_area: &DrawingArea, ui: &Ui, line_height: f64, char_width: f64) {
+    let width = drawing_area.get_allocated_width();
+    let height = drawing_area.get_allocated_height();
+    let request_height = (ui.model.rows as f64 * line_height) as i32;
+    let request_width = (ui.model.columns as f64 * char_width) as i32;
+
+    if width != request_width || height != request_height {
+        drawing_area.set_size_request(request_width, request_height);
+    }
 }
 
 impl RedrawEvents for Ui {

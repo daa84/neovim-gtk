@@ -52,8 +52,8 @@ impl Cell {
 }
 
 pub struct UiModel {
-    columns: usize,
-    rows: usize,
+    pub columns: usize,
+    pub rows: usize,
     cur_row: usize,
     cur_col: usize,
     model: Vec<Vec<Cell>>,
