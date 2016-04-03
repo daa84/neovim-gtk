@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::thread;
 use std::collections::HashMap;
 use std::mem;
+use std::string::String;
 
 use rmp::Value;
 use rmp::value::Integer;
@@ -99,28 +100,57 @@ impl Ui {
 use phf;
 include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
-fn convert_keyval(input: &str) -> Option<&'static str> {
-    KEYVAL_MAP.get(input).cloned()
+
+fn keyval_to_input_string(val: &str, state: gdk::ModifierType) -> String {
+    let mut input = String::from("<");
+    if state.contains(gdk::enums::modifier_type::ShiftMask) {
+        input.push_str("S-");
+    }
+    if state.contains(gdk::enums::modifier_type::ControlMask) {
+        input.push_str("C-");
+    }
+    if state.contains(gdk::enums::modifier_type::Mod1Mask) {
+        input.push_str("A-");
+    }
+    input.push_str(val);
+    input.push_str(">");
+    input
+}
+
+fn convert_keyval(input: &str, state: gdk::ModifierType) -> String {
+    if let Some(cnvt) = KEYVAL_MAP.get(input).cloned() {
+        keyval_to_input_string(cnvt, state)
+    } else {
+        if state.is_empty() {
+            input.to_string()
+        } else {
+            keyval_to_input_string(input, state)
+        }
+    }
+}
+
+fn is_keyval_ignore(keyval_name: &String) -> bool {
+    keyval_name.contains("Shift") || keyval_name.contains("Alt") || keyval_name.contains("Control")
 }
 
 fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
     let keyval = ev.get_keyval();
+    let state = ev.get_state();
     if let Some(keyval_name) = gdk::keyval_name(keyval) {
-        UI.with(|ui_cell| {
-            let mut ui = ui_cell.borrow_mut();
-            let input = if keyval_name.starts_with("KP_") {
-                keyval_name.chars().skip(3).collect()
-            } else {
-                keyval_name
-            };
+        if !is_keyval_ignore(&keyval_name) {
+            UI.with(|ui_cell| {
+                let mut ui = ui_cell.borrow_mut();
+                let input = if keyval_name.starts_with("KP_") {
+                    keyval_name.chars().skip(3).collect()
+                } else {
+                    keyval_name
+                };
 
-            let converted_input: &str = if let Some(cnvt) = convert_keyval(&input) {
-                cnvt
-            } else {
-                &input
-            };
-            ui.nvim().input(converted_input).expect("Error run input command to nvim");
-        });
+                let converted_input = convert_keyval(&input, state);
+                println!("{}", converted_input);
+                ui.nvim().input(&converted_input).expect("Error run input command to nvim");
+            });
+        }
     }
     Inhibit(true)
 }
