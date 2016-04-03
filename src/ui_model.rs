@@ -22,6 +22,13 @@ impl Attrs {
             bold: false,
         }
     }
+
+    fn clear(&mut self) {
+        self.italic = false;
+        self.bold = false;
+        self.foreground = COLOR_WHITE;
+        self.background = COLOR_BLACK;
+    }
 }
 
 pub struct Cell {
@@ -39,6 +46,7 @@ impl Cell {
 
     fn clear(&mut self) {
         self.ch = ' ';
+        self.attrs.clear();
     }
 }
 
@@ -92,6 +100,19 @@ impl UiModel {
     pub fn clear(&mut self) {
         for row in 0..self.rows {
             for col in 0..self.columns {
+                self.model[row][col].clear();
+            }
+        }
+    }
+
+    pub fn eol_clear(&mut self) {
+        let (cur_row, cur_col, columns) = (self.cur_row, self.cur_col, self.columns);
+        self.clear_region(cur_row, cur_row, cur_col, columns - 1);
+    }
+
+    fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize) {
+        for row in top..bot + 1 {
+            for col in left..right + 1 {
                 self.model[row][col].clear();
             }
         }

@@ -77,6 +77,7 @@ impl Ui {
 
         let exit_image = Image::new_from_icon_name("application-exit", 50);
         let exit_btn = ToolButton::new(Some(&exit_image), None);
+        exit_btn.connect_clicked(|_| gtk::main_quit());
         button_bar.add(&exit_btn);
 
         grid.attach(&button_bar, 0, 0, 1, 1);
@@ -231,6 +232,10 @@ impl RedrawEvents for Ui {
         self.model.clear();
     }
 
+    fn on_eol_clear(&mut self) {
+        self.model.eol_clear();
+    }
+
     fn on_resize(&mut self, columns: u64, rows: u64) {
         self.model = UiModel::new(rows, columns);
     }
@@ -260,5 +265,5 @@ fn split_color(indexed_color: u64) -> Color {
     let r = ((indexed_color >> 16) & 0xff) as f64;
     let g = ((indexed_color >> 8) & 0xff) as f64;
     let b = (indexed_color & 0xff) as f64;
-    Color(255.0 / r, 255.0 / g, 255.0 / b)
+    Color(r / 255.0, g / 255.0, b / 255.0)
 }

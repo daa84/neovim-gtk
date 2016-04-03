@@ -21,6 +21,8 @@ pub trait RedrawEvents {
     fn on_redraw(&self);
 
     fn on_highlight_set(&mut self, attrs: &HashMap<String, Value>);
+
+    fn on_eol_clear(&mut self);
 }
 
 macro_rules! try_str {
@@ -128,6 +130,12 @@ fn call(method: &str, args: Vec<Value>) {
                 }
                 Ok(())
             });
+        }
+        "eol_clear" => {
+            safe_call(move |ui| {
+                ui.on_eol_clear();
+                Ok(())
+            })
         }
         _ => println!("Event {}({:?})", method, args),
     };

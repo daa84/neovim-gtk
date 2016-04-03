@@ -38,6 +38,7 @@ fn main() {
         .entry("less", "\"<\"")
         .entry("greater", "\">\"")
         .entry("comma", "\",\"")
+        .entry("colon", "\":\"")
         .entry("period", "\".\"")
         .entry("BackSpace", "\"BS\"")
         .entry("space", "\"space\"")
@@ -47,6 +48,7 @@ fn main() {
         .entry("Page_Up", "\"PageUp\"")
         .entry("Page_Down", "\"PageDown\"")
         .entry("Enter", "\"CR\"")
+        .entry("Tab", "\"Tab\"")
         .entry("ISO_Left_Tab", "\"Tab\"")
         .build(&mut file)
         .unwrap();
