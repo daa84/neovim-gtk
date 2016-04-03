@@ -31,6 +31,7 @@ impl Attrs {
     }
 }
 
+#[derive(Clone)]
 pub struct Cell {
     pub ch: char,
     pub attrs: Attrs,
@@ -56,6 +57,10 @@ pub struct UiModel {
     cur_row: usize,
     cur_col: usize,
     model: Vec<Vec<Cell>>,
+    top: usize,
+    bot: usize,
+    left: usize,
+    right: usize,
 }
 
 impl UiModel {
@@ -78,6 +83,10 @@ impl UiModel {
             cur_row: 0,
             cur_col: 0,
             model: model,
+            top: 0,
+            bot: 0,
+            left: 0,
+            right: 0,
         }
     }
 
@@ -97,12 +106,44 @@ impl UiModel {
         self.cur_col += 1;
     }
 
-    pub fn clear(&mut self) {
-        for row in 0..self.rows {
-            for col in 0..self.columns {
-                self.model[row][col].clear();
+    pub fn set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) {
+        self.top = top as usize;
+        self.bot = bot as usize;
+        self.left = left as usize;
+        self.right = right as usize;
+    }
+
+    fn copy_row(&mut self, row: usize, offset: i64, left: usize, right: usize) {
+        for col in left..right + 1 {
+                let from_row = (row as i64 + offset) as usize;
+                let from_cell = self.model[from_row][col].clone();
+                self.model[row][col] = from_cell;
+            }
+    }
+
+    pub fn scroll(&mut self, count: i64) {
+        let (top, bot, left, right) = (self.top as i64, self.bot as i64, self.left, self.right);
+
+        if count > 0 {
+            for row in top as usize..(bot - count + 1) as usize {
+                self.copy_row(row, count, left, right);
+            }
+        } else {
+            for row in ((top - count) as usize..(bot + 1) as usize).rev() {
+                self.copy_row(row, count, left, right);
             }
         }
+
+        if count > 0 {
+            self.clear_region((bot - count + 1) as usize, bot as usize, left, right);
+        } else {
+            self.clear_region(top as usize, (top - count - 1) as usize, left, right);
+        }
+    }
+
+    pub fn clear(&mut self) {
+        let (rows, columns) = (self.rows, self.columns);
+        self.clear_region(0, rows - 1, 0, columns - 1);
     }
 
     pub fn eol_clear(&mut self) {
@@ -111,9 +152,9 @@ impl UiModel {
     }
 
     fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize) {
-        for row in top..bot + 1 {
-            for col in left..right + 1 {
-                self.model[row][col].clear();
+        for row in &mut self.model[top..bot + 1] {
+            for cell in &mut row[left..right + 1] {
+                cell.clear();
             }
         }
     }

@@ -23,6 +23,10 @@ pub trait RedrawEvents {
     fn on_highlight_set(&mut self, attrs: &HashMap<String, Value>);
 
     fn on_eol_clear(&mut self);
+
+    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64);
+
+    fn on_scroll(&mut self, count: i64);
 }
 
 macro_rules! try_str {
@@ -33,9 +37,17 @@ macro_rules! try_str {
 }
 
 macro_rules! try_int {
+    ($expr:expr) => (match $expr {
+        Value::Integer(Integer::U64(val)) => val as i64,
+        Value::Integer(Integer::I64(val)) => val,
+        _ =>  return Err("Can't convert argument to int".to_owned())
+    })
+}
+
+macro_rules! try_uint {
     ($exp:expr) => (match $exp {
         Value::Integer(Integer::U64(val)) => val,
-        _ => return Err("Can't convert argument to int".to_owned())
+        _ => return Err("Can't convert argument to u64".to_owned())
     })
 }
 
@@ -93,7 +105,7 @@ fn call(method: &str, args: Vec<Value>) {
     match method {
         "cursor_goto" => {
             safe_call(move |ui| {
-                ui.on_cursor_goto(try_int!(args[0]), try_int!(args[1]));
+                ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1]));
                 Ok(())
             })
         }
@@ -111,19 +123,29 @@ fn call(method: &str, args: Vec<Value>) {
         }
         "resize" => {
             safe_call(move |ui| {
-                ui.on_resize(try_int!(args[0]), try_int!(args[1]));
+                ui.on_resize(try_uint!(args[0]), try_uint!(args[1]));
                 Ok(())
             });
         }
         "highlight_set" => {
             safe_call(move |ui| {
                 if let Value::Map(ref attrs) = args[0] {
-                    let attrs_map: HashMap<String, Value> = attrs.iter().map(|v| {
-                        match v {
-                            &(Value::String(ref key), ref value) => (key.clone(), value.clone()),
-                            _ => panic!("attribute key must be string"),
-                        }
-                    }).collect();
+                    let attrs_map: HashMap<String, Value> = attrs.iter()
+                                                                 .map(|v| {
+                                                                     match v {
+                                                                         &(Value::String(ref key),
+                                                                           ref value) => {
+                                                                             (key.clone(),
+                                                                              value.clone())
+                                                                         }
+                                                                         _ => {
+                                                                             panic!("attribute \
+                                                                                     key must be \
+                                                                                     string")
+                                                                         }
+                                                                     }
+                                                                 })
+                                                                 .collect();
                     ui.on_highlight_set(&attrs_map);
                 } else {
                     panic!("Supports only map value as argument");
@@ -136,6 +158,18 @@ fn call(method: &str, args: Vec<Value>) {
                 ui.on_eol_clear();
                 Ok(())
             })
+        }
+        "set_scroll_region" => {
+            safe_call(move |ui| { 
+                ui.on_set_scroll_region(try_uint!(args[0]), try_uint!(args[1]), try_uint!(args[2]), try_uint!(args[3]));
+                Ok(())
+            });
+        }
+        "scroll" => {
+            safe_call(move |ui| { 
+                ui.on_scroll(try_int!(args[0]));
+                Ok(())
+            });
         }
         _ => println!("Event {}({:?})", method, args),
     };

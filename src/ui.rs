@@ -244,6 +244,14 @@ impl RedrawEvents for Ui {
         self.drawing_area.queue_draw();
     }
 
+    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) {
+        self.model.set_scroll_region(top, bot, left, right);
+    }
+
+    fn on_scroll(&mut self, count: i64) {
+        self.model.scroll(count);
+    }
+
     fn on_highlight_set(&mut self, attrs: &HashMap<String, Value>) {
         let mut model_attrs = Attrs::new();
         if let Some(&Value::Integer(Integer::U64(fg))) = attrs.get("foreground") {
