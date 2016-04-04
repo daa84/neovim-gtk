@@ -9,6 +9,7 @@ extern crate phf;
 mod nvim;
 mod ui_model;
 mod ui;
+mod input;
 
 fn main() {
     gtk::init().expect("Failed to initialize GTK");
