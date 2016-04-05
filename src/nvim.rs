@@ -27,6 +27,10 @@ pub trait RedrawEvents {
     fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64);
 
     fn on_scroll(&mut self, count: i64);
+
+    fn on_update_bg(&mut self, bg: i64);
+
+    fn on_update_fg(&mut self, fg: i64);
 }
 
 macro_rules! try_str {
@@ -168,6 +172,18 @@ fn call(method: &str, args: Vec<Value>) {
         "scroll" => {
             safe_call(move |ui| { 
                 ui.on_scroll(try_int!(args[0]));
+                Ok(())
+            });
+        }
+        "update_bg" => {
+            safe_call(move |ui| { 
+                ui.on_update_bg(try_int!(args[0]));
+                Ok(())
+            });
+        }
+        "update_fg" => {
+            safe_call(move |ui| { 
+                ui.on_update_fg(try_int!(args[0]));
                 Ok(())
             });
         }

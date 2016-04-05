@@ -2,22 +2,22 @@
 #[derive(Clone)]
 pub struct Color(pub f64, pub f64, pub f64);
 
-const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);
-const COLOR_WHITE: Color = Color(1.0, 1.0, 1.0);
+pub const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);
+pub const COLOR_WHITE: Color = Color(1.0, 1.0, 1.0);
 
 #[derive(Clone)]
 pub struct Attrs {
     pub italic: bool,
     pub bold: bool,
-    pub foreground: Color,
-    pub background: Color,
+    pub foreground: Option<Color>,
+    pub background: Option<Color>,
 }
 
 impl Attrs {
     pub fn new() -> Attrs {
         Attrs {
-            foreground: COLOR_WHITE,
-            background: COLOR_BLACK,
+            foreground: None,
+            background: None,
             italic: false,
             bold: false,
         }
@@ -26,8 +26,8 @@ impl Attrs {
     fn clear(&mut self) {
         self.italic = false;
         self.bold = false;
-        self.foreground = COLOR_WHITE;
-        self.background = COLOR_BLACK;
+        self.foreground = None;
+        self.background = None;
     }
 }
 
