@@ -12,7 +12,9 @@ use cairo::enums::{FontWeight, FontSlant};
 use gtk;
 use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientation, Image};
-use gdk::EventKey;
+use gdk::{EventKey, EventConfigure};
+use glib;
+use glib_sys;
 use neovim_lib::{Neovim, NeovimApi};
 
 use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE};
@@ -44,6 +46,7 @@ pub struct Ui {
     fg_color: Color,
     line_height: Option<f64>,
     char_width: Option<f64>,
+    resize_timer: Option<u32>,
 }
 
 impl Ui {
@@ -57,6 +60,7 @@ impl Ui {
             fg_color: COLOR_WHITE,
             line_height: None,
             char_width: None,
+            resize_timer: None,
         }
     }
 
@@ -106,6 +110,7 @@ impl Ui {
             gtk::main_quit();
             Inhibit(false)
         });
+        self.drawing_area.connect_configure_event(gtk_configure_event);
     }
 }
 
@@ -116,7 +121,7 @@ fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
             ui.nvim().input(&input).expect("Error run input command to nvim");
         });
     }
-    Inhibit(true)
+    Inhibit(false)
 }
 
 fn calc_char_bounds(ctx: &cairo::Context) -> TextExtents {
@@ -140,7 +145,39 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
 
     });
 
-    Inhibit(true)
+    Inhibit(false)
+}
+
+fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> Inhibit {
+    UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+        let (width, height) = ev.get_size();
+
+        if let Some(timer) = ui.resize_timer {
+            unsafe { glib_sys::g_source_remove(timer) };
+        }
+        if let Some(line_height) = ui.line_height {
+            if let Some(char_width) = ui.char_width {
+
+                ui.resize_timer = Some(glib::timeout_add(250, move || {
+                    UI.with(|ui_cell| {
+                        let mut ui = ui_cell.borrow_mut();
+                        ui.resize_timer = None;
+
+                        let rows = (height as f64 / line_height).trunc() as usize;
+                        let columns = (width as f64 / char_width).trunc() as usize;
+                        if ui.model.rows != rows || ui.model.columns != columns {
+                            if let Err(err) = ui.nvim().ui_try_resize(columns as u64, rows as u64) {
+                                println!("Error trying resize nvim {}", err);
+                            }
+                        }
+                    });
+                    Continue(false)
+                }));
+            }
+        }
+    });
+    Inhibit(false)
 }
 
 fn draw(ui: &Ui, ctx: &cairo::Context) {

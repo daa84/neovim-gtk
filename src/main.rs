@@ -1,6 +1,7 @@
 extern crate gtk;
 extern crate gdk;
 extern crate glib;
+extern crate glib_sys;
 extern crate cairo;
 extern crate neovim_lib;
 extern crate rmp;
