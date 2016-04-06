@@ -23,7 +23,7 @@ use input::convert_key;
 #[cfg(target_os = "linux")]
 const FONT_NAME: &'static str = "Droid Sans Mono for Powerline";
 #[cfg(target_os = "windows")]
-const FONT_NAME: &'static str = "Liberation_Mono:h12:cANSI";
+const FONT_NAME: &'static str = "Droid Sans Mono";
 const FONT_SIZE: f64 = 16.0;
 
 thread_local!(pub static UI: RefCell<Ui> = {
@@ -42,6 +42,8 @@ pub struct Ui {
     cur_attrs: Option<Attrs>,
     bg_color: Color,
     fg_color: Color,
+    line_height: Option<f64>,
+    char_width: Option<f64>,
 }
 
 impl Ui {
@@ -53,6 +55,8 @@ impl Ui {
             cur_attrs: None,
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
+            line_height: None,
+            char_width: None,
         }
     }
 
@@ -116,81 +120,89 @@ fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
 }
 
 fn calc_char_bounds(ctx: &cairo::Context) -> TextExtents {
-    let font_face = cairo::FontFace::toy_create(FONT_NAME, FontSlant::Normal, FontWeight::Bold);
+    let font_face = cairo::FontFace::toy_create(FONT_NAME, FontSlant::Normal, FontWeight::Normal);
     ctx.set_font_size(FONT_SIZE);
     ctx.set_font_face(font_face);
     ctx.text_extents("A")
 }
 
 fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
-    let char_bounds = calc_char_bounds(ctx);
-    let font_extents = ctx.font_extents();
-
     UI.with(|ui_cell| {
-        let ui = ui_cell.borrow();
+        let mut ui = ui_cell.borrow_mut();
 
-        ctx.set_source_rgb(ui.bg_color.0, ui.bg_color.1, ui.bg_color.2);
-        ctx.paint();
+        let char_bounds = calc_char_bounds(ctx);
+        let font_extents = ctx.font_extents();
+        ui.line_height = Some(font_extents.height.round());
+        ui.char_width = Some(char_bounds.width.round());
 
-        let mut line_y = font_extents.height;
-        for line in ui.model.model() {
-            ctx.move_to(0.0, line_y - font_extents.descent);
-            for cell in line {
-                let slant = if cell.attrs.italic {
-                    FontSlant::Italic
-                } else {
-                    FontSlant::Normal
-                };
-
-                let weight = if cell.attrs.bold {
-                    FontWeight::Bold
-                } else {
-                    FontWeight::Normal
-                };
-
-                let font_face = cairo::FontFace::toy_create(FONT_NAME, slant, weight);
-                ctx.set_font_face(font_face);
-                ctx.set_font_size(FONT_SIZE);
-
-                let current_point = ctx.get_current_point();
-
-                if let Some(ref bg) = cell.attrs.background {
-                    ctx.set_source_rgb(bg.0, bg.1, bg.2);
-                    ctx.rectangle(current_point.0,
-                                  line_y - font_extents.height,
-                                  char_bounds.width,
-                                  font_extents.height);
-                    ctx.fill();
-
-                    ctx.move_to(current_point.0, current_point.1);
-                }
-                let fg = if let Some(ref fg) = cell.attrs.foreground {
-                    fg
-                }
-                else {
-                    &ui.fg_color
-                };
-                ctx.set_source_rgb(fg.0, fg.1, fg.2);
-                ctx.show_text(&cell.ch.to_string());
-                ctx.move_to(current_point.0 + char_bounds.width, current_point.1);
-            }
-            line_y += font_extents.height;
-        }
-
-        request_width(&drawing_area, &ui, font_extents.height, char_bounds.width);
+        draw(&*ui, ctx);
+        request_width(&drawing_area, &*ui);
 
     });
-
-
 
     Inhibit(true)
 }
 
-fn request_width(drawing_area: &DrawingArea, ui: &Ui, line_height: f64, char_width: f64) {
+fn draw(ui: &Ui, ctx: &cairo::Context) {
+    ctx.set_source_rgb(ui.bg_color.0, ui.bg_color.1, ui.bg_color.2);
+    ctx.paint();
+
+    let font_extents = ctx.font_extents();
+    let line_height = ui.line_height.unwrap();
+    let char_width = ui.char_width.unwrap();
+
+    let mut line_y = line_height;
+    for line in ui.model.model() {
+        ctx.move_to(0.0, line_y - font_extents.descent);
+        for cell in line {
+            let slant = if cell.attrs.italic {
+                FontSlant::Italic
+            } else {
+                FontSlant::Normal
+            };
+
+            let weight = if cell.attrs.bold {
+                FontWeight::Bold
+            } else {
+                FontWeight::Normal
+            };
+
+            let font_face = cairo::FontFace::toy_create(FONT_NAME, slant, weight);
+            ctx.set_font_face(font_face);
+            ctx.set_font_size(FONT_SIZE);
+
+            let current_point = ctx.get_current_point();
+
+            if let Some(ref bg) = cell.attrs.background {
+                ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                ctx.rectangle(current_point.0,
+                              line_y - line_height,
+                              char_width,
+                              line_height);
+                ctx.fill();
+
+                ctx.move_to(current_point.0, current_point.1);
+            }
+            let fg = if let Some(ref fg) = cell.attrs.foreground {
+                fg
+            }
+            else {
+                &ui.fg_color
+            };
+            ctx.set_source_rgb(fg.0, fg.1, fg.2);
+            ctx.show_text(&cell.ch.to_string());
+            ctx.move_to(current_point.0 + char_width, current_point.1);
+        }
+        line_y += line_height;
+    }
+
+}
+
+fn request_width(drawing_area: &DrawingArea, ui: &Ui) {
     let width = drawing_area.get_allocated_width();
     let height = drawing_area.get_allocated_height();
-    let request_height = (ui.model.rows as f64 * line_height) as i32;
-    let request_width = (ui.model.columns as f64 * char_width) as i32;
+    let request_height = (ui.model.rows as f64 * ui.line_height.unwrap()) as i32;
+    let request_width = (ui.model.columns as f64 * ui.char_width.unwrap()) as i32;
 
     if width != request_width || height != request_height {
         drawing_area.set_size_request(request_width, request_height);

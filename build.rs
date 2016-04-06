@@ -15,6 +15,8 @@ fn main() {
 
     write!(&mut file, "static KEYVAL_MAP: phf::Map<&'static str, &'static str> = ").unwrap();
     phf_codegen::Map::new()
+        .entry("Up", "\"Up\"")
+        .entry("Down", "\"Down\"")
         .entry("BackSpace", "\"BS\"")
         .entry("Return", "\"CR\"")
         .entry("Escape", "\"Esc\"")
