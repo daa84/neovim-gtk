@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::thread;
 use std::collections::HashMap;
-use std::mem;
 use std::string::String;
 
 use rmp::Value;
@@ -16,7 +15,7 @@ use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientat
 use gdk::EventKey;
 use neovim_lib::{Neovim, NeovimApi};
 
-use ui_model::{UiModel, Attrs, Color};
+use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE};
 use nvim::RedrawEvents;
 
 use input::convert_key;
@@ -41,6 +40,8 @@ pub struct Ui {
     nvim: Option<Neovim>,
     drawing_area: DrawingArea,
     cur_attrs: Option<Attrs>,
+    bg_color: Color,
+    fg_color: Color,
 }
 
 impl Ui {
@@ -50,6 +51,8 @@ impl Ui {
             drawing_area: DrawingArea::new(),
             nvim: None,
             cur_attrs: None,
+            bg_color: COLOR_BLACK,
+            fg_color: COLOR_WHITE,
         }
     }
 
@@ -120,15 +123,14 @@ fn calc_char_bounds(ctx: &cairo::Context) -> TextExtents {
 }
 
 fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
-    ctx.set_source_rgb(0.0, 0.0, 0.0);
-    ctx.paint();
-    ctx.set_source_rgb(1.0, 1.0, 1.0);
-
     let char_bounds = calc_char_bounds(ctx);
     let font_extents = ctx.font_extents();
 
     UI.with(|ui_cell| {
         let ui = ui_cell.borrow();
+
+        ctx.set_source_rgb(ui.bg_color.0, ui.bg_color.1, ui.bg_color.2);
+        ctx.paint();
 
         let mut line_y = font_extents.height;
         for line in ui.model.model() {
@@ -150,17 +152,24 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
                 ctx.set_font_face(font_face);
                 ctx.set_font_size(FONT_SIZE);
 
-                let bg = &cell.attrs.background;
-                ctx.set_source_rgb(bg.0, bg.1, bg.2);
                 let current_point = ctx.get_current_point();
-                ctx.rectangle(current_point.0,
-                              line_y - font_extents.height,
-                              char_bounds.width,
-                              font_extents.height);
-                ctx.fill();
 
-                ctx.move_to(current_point.0, current_point.1);
-                let fg = &cell.attrs.foreground;
+                if let Some(ref bg) = cell.attrs.background {
+                    ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                    ctx.rectangle(current_point.0,
+                                  line_y - font_extents.height,
+                                  char_bounds.width,
+                                  font_extents.height);
+                    ctx.fill();
+
+                    ctx.move_to(current_point.0, current_point.1);
+                }
+                let fg = if let Some(ref fg) = cell.attrs.foreground {
+                    fg
+                }
+                else {
+                    &ui.fg_color
+                };
                 ctx.set_source_rgb(fg.0, fg.1, fg.2);
                 ctx.show_text(&cell.ch.to_string());
                 ctx.move_to(current_point.0 + char_bounds.width, current_point.1);
@@ -224,18 +233,48 @@ impl RedrawEvents for Ui {
     fn on_highlight_set(&mut self, attrs: &HashMap<String, Value>) {
         let mut model_attrs = Attrs::new();
         if let Some(&Value::Integer(Integer::U64(fg))) = attrs.get("foreground") {
-            model_attrs.foreground = split_color(fg);
+            model_attrs.foreground = Some(split_color(fg));
         }
-        if let Some(&Value::Integer(Integer::U64(fg))) = attrs.get("background") {
-            model_attrs.background = split_color(fg);
+        if let Some(&Value::Integer(Integer::U64(bg))) = attrs.get("background") {
+            model_attrs.background = Some(split_color(bg));
         }
         if attrs.contains_key("reverse") {
-            mem::swap(&mut model_attrs.foreground, &mut model_attrs.background);
+            let fg = if let Some(ref fg) = model_attrs.foreground {
+                fg.clone()
+            } else {
+                self.fg_color.clone()
+            };
+            let bg = if let Some(ref bg) = model_attrs.background {
+                bg.clone()
+            } else {
+                self.bg_color.clone()
+            };
+            model_attrs.foreground = Some(bg);
+            model_attrs.background = Some(fg);
         }
         model_attrs.bold = attrs.contains_key("bold");
         model_attrs.italic = attrs.contains_key("italic");
         self.cur_attrs = Some(model_attrs);
     }
+
+    fn on_update_bg(&mut self, bg: i64) {
+        if bg >= 0 {
+            self.bg_color = split_color(bg as u64);
+        }
+        else {
+            self.bg_color = COLOR_BLACK;
+        }
+    }
+
+    fn on_update_fg(&mut self, fg: i64) {
+        if fg >= 0 {
+            self.fg_color = split_color(fg as u64);
+        }
+        else {
+            self.fg_color = COLOR_WHITE;
+        }
+    }
+
 }
 
 fn split_color(indexed_color: u64) -> Color {
