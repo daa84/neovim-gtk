@@ -64,7 +64,7 @@ pub fn initialize(ui: &mut Ui) -> Result<()> {
     };
     let nvim = Neovim::new(session);
     ui.set_nvim(nvim);
-    ui.model = UiModel::new(80, 24);
+    ui.model = UiModel::new(24, 80);
 
     let mut nvim = ui.nvim();
 
