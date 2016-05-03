@@ -220,8 +220,7 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
             }
             let fg = if let Some(ref fg) = cell.attrs.foreground {
                 fg
-            }
-            else {
+            } else {
                 &ui.fg_color
             };
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
@@ -313,8 +312,7 @@ impl RedrawEvents for Ui {
     fn on_update_bg(&mut self, bg: i64) {
         if bg >= 0 {
             self.bg_color = split_color(bg as u64);
-        }
-        else {
+        } else {
             self.bg_color = COLOR_BLACK;
         }
     }
@@ -322,12 +320,10 @@ impl RedrawEvents for Ui {
     fn on_update_fg(&mut self, fg: i64) {
         if fg >= 0 {
             self.fg_color = split_color(fg as u64);
-        }
-        else {
+        } else {
             self.fg_color = COLOR_WHITE;
         }
     }
-
 }
 
 fn split_color(indexed_color: u64) -> Color {

@@ -30,13 +30,14 @@ pub fn convert_key(ev: &EventKey) -> Option<String> {
             return Some(keyval_to_input_string(cnvt, state));
         }
     }
+
     if let Some(ch) = gdk::keyval_to_unicode(keyval) {
-        return Some(if !state.is_empty() {
+        Some(if !state.is_empty() {
             keyval_to_input_string(&ch.to_string(), state)
         } else {
             ch.to_string()
-        });
+        })
+    } else {
+        None
     }
-
-    None
 }
