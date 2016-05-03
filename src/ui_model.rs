@@ -95,8 +95,12 @@ impl UiModel {
     }
 
     pub fn set_cursor(&mut self, row: u64, col: u64) {
-        self.cur_col = col as usize;
         self.cur_row = row as usize;
+        self.cur_col = col as usize;
+    }
+
+    pub fn get_cursor(&self) -> (usize, usize) {
+        (self.cur_row, self.cur_col)
     }
 
     pub fn put(&mut self, text: &str, attrs: &Option<Attrs>) {

@@ -187,11 +187,12 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
     let font_extents = ctx.font_extents();
     let line_height = ui.line_height.unwrap();
     let char_width = ui.char_width.unwrap();
+    let (row, col) = ui.model.get_cursor();
 
     let mut line_y = line_height;
-    for line in ui.model.model() {
+    for (line_idx, line) in ui.model.model().iter().enumerate() {
         ctx.move_to(0.0, line_y - font_extents.descent);
-        for cell in line {
+        for (col_idx, cell) in line.iter().enumerate() {
             let slant = if cell.attrs.italic {
                 FontSlant::Italic
             } else {
@@ -220,11 +221,28 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
 
                 ctx.move_to(current_point.0, current_point.1);
             }
+
             let fg = if let Some(ref fg) = cell.attrs.foreground {
                 fg
             } else {
                 &ui.fg_color
             };
+
+            let bg = if let Some(ref bg) = cell.attrs.background {
+                bg
+            } else {
+                &ui.bg_color
+            };
+
+            if row == line_idx && col == col_idx {
+                ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.5);
+                ctx.rectangle(current_point.0,
+                              line_y - line_height,
+                              char_width,
+                              line_height);
+                ctx.fill();
+                ctx.move_to(current_point.0, current_point.1);
+            }
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
             ctx.show_text(&cell.ch.to_string());
             ctx.move_to(current_point.0 + char_width, current_point.1);
