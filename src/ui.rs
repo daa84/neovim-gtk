@@ -41,6 +41,7 @@ pub struct Ui {
     pub model: UiModel,
     nvim: Option<Neovim>,
     drawing_area: DrawingArea,
+    window: Window,
     cur_attrs: Option<Attrs>,
     bg_color: Color,
     fg_color: Color,
@@ -54,6 +55,7 @@ impl Ui {
         Ui {
             model: UiModel::empty(),
             drawing_area: DrawingArea::new(),
+            window: Window::new(WindowType::Toplevel),
             nvim: None,
             cur_attrs: None,
             bg_color: COLOR_BLACK,
@@ -73,9 +75,6 @@ impl Ui {
     }
 
     pub fn init(&mut self) {
-
-        let window = Window::new(WindowType::Toplevel);
-
         let grid = Grid::new();
 
         let button_bar = ButtonBox::new(Orientation::Horizontal);
@@ -103,10 +102,10 @@ impl Ui {
         grid.attach(&self.drawing_area, 0, 1, 1, 1);
         self.drawing_area.connect_draw(gtk_draw);
 
-        window.add(&grid);
-        window.show_all();
-        window.connect_key_press_event(gtk_key_press);
-        window.connect_delete_event(|_, _| {
+        self.window.add(&grid);
+        self.window.show_all();
+        self.window.connect_key_press_event(gtk_key_press);
+        self.window.connect_delete_event(|_, _| {
             gtk::main_quit();
             Inhibit(false)
         });
@@ -131,7 +130,7 @@ fn calc_char_bounds(ctx: &cairo::Context) -> TextExtents {
     ctx.text_extents("A")
 }
 
-fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
+fn gtk_draw(_: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
 
@@ -141,8 +140,7 @@ fn gtk_draw(drawing_area: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
         ui.char_width = Some(char_bounds.width.round());
 
         draw(&*ui, ctx);
-        request_width(&drawing_area, &*ui);
-
+        request_width(&*ui);
     });
 
     Inhibit(false)
@@ -235,14 +233,20 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
 
 }
 
-fn request_width(drawing_area: &DrawingArea, ui: &Ui) {
-    let width = drawing_area.get_allocated_width();
-    let height = drawing_area.get_allocated_height();
+fn request_width(ui: &Ui) {
+    if ui.resize_timer.is_some() {
+        return;
+    }
+
+    let width = ui.drawing_area.get_allocated_width();
+    let height = ui.drawing_area.get_allocated_height();
     let request_height = (ui.model.rows as f64 * ui.line_height.unwrap()) as i32;
     let request_width = (ui.model.columns as f64 * ui.char_width.unwrap()) as i32;
 
     if width != request_width || height != request_height {
-        drawing_area.set_size_request(request_width, request_height);
+        let h_border = ui.window.get_allocated_width() - width;
+        let v_border = ui.window.get_allocated_height() - height;
+        ui.window.resize(request_width + h_border, request_height + v_border);
     }
 }
 
