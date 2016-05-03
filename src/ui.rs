@@ -119,8 +119,10 @@ fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
             let mut ui = ui_cell.borrow_mut();
             ui.nvim().input(&input).expect("Error run input command to nvim");
         });
+        Inhibit(true)
+    } else {
+        Inhibit(false)
     }
-    Inhibit(false)
 }
 
 fn calc_char_bounds(ctx: &cairo::Context) -> TextExtents {
