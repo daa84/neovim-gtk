@@ -12,7 +12,7 @@ use cairo::enums::{FontWeight, FontSlant};
 use gtk;
 use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientation, Image};
-use gdk::{EventKey, EventConfigure};
+use gdk::{Event, EventKey, EventConfigure};
 use glib;
 use glib_sys;
 use neovim_lib::{Neovim, NeovimApi};
@@ -114,12 +114,20 @@ impl Ui {
         self.window.add(&grid);
         self.window.show_all();
         self.window.connect_key_press_event(gtk_key_press);
-        self.window.connect_delete_event(|_, _| {
-            gtk::main_quit();
-            Inhibit(false)
-        });
+        self.window.connect_delete_event(gtk_delete);
         self.drawing_area.connect_configure_event(gtk_configure_event);
     }
+}
+
+fn gtk_delete(_: &Window, _: &Event) -> Inhibit {
+    UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+        let nvim = ui.nvim();
+        nvim.ui_detach().expect("Error in ui_detach");
+        nvim.quit_no_save().expect("Can't stop nvim instance");
+    });
+    gtk::main_quit();
+    Inhibit(false)
 }
 
 fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
