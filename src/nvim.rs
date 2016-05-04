@@ -33,6 +33,10 @@ pub trait RedrawEvents {
     fn on_update_fg(&mut self, fg: i64);
 
     fn on_mode_change(&mut self, mode: &str);
+
+    fn on_mouse_on(&mut self);
+
+    fn on_mouse_off(&mut self);
 }
 
 macro_rules! try_str {
@@ -192,6 +196,18 @@ fn call(method: &str, args: Vec<Value>) {
         "mode_change" => {
             safe_call(move |ui| {
                 ui.on_mode_change(try_str!(args[0]));
+                Ok(())
+            });
+        }
+        "mouse_on" => {
+            safe_call(move |ui| {
+                ui.on_mouse_on();
+                Ok(())
+            });
+        }
+        "mouse_off" => {
+            safe_call(move |ui| {
+                ui.on_mouse_off();
                 Ok(())
             });
         }

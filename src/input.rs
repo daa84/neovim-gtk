@@ -6,7 +6,7 @@ use phf;
 include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
 
-fn keyval_to_input_string(val: &str, state: gdk::ModifierType) -> String {
+pub fn keyval_to_input_string(val: &str, state: gdk::ModifierType) -> String {
     let mut input = String::from("<");
     if state.contains(gdk::enums::modifier_type::ShiftMask) {
         input.push_str("S-");

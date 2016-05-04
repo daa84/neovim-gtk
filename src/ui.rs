@@ -12,7 +12,7 @@ use cairo::enums::{FontWeight, FontSlant};
 use gtk;
 use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientation, Image};
-use gdk::{Event, EventKey, EventConfigure};
+use gdk::{Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use glib;
 use glib_sys;
 use neovim_lib::{Neovim, NeovimApi};
@@ -20,7 +20,7 @@ use neovim_lib::{Neovim, NeovimApi};
 use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE};
 use nvim::RedrawEvents;
 
-use input::convert_key;
+use input::{convert_key, keyval_to_input_string};
 
 #[cfg(target_os = "linux")]
 const FONT_NAME: &'static str = "Droid Sans Mono for Powerline";
@@ -56,6 +56,7 @@ pub struct Ui {
     char_width: Option<f64>,
     resize_timer: Option<u32>,
     mode: NvimMode,
+    mouse_enabled: bool,
 }
 
 impl Ui {
@@ -72,6 +73,7 @@ impl Ui {
             char_width: None,
             resize_timer: None,
             mode: NvimMode::Insert,
+            mouse_enabled: false,
         }
     }
 
@@ -108,7 +110,12 @@ impl Ui {
         self.drawing_area.set_size_request(500, 300);
         self.drawing_area.set_hexpand(true);
         self.drawing_area.set_vexpand(true);
+
         grid.attach(&self.drawing_area, 0, 1, 1, 1);
+
+        self.drawing_area.connect_button_press_event(gtk_button_press);
+        self.drawing_area.connect_button_release_event(gtk_button_release);
+        self.drawing_area.connect_motion_notify_event(gtk_motion_notify);
         self.drawing_area.connect_draw(gtk_draw);
 
         self.window.add(&grid);
@@ -117,6 +124,46 @@ impl Ui {
         self.window.connect_delete_event(gtk_delete);
         self.drawing_area.connect_configure_event(gtk_configure_event);
     }
+}
+
+fn gtk_button_press(_: &DrawingArea, ev: &EventButton) -> Inhibit {
+    if ev.get_event_type() != EventType::ButtonPress {
+        return Inhibit(false);
+    }
+
+    UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+        if !ui.mouse_enabled {
+            return;
+        }
+
+        if let Some(line_height) = ui.line_height {
+            if let Some(char_width) = ui.char_width {
+                let nvim = ui.nvim();
+                let (x, y) = ev.get_position();
+                let col = (x / char_width).round() as u64;
+                let row = (y / line_height).round() as u64;
+                let input_str = format!("{}<{},{}>", keyval_to_input_string("LeftMouse", ev.get_state()), col ,row);
+                nvim.input(&input_str).expect("Can't send mouse input event");
+            }
+        }
+    });
+    Inhibit(false)
+}
+
+fn gtk_button_release(_: &DrawingArea, _: &EventButton) -> Inhibit {
+    UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+    });
+    Inhibit(false)
+}
+
+fn gtk_motion_notify(_: &DrawingArea, _: &EventMotion) -> Inhibit {
+    UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+        let nvim = ui.nvim();
+    });
+    Inhibit(false)
 }
 
 fn gtk_delete(_: &Window, _: &Event) -> Inhibit {
@@ -375,6 +422,14 @@ impl RedrawEvents for Ui {
             "insert" => self.mode = NvimMode::Insert,
             _ => self.mode = NvimMode::Other,
         }
+    }
+
+    fn on_mouse_on(&mut self) {
+        self.mouse_enabled = true;
+    }
+
+    fn on_mouse_off(&mut self) {
+        self.mouse_enabled = false;
     }
 }
 
