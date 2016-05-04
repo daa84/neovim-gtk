@@ -37,6 +37,13 @@ thread_local!(pub static UI: RefCell<Ui> = {
     RefCell::new(Ui::new())
 });
 
+#[derive(PartialEq)]
+enum NvimMode {
+    Normal,
+    Insert,
+    Other,
+}
+
 pub struct Ui {
     pub model: UiModel,
     nvim: Option<Neovim>,
@@ -48,6 +55,7 @@ pub struct Ui {
     line_height: Option<f64>,
     char_width: Option<f64>,
     resize_timer: Option<u32>,
+    mode: NvimMode,
 }
 
 impl Ui {
@@ -63,6 +71,7 @@ impl Ui {
             line_height: None,
             char_width: None,
             resize_timer: None,
+            mode: NvimMode::Insert,
         }
     }
 
@@ -236,9 +245,16 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
 
             if row == line_idx && col == col_idx {
                 ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.5);
+
+                let cursor_width = if ui.mode == NvimMode::Insert {
+                    char_width / 5.0
+                } else {
+                    char_width
+                };
+
                 ctx.rectangle(current_point.0,
                               line_y - line_height,
-                              char_width,
+                              cursor_width,
                               line_height);
                 ctx.fill();
                 ctx.move_to(current_point.0, current_point.1);
@@ -342,6 +358,14 @@ impl RedrawEvents for Ui {
             self.fg_color = split_color(fg as u64);
         } else {
             self.fg_color = COLOR_WHITE;
+        }
+    }
+
+    fn on_mode_change(&mut self, mode: &str) {
+        match mode {
+            "normal" => self.mode = NvimMode::Normal,
+            "insert" => self.mode = NvimMode::Insert,
+            _ => self.mode = NvimMode::Other,
         }
     }
 }

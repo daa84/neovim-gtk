@@ -31,6 +31,8 @@ pub trait RedrawEvents {
     fn on_update_bg(&mut self, bg: i64);
 
     fn on_update_fg(&mut self, fg: i64);
+
+    fn on_mode_change(&mut self, mode: &str);
 }
 
 macro_rules! try_str {
@@ -184,6 +186,12 @@ fn call(method: &str, args: Vec<Value>) {
         "update_fg" => {
             safe_call(move |ui| { 
                 ui.on_update_fg(try_int!(args[0]));
+                Ok(())
+            });
+        }
+        "mode_change" => {
+            safe_call(move |ui| {
+                ui.on_mode_change(try_str!(args[0]));
                 Ok(())
             });
         }
