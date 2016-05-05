@@ -143,8 +143,8 @@ fn gtk_button_press(_: &DrawingArea, ev: &EventButton) -> Inhibit {
             if let Some(char_width) = ui.char_width {
                 let nvim = ui.nvim();
                 let (x, y) = ev.get_position();
-                let col = (x / char_width).round() as u64;
-                let row = (y / line_height).round() as u64;
+                let col = (x / char_width).trunc() as u64;
+                let row = (y / line_height).trunc() as u64;
                 let input_str = format!("{}<{},{}>", keyval_to_input_string("LeftMouse", ev.get_state()), col ,row);
                 nvim.input(&input_str).expect("Can't send mouse input event");
             }
