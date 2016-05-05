@@ -105,7 +105,7 @@ impl Ui {
 
         let exit_image = Image::new_from_icon_name("application-exit", 50);
         let exit_btn = ToolButton::new(Some(&exit_image), None);
-        exit_btn.connect_clicked(|_| gtk::main_quit());
+        exit_btn.connect_clicked(|_| quit());
         button_bar.add(&exit_btn);
 
         grid.attach(&button_bar, 0, 0, 1, 1);
@@ -181,14 +181,18 @@ fn gtk_motion_notify(_: &DrawingArea, ev: &EventMotion) -> Inhibit {
     Inhibit(false)
 }
 
-fn gtk_delete(_: &Window, _: &Event) -> Inhibit {
+fn quit() {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
         let nvim = ui.nvim();
         nvim.ui_detach().expect("Error in ui_detach");
-        nvim.quit_no_save().expect("Can't stop nvim instance");
+        //nvim.quit_no_save().expect("Can't stop nvim instance");
     });
     gtk::main_quit();
+}
+
+fn gtk_delete(_: &Window, _: &Event) -> Inhibit {
+    quit();
     Inhibit(false)
 }
 
