@@ -12,7 +12,7 @@ use cairo::enums::{FontWeight, FontSlant};
 use gtk;
 use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientation, Image};
-use gdk::{Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
+use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use gdk_sys;
 use glib;
 use glib_sys;
@@ -58,6 +58,7 @@ pub struct Ui {
     resize_timer: Option<u32>,
     mode: NvimMode,
     mouse_enabled: bool,
+    mouse_pressed: bool,
 }
 
 impl Ui {
@@ -75,6 +76,7 @@ impl Ui {
             resize_timer: None,
             mode: NvimMode::Insert,
             mouse_enabled: false,
+            mouse_pressed: false,
         }
     }
 
@@ -114,7 +116,10 @@ impl Ui {
 
         grid.attach(&self.drawing_area, 0, 1, 1, 1);
 
-        self.drawing_area.set_events(gdk_sys::GDK_BUTTON_PRESS_MASK.bits() as i32);
+        self.drawing_area
+            .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
+                         gdk_sys::GDK_BUTTON_MOTION_MASK)
+                            .bits() as i32);
         self.drawing_area.connect_button_press_event(gtk_button_press);
         self.drawing_area.connect_button_release_event(gtk_button_release);
         self.drawing_area.connect_motion_notify_event(gtk_motion_notify);
@@ -139,31 +144,39 @@ fn gtk_button_press(_: &DrawingArea, ev: &EventButton) -> Inhibit {
             return;
         }
 
-        if let Some(line_height) = ui.line_height {
-            if let Some(char_width) = ui.char_width {
-                let nvim = ui.nvim();
-                let (x, y) = ev.get_position();
-                let col = (x / char_width).trunc() as u64;
-                let row = (y / line_height).trunc() as u64;
-                let input_str = format!("{}<{},{}>", keyval_to_input_string("LeftMouse", ev.get_state()), col ,row);
-                nvim.input(&input_str).expect("Can't send mouse input event");
-            }
-        }
+        mouse_input(&mut *ui, "LeftMouse", ev.get_state(), ev.get_position());
     });
     Inhibit(false)
+}
+
+fn mouse_input(ui: &mut Ui, input: &str, state: ModifierType, position: (f64, f64)) {
+    if let Some(line_height) = ui.line_height {
+        if let Some(char_width) = ui.char_width {
+            ui.mouse_pressed = true;
+
+            let nvim = ui.nvim();
+            let (x, y) = position;
+            let col = (x / char_width).trunc() as u64;
+            let row = (y / line_height).trunc() as u64;
+            let input_str = format!("{}<{},{}>", keyval_to_input_string(input, state), col, row);
+            nvim.input(&input_str).expect("Can't send mouse input event");
+        }
+    }
 }
 
 fn gtk_button_release(_: &DrawingArea, _: &EventButton) -> Inhibit {
-    UI.with(|ui_cell| {
-        let mut ui = ui_cell.borrow_mut();
-    });
+    UI.with(|ui_cell| ui_cell.borrow_mut().mouse_pressed = false);
     Inhibit(false)
 }
 
-fn gtk_motion_notify(_: &DrawingArea, _: &EventMotion) -> Inhibit {
+fn gtk_motion_notify(_: &DrawingArea, ev: &EventMotion) -> Inhibit {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
-        let nvim = ui.nvim();
+        if !ui.mouse_enabled || !ui.mouse_pressed {
+            return;
+        }
+
+        mouse_input(&mut *ui, "LeftDrag", ev.get_state(), ev.get_position());
     });
     Inhibit(false)
 }
