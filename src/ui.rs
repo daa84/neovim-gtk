@@ -13,6 +13,7 @@ use gtk;
 use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientation, Image};
 use gdk::{Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
+use gdk_sys;
 use glib;
 use glib_sys;
 use neovim_lib::{Neovim, NeovimApi};
@@ -113,6 +114,7 @@ impl Ui {
 
         grid.attach(&self.drawing_area, 0, 1, 1, 1);
 
+        self.drawing_area.set_events(gdk_sys::GDK_BUTTON_PRESS_MASK.bits() as i32);
         self.drawing_area.connect_button_press_event(gtk_button_press);
         self.drawing_area.connect_button_release_event(gtk_button_release);
         self.drawing_area.connect_motion_notify_event(gtk_motion_notify);
