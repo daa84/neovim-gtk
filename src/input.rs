@@ -8,13 +8,13 @@ include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
 pub fn keyval_to_input_string(val: &str, state: gdk::ModifierType) -> String {
     let mut input = String::from("<");
-    if state.contains(gdk::enums::modifier_type::ShiftMask) {
+    if state.contains(gdk::SHIFT_MASK) {
         input.push_str("S-");
     }
-    if state.contains(gdk::enums::modifier_type::ControlMask) {
+    if state.contains(gdk::CONTROL_MASK) {
         input.push_str("C-");
     }
-    if state.contains(gdk::enums::modifier_type::Mod1Mask) {
+    if state.contains(gdk::MOD1_MASK) {
         input.push_str("A-");
     }
     input.push_str(val);

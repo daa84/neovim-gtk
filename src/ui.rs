@@ -231,7 +231,7 @@ fn gtk_draw(_: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     Inhibit(false)
 }
 
-fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> Inhibit {
+fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
         let (width, height) = ev.get_size();
@@ -260,7 +260,7 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> Inhibit {
             }
         }
     });
-    Inhibit(false)
+    false
 }
 
 fn draw(ui: &Ui, ctx: &cairo::Context) {
