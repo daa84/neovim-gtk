@@ -116,7 +116,7 @@ impl Ui {
         self.drawing_area
             .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
                          gdk_sys::GDK_BUTTON_MOTION_MASK)
-                            .bits() as i32);
+                .bits() as i32);
         self.drawing_area.connect_button_press_event(gtk_button_press);
         self.drawing_area.connect_button_release_event(gtk_button_release);
         self.drawing_area.connect_motion_notify_event(gtk_motion_notify);

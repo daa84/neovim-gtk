@@ -75,7 +75,7 @@ pub fn initialize(ui: &mut Ui) -> Result<()> {
     nvim.session.start_event_loop_cb(move |m, p| nvim_cb(m, p));
     // fix neovim --embed bug to start embed mode
     nvim.input("i").unwrap();
-    try!(nvim.ui_attach(80, 24, true).map_err(|e| Error::new(ErrorKind::Other, e)));
+    nvim.ui_attach(80, 24, true).map_err(|e| Error::new(ErrorKind::Other, e))?;
 
     Ok(())
 }
@@ -139,21 +139,11 @@ fn call(method: &str, args: Vec<Value>) {
             safe_call(move |ui| {
                 if let Value::Map(ref attrs) = args[0] {
                     let attrs_map: HashMap<String, Value> = attrs.iter()
-                                                                 .map(|v| {
-                                                                     match v {
-                                                                         &(Value::String(ref key),
-                                                                           ref value) => {
-                                                                             (key.clone(),
-                                                                              value.clone())
-                                                                         }
-                                                                         _ => {
-                                                                             panic!("attribute \
-                                                                                     key must be \
-                                                                                     string")
-                                                                         }
-                                                                     }
-                                                                 })
-                                                                 .collect();
+                        .map(|v| match v {
+                            &(Value::String(ref key), ref value) => (key.clone(), value.clone()),
+                            _ => panic!("attribute key must be string"),
+                        })
+                        .collect();
                     ui.on_highlight_set(&attrs_map);
                 } else {
                     panic!("Supports only map value as argument");
@@ -168,25 +158,28 @@ fn call(method: &str, args: Vec<Value>) {
             })
         }
         "set_scroll_region" => {
-            safe_call(move |ui| { 
-                ui.on_set_scroll_region(try_uint!(args[0]), try_uint!(args[1]), try_uint!(args[2]), try_uint!(args[3]));
+            safe_call(move |ui| {
+                ui.on_set_scroll_region(try_uint!(args[0]),
+                                        try_uint!(args[1]),
+                                        try_uint!(args[2]),
+                                        try_uint!(args[3]));
                 Ok(())
             });
         }
         "scroll" => {
-            safe_call(move |ui| { 
+            safe_call(move |ui| {
                 ui.on_scroll(try_int!(args[0]));
                 Ok(())
             });
         }
         "update_bg" => {
-            safe_call(move |ui| { 
+            safe_call(move |ui| {
                 ui.on_update_bg(try_int!(args[0]));
                 Ok(())
             });
         }
         "update_fg" => {
-            safe_call(move |ui| { 
+            safe_call(move |ui| {
                 ui.on_update_fg(try_int!(args[0]));
                 Ok(())
             });
@@ -217,10 +210,8 @@ fn safe_call<F>(cb: F)
     where F: Fn(&mut Ui) -> result::Result<(), String> + 'static + Send
 {
     glib::idle_add(move || {
-        ui::UI.with(|ui_cell| {
-            if let Err(msg) = cb(&mut *ui_cell.borrow_mut()) {
-                println!("Error call function: {}", msg);
-            }
+        ui::UI.with(|ui_cell| if let Err(msg) = cb(&mut *ui_cell.borrow_mut()) {
+            println!("Error call function: {}", msg);
         });
         glib::Continue(false)
     });

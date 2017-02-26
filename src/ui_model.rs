@@ -119,10 +119,10 @@ impl UiModel {
 
     fn copy_row(&mut self, row: usize, offset: i64, left: usize, right: usize) {
         for col in left..right + 1 {
-                let from_row = (row as i64 + offset) as usize;
-                let from_cell = self.model[from_row][col].clone();
-                self.model[row][col] = from_cell;
-            }
+            let from_row = (row as i64 + offset) as usize;
+            let from_cell = self.model[from_row][col].clone();
+            self.model[row][col] = from_cell;
+        }
     }
 
     pub fn scroll(&mut self, count: i64) {

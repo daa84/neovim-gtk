@@ -25,7 +25,7 @@ fn main() {
         guard_dispatch_thread(&mut *ui);
     });
 
-    gtk::main();       
+    gtk::main();
 }
 
 fn guard_dispatch_thread(ui: &mut ui::Ui) {
