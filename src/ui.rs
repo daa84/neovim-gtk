@@ -3,9 +3,6 @@ use std::thread;
 use std::collections::HashMap;
 use std::string::String;
 
-use rmp::Value;
-use rmp::value::Integer;
-
 use cairo;
 use cairo::TextExtents;
 use cairo::enums::{FontWeight, FontSlant};
@@ -16,7 +13,7 @@ use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotio
 use gdk_sys;
 use glib;
 use glib_sys;
-use neovim_lib::{Neovim, NeovimApi};
+use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE};
 use nvim::RedrawEvents;
@@ -32,7 +29,7 @@ const FONT_SIZE: f64 = 16.0;
 thread_local!(pub static UI: RefCell<Ui> = {
     let thread = thread::current();
     let current_thread_name = thread.name();
-    if current_thread_name != Some("<main>") {
+    if current_thread_name != Some("main") {
         panic!("Can create UI  only from main thread, {:?}", current_thread_name);
     }
     RefCell::new(Ui::new())

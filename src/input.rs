@@ -7,7 +7,8 @@ include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
 
 pub fn keyval_to_input_string(val: &str, state: gdk::ModifierType) -> String {
-    let mut input = String::from("<");
+    let mut input = String::new();
+
     if state.contains(gdk::SHIFT_MASK) {
         input.push_str("S-");
     }
@@ -17,9 +18,14 @@ pub fn keyval_to_input_string(val: &str, state: gdk::ModifierType) -> String {
     if state.contains(gdk::MOD1_MASK) {
         input.push_str("A-");
     }
+
     input.push_str(val);
-    input.push_str(">");
-    input
+
+    if input.len() > 1 {
+        format!("<{}>", input)
+    } else {
+        input
+    }
 }
 
 pub fn convert_key(ev: &EventKey) -> Option<String> {

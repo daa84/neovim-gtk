@@ -1,10 +1,8 @@
-use neovim_lib::{Neovim, NeovimApi, Session};
+use neovim_lib::{Neovim, NeovimApi, Session, Value, Integer};
 use std::io::{Result, Error, ErrorKind};
 use std::result;
 use std::collections::HashMap;
 use ui_model::UiModel;
-use rmp::Value;
-use rmp::value::Integer;
 use ui;
 use ui::Ui;
 use glib;

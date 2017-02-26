@@ -10,9 +10,12 @@ glib = "0.1"
 glib-sys = "0.3"
 gdk = "0.5"
 gdk-sys = "0.3"
-neovim-lib = "^0.1.1"
-rmp = "0.7"
+#neovim-lib = "^0.1.1"
 phf = "0.7"
+
+[dependencies.neovim-lib]
+git = "https://github.com/daa84/neovim-lib"
+branch = "rmp-update"
 
 [build-dependencies]
 phf_codegen = "0.7"
