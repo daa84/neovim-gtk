@@ -8,7 +8,7 @@ use cairo::TextExtents;
 use cairo::enums::{FontWeight, FontSlant};
 use gtk;
 use gtk::prelude::*;
-use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, ButtonBox, Orientation, Image};
+use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, Image, Toolbar, IconSize};
 use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use gdk_sys;
 use glib;
@@ -88,9 +88,9 @@ impl Ui {
     pub fn init(&mut self) {
         let grid = Grid::new();
 
-        let button_bar = ButtonBox::new(Orientation::Horizontal);
+        let button_bar = Toolbar::new();
+        button_bar.set_icon_size(IconSize::SmallToolbar);
         button_bar.set_hexpand(true);
-        button_bar.set_layout(gtk::ButtonBoxStyle::Start);
 
         let open_image = Image::new_from_icon_name("document-open", 50);
         let open_btn = ToolButton::new(Some(&open_image), None);
