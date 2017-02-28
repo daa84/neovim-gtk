@@ -71,7 +71,7 @@ impl Ui {
             line_height: None,
             char_width: None,
             resize_timer: None,
-            mode: NvimMode::Insert,
+            mode: NvimMode::Normal,
             mouse_enabled: false,
             mouse_pressed: false,
         }

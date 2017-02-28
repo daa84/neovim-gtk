@@ -1,4 +1,4 @@
-use neovim_lib::{Neovim, NeovimApi, Session, Value, Integer};
+use neovim_lib::{Neovim, Session, Value, Integer};
 use std::io::{Result, Error, ErrorKind};
 use std::result;
 use std::collections::HashMap;
@@ -73,8 +73,6 @@ pub fn initialize(ui: &mut Ui) -> Result<()> {
     let mut nvim = ui.nvim();
 
     nvim.session.start_event_loop_cb(move |m, p| nvim_cb(m, p));
-    // fix neovim --embed bug to start embed mode
-    nvim.input("i").unwrap();
     nvim.ui_attach(80, 24, true).map_err(|e| Error::new(ErrorKind::Other, e))?;
 
     Ok(())
