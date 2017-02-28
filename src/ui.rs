@@ -23,8 +23,8 @@ use input::{convert_key, keyval_to_input_string};
 #[cfg(target_os = "linux")]
 const FONT_NAME: &'static str = "Droid Sans Mono for Powerline";
 #[cfg(target_os = "windows")]
-const FONT_NAME: &'static str = "Droid Sans Mono";
-const FONT_SIZE: f64 = 16.0;
+const FONT_NAME: &'static str = "DejaVu Sans Mono";
+const FONT_SIZE: f64 = 12.0;
 
 thread_local!(pub static UI: RefCell<Ui> = {
     let thread = thread::current();
