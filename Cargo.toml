@@ -6,6 +6,7 @@ build = "build.rs"
 
 [dependencies]
 cairo-rs = "0.1"
+pango = "0.1"
 pangocairo = "0.1"
 glib = "0.1"
 glib-sys = "0.3"

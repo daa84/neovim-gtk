@@ -2,8 +2,10 @@ extern crate gtk;
 extern crate gdk;
 extern crate gdk_sys;
 extern crate glib;
-extern crate glib_sys;
+//extern crate glib_sys;
 extern crate cairo;
+extern crate pango;
+extern crate pangocairo;
 extern crate neovim_lib;
 extern crate phf;
 

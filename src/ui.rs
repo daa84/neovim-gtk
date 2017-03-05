@@ -4,8 +4,9 @@ use std::collections::HashMap;
 use std::string::String;
 
 use cairo;
-use cairo::TextExtents;
-use cairo::enums::{FontWeight, FontSlant};
+use pangocairo as pc;
+use pango;
+use pango::FontDescription;
 use gtk;
 use gtk::prelude::*;
 use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, Image, Toolbar, IconSize};
@@ -20,10 +21,9 @@ use nvim::RedrawEvents;
 use input::{convert_key, keyval_to_input_string};
 
 #[cfg(target_os = "linux")]
-const FONT_NAME: &'static str = "Droid Sans Mono for Powerline";
+const FONT_NAME: &'static str = "Droid Sans Mono for Powerline 12";
 #[cfg(target_os = "windows")]
-const FONT_NAME: &'static str = "DejaVu Sans Mono";
-const FONT_SIZE: f64 = 12.0;
+const FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
 thread_local!(pub static UI: RefCell<Ui> = {
     let thread = thread::current();
@@ -204,21 +204,13 @@ fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
     }
 }
 
-fn calc_char_bounds(ctx: &cairo::Context) -> TextExtents {
-    let font_face = cairo::FontFace::toy_create(FONT_NAME, FontSlant::Normal, FontWeight::Normal);
-    ctx.set_font_size(FONT_SIZE);
-    ctx.set_font_face(font_face);
-    ctx.text_extents("A")
-}
-
 fn gtk_draw(_: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
 
-        let char_bounds = calc_char_bounds(ctx);
-        let font_extents = ctx.font_extents();
-        ui.line_height = Some(font_extents.height.round());
-        ui.char_width = Some(char_bounds.width.round());
+        let (width, height) = calc_char_bounds(ctx);
+        ui.line_height = Some(height as f64);
+        ui.char_width = Some(width as f64);
 
         draw(&*ui, ctx);
         request_width(&*ui);
@@ -259,43 +251,42 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
     false
 }
 
+fn font_description() -> FontDescription {
+    FontDescription::from_string(FONT_NAME)
+}
+
 fn draw(ui: &Ui, ctx: &cairo::Context) {
     ctx.set_source_rgb(ui.bg_color.0, ui.bg_color.1, ui.bg_color.2);
     ctx.paint();
 
-    let font_extents = ctx.font_extents();
     let line_height = ui.line_height.unwrap();
     let char_width = ui.char_width.unwrap();
     let (row, col) = ui.model.get_cursor();
 
-    let mut line_y = line_height;
+    let mut line_y: f64 = 0.0;
+
+
+    let layout = pc::create_layout(ctx);
+
     for (line_idx, line) in ui.model.model().iter().enumerate() {
-        ctx.move_to(0.0, line_y - font_extents.descent);
+        ctx.move_to(0.0, line_y);
         for (col_idx, cell) in line.iter().enumerate() {
-            let slant = if cell.attrs.italic {
-                FontSlant::Italic
-            } else {
-                FontSlant::Normal
-            };
+            let mut desc = font_description();
+            if cell.attrs.italic {
+                desc.set_style(pango::Style::Italic);
+            }
+            if cell.attrs.bold {
+                desc.set_weight(pango::Weight::Bold);
+            }
+            layout.set_font_description(Some(&desc));
+            layout.set_text(&cell.ch.to_string(), -1);
 
-            let weight = if cell.attrs.bold {
-                FontWeight::Bold
-            } else {
-                FontWeight::Normal
-            };
-
-            let font_face = cairo::FontFace::toy_create(FONT_NAME, slant, weight);
-            ctx.set_font_face(font_face);
-            ctx.set_font_size(FONT_SIZE);
 
             let current_point = ctx.get_current_point();
 
             if let Some(ref bg) = cell.attrs.background {
                 ctx.set_source_rgb(bg.0, bg.1, bg.2);
-                ctx.rectangle(current_point.0,
-                              line_y - line_height,
-                              char_width,
-                              line_height);
+                ctx.rectangle(current_point.0, line_y, char_width, line_height);
                 ctx.fill();
 
                 ctx.move_to(current_point.0, current_point.1);
@@ -322,20 +313,32 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
                     char_width
                 };
 
-                ctx.rectangle(current_point.0,
-                              line_y - line_height,
-                              cursor_width,
-                              line_height);
+                ctx.rectangle(current_point.0, line_y, cursor_width, line_height);
                 ctx.fill();
                 ctx.move_to(current_point.0, current_point.1);
             }
+
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
-            ctx.show_text(&cell.ch.to_string());
+            pc::update_layout(ctx, &layout);
+            pc::show_layout(ctx, &layout);
             ctx.move_to(current_point.0 + char_width, current_point.1);
         }
+
         line_y += line_height;
     }
 
+
+}
+
+fn calc_char_bounds(ctx: &cairo::Context) -> (i32, i32) {
+    let layout = pc::create_layout(ctx);
+
+    let desc = font_description();
+    layout.set_font_description(Some(&desc));
+    layout.set_text("A", -1);
+
+
+    layout.get_pixel_size()
 }
 
 fn request_width(ui: &Ui) {
