@@ -12,7 +12,6 @@ use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, Image, Toolbar, Ico
 use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use gdk_sys;
 use glib;
-use glib_sys;
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE};
@@ -52,7 +51,7 @@ pub struct Ui {
     fg_color: Color,
     line_height: Option<f64>,
     char_width: Option<f64>,
-    resize_timer: Option<u32>,
+    resize_timer: Option<glib::SourceId>,
     mode: NvimMode,
     mouse_enabled: bool,
     mouse_pressed: bool,
@@ -234,7 +233,7 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
         let (width, height) = ev.get_size();
 
         if let Some(timer) = ui.resize_timer {
-            unsafe { glib_sys::g_source_remove(timer) };
+            glib::source_remove(timer);
         }
         if let Some(line_height) = ui.line_height {
             if let Some(char_width) = ui.char_width {

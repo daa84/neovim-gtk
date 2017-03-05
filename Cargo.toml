@@ -6,6 +6,7 @@ build = "build.rs"
 
 [dependencies]
 cairo-rs = "0.1"
+pangocairo = "0.1"
 glib = "0.1"
 glib-sys = "0.3"
 gdk = "0.5"
@@ -15,7 +16,6 @@ phf = "0.7"
 
 [dependencies.neovim-lib]
 git = "https://github.com/daa84/neovim-lib"
-branch = "rmp-update"
 
 [build-dependencies]
 phf_codegen = "0.7"
