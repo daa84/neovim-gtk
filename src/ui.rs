@@ -337,7 +337,6 @@ fn calc_char_bounds(ctx: &cairo::Context) -> (i32, i32) {
     layout.set_font_description(Some(&desc));
     layout.set_text("A", -1);
 
-
     layout.get_pixel_size()
 }
 
@@ -352,8 +351,9 @@ fn request_width(ui: &Ui) {
     let request_width = (ui.model.columns as f64 * ui.char_width.unwrap()) as i32;
 
     if width != request_width || height != request_height {
-        let h_border = ui.window.get_allocated_width() - width;
-        let v_border = ui.window.get_allocated_height() - height;
+        let (win_width, win_height) = ui.window.get_size();
+        let h_border = win_width - width;
+        let v_border = win_height - height;
         ui.window.resize(request_width + h_border, request_height + v_border);
     }
 }
