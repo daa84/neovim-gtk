@@ -5,6 +5,7 @@ dependencies = [
  "cairo-rs 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "gdk 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "gdk-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gio 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",

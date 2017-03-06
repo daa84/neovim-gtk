@@ -9,7 +9,7 @@ use pango;
 use pango::FontDescription;
 use gtk;
 use gtk::prelude::*;
-use gtk::{Window, WindowType, DrawingArea, Grid, ToolButton, Image, Toolbar, IconSize};
+use gtk::{ApplicationWindow, DrawingArea, Grid, ToolButton, Image, Toolbar, IconSize};
 use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use gdk_sys;
 use glib;
@@ -45,7 +45,7 @@ pub struct Ui {
     pub model: UiModel,
     nvim: Option<Neovim>,
     drawing_area: DrawingArea,
-    window: Window,
+    window: Option<ApplicationWindow>,
     cur_attrs: Option<Attrs>,
     bg_color: Color,
     fg_color: Color,
@@ -62,7 +62,7 @@ impl Ui {
         Ui {
             model: UiModel::empty(),
             drawing_area: DrawingArea::new(),
-            window: Window::new(WindowType::Toplevel),
+            window: None,
             nvim: None,
             cur_attrs: None,
             bg_color: COLOR_BLACK,
@@ -84,7 +84,11 @@ impl Ui {
         self.nvim.as_mut().unwrap()
     }
 
-    pub fn init(&mut self) {
+    pub fn destroy(&self) {
+        self.window.as_ref().unwrap().destroy();
+    }
+
+    pub fn init(&mut self, app: &gtk::Application) {
         let grid = Grid::new();
 
         let button_bar = Toolbar::new();
@@ -121,10 +125,13 @@ impl Ui {
         self.drawing_area.connect_motion_notify_event(gtk_motion_notify);
         self.drawing_area.connect_draw(gtk_draw);
 
-        self.window.add(&grid);
-        self.window.show_all();
-        self.window.connect_key_press_event(gtk_key_press);
-        self.window.connect_delete_event(gtk_delete);
+        self.window = Some(ApplicationWindow::new(app));
+        let window = self.window.as_ref().unwrap();
+
+        window.add(&grid);
+        window.show_all();
+        window.connect_key_press_event(gtk_key_press);
+        window.connect_delete_event(gtk_delete);
         self.drawing_area.connect_configure_event(gtk_configure_event);
     }
 }
@@ -180,19 +187,20 @@ fn gtk_motion_notify(_: &DrawingArea, ev: &EventMotion) -> Inhibit {
 fn quit() {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
+        ui.destroy();
+
         let nvim = ui.nvim();
         nvim.ui_detach().expect("Error in ui_detach");
         //nvim.quit_no_save().expect("Can't stop nvim instance");
     });
-    gtk::main_quit();
 }
 
-fn gtk_delete(_: &Window, _: &Event) -> Inhibit {
+fn gtk_delete(_: &ApplicationWindow, _: &Event) -> Inhibit {
     quit();
     Inhibit(false)
 }
 
-fn gtk_key_press(_: &Window, ev: &EventKey) -> Inhibit {
+fn gtk_key_press(_: &ApplicationWindow, ev: &EventKey) -> Inhibit {
     if let Some(input) = convert_key(ev) {
         UI.with(|ui_cell| {
             let mut ui = ui_cell.borrow_mut();
@@ -351,10 +359,11 @@ fn request_width(ui: &Ui) {
     let request_width = (ui.model.columns as f64 * ui.char_width.unwrap()) as i32;
 
     if width != request_width || height != request_height {
-        let (win_width, win_height) = ui.window.get_size();
+        let window = ui.window.as_ref().unwrap();
+        let (win_width, win_height) = window.get_size();
         let h_border = win_width - width;
         let v_border = win_height - height;
-        ui.window.resize(request_width + h_border, request_height + v_border);
+        window.resize(request_width + h_border, request_height + v_border);
     }
 }
 
