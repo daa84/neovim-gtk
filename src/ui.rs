@@ -132,6 +132,7 @@ impl Ui {
         window.show_all();
         window.connect_key_press_event(gtk_key_press);
         window.connect_delete_event(gtk_delete);
+        window.set_title("Neovim-gtk");
         self.drawing_area.connect_configure_event(gtk_configure_event);
     }
 }
@@ -270,6 +271,7 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
     let line_height = ui.line_height.unwrap();
     let char_width = ui.char_width.unwrap();
     let (row, col) = ui.model.get_cursor();
+    let mut buf = String::with_capacity(4);
 
     let mut line_y: f64 = 0.0;
 
@@ -279,16 +281,6 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
     for (line_idx, line) in ui.model.model().iter().enumerate() {
         ctx.move_to(0.0, line_y);
         for (col_idx, cell) in line.iter().enumerate() {
-            let mut desc = font_description();
-            if cell.attrs.italic {
-                desc.set_style(pango::Style::Italic);
-            }
-            if cell.attrs.bold {
-                desc.set_weight(pango::Weight::Bold);
-            }
-            layout.set_font_description(Some(&desc));
-            layout.set_text(&cell.ch.to_string(), -1);
-
 
             let current_point = ctx.get_current_point();
 
@@ -326,9 +318,25 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
                 ctx.move_to(current_point.0, current_point.1);
             }
 
-            ctx.set_source_rgb(fg.0, fg.1, fg.2);
-            pc::update_layout(ctx, &layout);
-            pc::show_layout(ctx, &layout);
+            if !cell.ch.is_whitespace() {
+                let mut desc = font_description();
+                if cell.attrs.italic {
+                    desc.set_style(pango::Style::Italic);
+                }
+                if cell.attrs.bold {
+                    desc.set_weight(pango::Weight::Bold);
+                }
+
+                layout.set_font_description(Some(&desc));
+                buf.clear();
+                buf.push(cell.ch);
+                layout.set_text(&buf, -1);
+
+                ctx.set_source_rgb(fg.0, fg.1, fg.2);
+                pc::update_layout(ctx, &layout);
+                pc::show_layout(ctx, &layout);
+            }
+
             ctx.move_to(current_point.0 + char_width, current_point.1);
         }
 
