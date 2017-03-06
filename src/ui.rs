@@ -16,7 +16,7 @@ use glib;
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE};
-use nvim::RedrawEvents;
+use nvim::{RedrawEvents, GuiApi};
 
 use input::{convert_key, keyval_to_input_string};
 
@@ -55,6 +55,7 @@ pub struct Ui {
     mode: NvimMode,
     mouse_enabled: bool,
     mouse_pressed: bool,
+    font_desc: String,
 }
 
 impl Ui {
@@ -73,6 +74,7 @@ impl Ui {
             mode: NvimMode::Normal,
             mouse_enabled: false,
             mouse_pressed: false,
+            font_desc: FONT_NAME.to_owned(),
         }
     }
 
@@ -134,6 +136,14 @@ impl Ui {
         window.connect_delete_event(gtk_delete);
         window.set_title("Neovim-gtk");
         self.drawing_area.connect_configure_event(gtk_configure_event);
+    }
+
+    fn create_pango_font(&self) -> FontDescription {
+        FontDescription::from_string(&self.font_desc)
+    }
+
+    fn set_font_desc(&mut self, desc: &str) {
+        self.font_desc = desc.to_owned();
     }
 }
 
@@ -217,7 +227,7 @@ fn gtk_draw(_: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
 
-        let (width, height) = calc_char_bounds(ctx);
+        let (width, height) = calc_char_bounds(&*ui, ctx);
         ui.line_height = Some(height as f64);
         ui.char_width = Some(width as f64);
 
@@ -258,10 +268,6 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
         }
     });
     false
-}
-
-fn font_description() -> FontDescription {
-    FontDescription::from_string(FONT_NAME)
 }
 
 fn draw(ui: &Ui, ctx: &cairo::Context) {
@@ -319,7 +325,7 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
             }
 
             if !cell.ch.is_whitespace() {
-                let mut desc = font_description();
+                let mut desc = ui.create_pango_font();
                 if cell.attrs.italic {
                     desc.set_style(pango::Style::Italic);
                 }
@@ -346,10 +352,10 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
 
 }
 
-fn calc_char_bounds(ctx: &cairo::Context) -> (i32, i32) {
+fn calc_char_bounds(ui: &Ui, ctx: &cairo::Context) -> (i32, i32) {
     let layout = pc::create_layout(ctx);
 
-    let desc = font_description();
+    let desc = ui.create_pango_font();
     layout.set_font_description(Some(&desc));
     layout.set_text("A", -1);
 
@@ -373,6 +379,12 @@ fn request_width(ui: &Ui) {
         let v_border = win_height - height;
         window.resize(request_width + h_border, request_height + v_border);
     }
+}
+
+impl GuiApi for Ui {
+   fn set_font(&mut self, font_desc: &str) {
+       self.set_font_desc(font_desc);
+   } 
 }
 
 impl RedrawEvents for Ui {

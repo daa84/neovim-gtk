@@ -37,6 +37,10 @@ pub trait RedrawEvents {
     fn on_mouse_off(&mut self);
 }
 
+pub trait GuiApi {
+    fn set_font(&mut self, font_desc: &str);
+}
+
 macro_rules! try_str {
     ($exp:expr) => (match $exp {
         Value::String(ref val) => val,
@@ -79,129 +83,97 @@ pub fn initialize(ui: &mut Ui) -> Result<()> {
 }
 
 fn nvim_cb(method: &str, params: Vec<Value>) {
-    if method == "redraw" {
-        for ev in params {
-            if let Value::Array(ev_args) = ev {
-                if let Value::String(ref ev_name) = ev_args[0] {
-                    for ref local_args in ev_args.iter().skip(1) {
-                        let args = match *local_args {
-                            &Value::Array(ref ar) => ar.clone(),
-                            _ => vec![],
-                        };
-                        call(ev_name, args);
+    match method {
+        "redraw" => {
+            safe_call(move |ui| {
+                for ev in &params {
+                    if let &Value::Array(ref ev_args) = ev {
+                        if let Value::String(ref ev_name) = ev_args[0] {
+                            for ref local_args in ev_args.iter().skip(1) {
+                                let args = match *local_args {
+                                    &Value::Array(ref ar) => ar.clone(),
+                                    _ => vec![],
+                                };
+                                call(ui, ev_name, &args)?;
+                            }
+                        } else {
+                            println!("Unsupported event {:?}", ev_args);
+                        }
+                    } else {
+                        println!("Unsupported event type {:?}", ev);
                     }
+                }
+
+                ui.on_redraw();
+                Ok(())
+            });
+        }
+        "Gui" => {
+            if params.len() > 0 {
+                if let Value::String(ev_name) = params[0].clone() {
+                    let args = params.iter().skip(1).cloned().collect();
+                    safe_call(move |ui| {
+                        call_gui_event(ui, &ev_name, &args)?;
+                        ui.on_redraw();
+                        Ok(())
+                    });
                 } else {
-                    println!("Unsupported event {:?}", ev_args);
+                    println!("Unsupported event {:?}", params);
                 }
             } else {
-                println!("Unsupported event type {:?}", ev);
+                println!("Unsupported event {:?}", params);
             }
         }
-
-        safe_call(move |ui| {
-            ui.on_redraw();
-            Ok(())
-        });
-    } else {
-        println!("Notification {}", method);
+        _ => {
+            println!("Notification {}({:?})", method, params);
+        }
     }
 }
 
-fn call(method: &str, args: Vec<Value>) {
+fn call_gui_event(ui: &mut Ui, method: &str, args: &Vec<Value>) -> result::Result<(), String> {
     match method {
-        "cursor_goto" => {
-            safe_call(move |ui| {
-                ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1]));
-                Ok(())
-            })
-        }
-        "put" => {
-            safe_call(move |ui| {
-                ui.on_put(try_str!(args[0]));
-                Ok(())
-            })
-        }
-        "clear" => {
-            safe_call(move |ui| {
-                ui.on_clear();
-                Ok(())
-            })
-        }
-        "resize" => {
-            safe_call(move |ui| {
-                ui.on_resize(try_uint!(args[0]), try_uint!(args[1]));
-                Ok(())
-            });
-        }
+        "Font" => ui.set_font(try_str!(args[0])),
+        _ => return Err(format!("Unsupported event {}({:?})", method, args)),
+    }
+    Ok(())
+}
+
+fn call(ui: &mut Ui, method: &str, args: &Vec<Value>) -> result::Result<(), String> {
+    match method {
+        "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
+        "put" => ui.on_put(try_str!(args[0])),
+        "clear" => ui.on_clear(),
+        "resize" => ui.on_resize(try_uint!(args[0]), try_uint!(args[1])),
         "highlight_set" => {
-            safe_call(move |ui| {
-                if let Value::Map(ref attrs) = args[0] {
-                    let attrs_map: HashMap<String, Value> = attrs.iter()
-                        .map(|v| match v {
-                            &(Value::String(ref key), ref value) => (key.clone(), value.clone()),
-                            _ => panic!("attribute key must be string"),
-                        })
-                        .collect();
-                    ui.on_highlight_set(&attrs_map);
-                } else {
-                    panic!("Supports only map value as argument");
-                }
-                Ok(())
-            });
+            if let Value::Map(ref attrs) = args[0] {
+                let attrs_map: HashMap<String, Value> = attrs.iter()
+                    .map(|v| match v {
+                        &(Value::String(ref key), ref value) => (key.clone(), value.clone()),
+                        _ => panic!("attribute key must be string"),
+                    })
+                    .collect();
+                ui.on_highlight_set(&attrs_map);
+            } else {
+                panic!("Supports only map value as argument");
+            }
         }
-        "eol_clear" => {
-            safe_call(move |ui| {
-                ui.on_eol_clear();
-                Ok(())
-            })
-        }
+        "eol_clear" => ui.on_eol_clear(),
         "set_scroll_region" => {
-            safe_call(move |ui| {
-                ui.on_set_scroll_region(try_uint!(args[0]),
-                                        try_uint!(args[1]),
-                                        try_uint!(args[2]),
-                                        try_uint!(args[3]));
-                Ok(())
-            });
+            ui.on_set_scroll_region(try_uint!(args[0]),
+                                    try_uint!(args[1]),
+                                    try_uint!(args[2]),
+                                    try_uint!(args[3]));
         }
-        "scroll" => {
-            safe_call(move |ui| {
-                ui.on_scroll(try_int!(args[0]));
-                Ok(())
-            });
-        }
-        "update_bg" => {
-            safe_call(move |ui| {
-                ui.on_update_bg(try_int!(args[0]));
-                Ok(())
-            });
-        }
-        "update_fg" => {
-            safe_call(move |ui| {
-                ui.on_update_fg(try_int!(args[0]));
-                Ok(())
-            });
-        }
-        "mode_change" => {
-            safe_call(move |ui| {
-                ui.on_mode_change(try_str!(args[0]));
-                Ok(())
-            });
-        }
-        "mouse_on" => {
-            safe_call(move |ui| {
-                ui.on_mouse_on();
-                Ok(())
-            });
-        }
-        "mouse_off" => {
-            safe_call(move |ui| {
-                ui.on_mouse_off();
-                Ok(())
-            });
-        }
+        "scroll" => ui.on_scroll(try_int!(args[0])),
+        "update_bg" => ui.on_update_bg(try_int!(args[0])),
+        "update_fg" => ui.on_update_fg(try_int!(args[0])),
+        "mode_change" => ui.on_mode_change(try_str!(args[0])),
+        "mouse_on" => ui.on_mouse_on(),
+        "mouse_off" => ui.on_mouse_off(),
         _ => println!("Event {}({:?})", method, args),
     };
+
+    Ok(())
 }
 
 fn safe_call<F>(cb: F)
