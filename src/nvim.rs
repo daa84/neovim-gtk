@@ -1,4 +1,4 @@
-use neovim_lib::{Neovim, Session, Value, Integer};
+use neovim_lib::{Neovim, NeovimApi, Session, Value, Integer};
 use std::io::{Result, Error, ErrorKind};
 use std::result;
 use std::collections::HashMap;
@@ -78,6 +78,7 @@ pub fn initialize(ui: &mut Ui) -> Result<()> {
 
     nvim.session.start_event_loop_cb(move |m, p| nvim_cb(m, p));
     nvim.ui_attach(80, 24, true).map_err(|e| Error::new(ErrorKind::Other, e))?;
+    nvim.command("runtime! ginit.vim").map_err(|e| Error::new(ErrorKind::Other, e))?;
 
     Ok(())
 }
