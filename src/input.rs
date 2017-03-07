@@ -10,7 +10,9 @@ pub fn keyval_to_input_string(val: &str, state: gdk::ModifierType) -> String {
     let mut input = String::new();
 
     if state.contains(gdk::SHIFT_MASK) {
-        input.push_str("S-");
+        if val != "\"" {
+            input.push_str("S-");
+        }
     }
     if state.contains(gdk::CONTROL_MASK) {
         input.push_str("C-");

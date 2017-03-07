@@ -9,7 +9,7 @@ use pango;
 use pango::FontDescription;
 use gtk;
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, DrawingArea, Grid, ToolButton, Image, Toolbar, IconSize};
+use gtk::{ApplicationWindow, HeaderBar, DrawingArea, ToolButton, Image};
 use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use gdk_sys;
 use glib;
@@ -46,6 +46,7 @@ pub struct Ui {
     nvim: Option<Neovim>,
     drawing_area: DrawingArea,
     window: Option<ApplicationWindow>,
+    header_bar: HeaderBar,
     cur_attrs: Option<Attrs>,
     bg_color: Color,
     fg_color: Color,
@@ -64,6 +65,7 @@ impl Ui {
             model: UiModel::empty(),
             drawing_area: DrawingArea::new(),
             window: None,
+            header_bar: HeaderBar::new(),
             nvim: None,
             cur_attrs: None,
             bg_color: COLOR_BLACK,
@@ -91,29 +93,22 @@ impl Ui {
     }
 
     pub fn init(&mut self, app: &gtk::Application) {
-        let grid = Grid::new();
-
-        let button_bar = Toolbar::new();
-        button_bar.set_icon_size(IconSize::SmallToolbar);
-        button_bar.set_hexpand(true);
+        self.header_bar.set_show_close_button(true);
 
         let save_image = Image::new_from_icon_name("document-save", 50);
         let save_btn = ToolButton::new(Some(&save_image), None);
-        save_btn.connect_clicked(|_| save_all());
-        button_bar.add(&save_btn);
+        save_btn.connect_clicked(|_| edit_save_all());
+        self.header_bar.pack_start(&save_btn);
 
-        let exit_image = Image::new_from_icon_name("application-exit", 50);
-        let exit_btn = ToolButton::new(Some(&exit_image), None);
-        exit_btn.connect_clicked(|_| quit());
-        button_bar.add(&exit_btn);
+        let paste_image = Image::new_from_icon_name("edit-paste", 50);
+        let paste_btn = ToolButton::new(Some(&paste_image), None);
+        paste_btn.connect_clicked(|_| edit_paste());
+        self.header_bar.pack_start(&paste_btn);
 
-        grid.attach(&button_bar, 0, 0, 1, 1);
 
         self.drawing_area.set_size_request(500, 300);
         self.drawing_area.set_hexpand(true);
         self.drawing_area.set_vexpand(true);
-
-        grid.attach(&self.drawing_area, 0, 1, 1, 1);
 
         self.drawing_area
             .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
@@ -127,7 +122,8 @@ impl Ui {
         self.window = Some(ApplicationWindow::new(app));
         let window = self.window.as_ref().unwrap();
 
-        window.add(&grid);
+        window.set_titlebar(Some(&self.header_bar));
+        window.add(&self.drawing_area);
         window.show_all();
         window.connect_key_press_event(gtk_key_press);
         window.connect_delete_event(gtk_delete);
@@ -192,7 +188,17 @@ fn gtk_motion_notify(_: &DrawingArea, ev: &EventMotion) -> Inhibit {
     Inhibit(false)
 }
 
-fn save_all() {
+fn edit_paste() {
+     UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+
+        if let Err(e) = ui.nvim().input("\"*p") {
+            println!("Error paste from clipboard {}", e);
+        }
+    });
+}
+
+fn edit_save_all() {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
 
