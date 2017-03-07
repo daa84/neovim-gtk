@@ -192,7 +192,7 @@ fn edit_paste() {
      UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
 
-        if let Err(e) = ui.nvim().input("\"*p") {
+        if let Err(e) = ui.nvim().input("<Esc>\"*p") {
             println!("Error paste from clipboard {}", e);
         }
     });
