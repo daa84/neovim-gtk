@@ -97,12 +97,9 @@ impl Ui {
         button_bar.set_icon_size(IconSize::SmallToolbar);
         button_bar.set_hexpand(true);
 
-        let open_image = Image::new_from_icon_name("document-open", 50);
-        let open_btn = ToolButton::new(Some(&open_image), None);
-        button_bar.add(&open_btn);
-
         let save_image = Image::new_from_icon_name("document-save", 50);
         let save_btn = ToolButton::new(Some(&save_image), None);
+        save_btn.connect_clicked(|_| save_all());
         button_bar.add(&save_btn);
 
         let exit_image = Image::new_from_icon_name("application-exit", 50);
@@ -193,6 +190,16 @@ fn gtk_motion_notify(_: &DrawingArea, ev: &EventMotion) -> Inhibit {
         mouse_input(&mut *ui, "LeftDrag", ev.get_state(), ev.get_position());
     });
     Inhibit(false)
+}
+
+fn save_all() {
+    UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+
+        if let Err(e) = ui.nvim().command(":wa") {
+            println!("Error save all files {}", e);
+        }
+    });
 }
 
 fn quit() {
