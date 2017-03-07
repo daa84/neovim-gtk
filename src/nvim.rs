@@ -63,13 +63,14 @@ macro_rules! try_uint {
     })
 }
 
-pub fn initialize(ui: &mut Ui) -> Result<()> {
-    // let mut session = try!(Session::new_tcp("127.0.0.1:6666"));
-    let session = if cfg!(target_os = "windows") {
-        Session::new_child_path("E:\\Neovim\\bin\\nvim.exe").unwrap()
+pub fn initialize(ui: &mut Ui, nvim_bin_path: Option<&String>) -> Result<()> {
+    let session = if let Some(path) = nvim_bin_path {
+        println!("{}", path);
+        Session::new_child_path(path)?
     } else {
-        Session::new_child().unwrap()
+        Session::new_child()?
     };
+
     let nvim = Neovim::new(session);
     ui.set_nvim(nvim);
     ui.model = UiModel::new(24, 80);

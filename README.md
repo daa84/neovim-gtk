@@ -9,3 +9,10 @@ To setup font add next line to *ginit.vim*
 ```vim
 call rpcnotify(1, 'Gui', 'Font', 'DejaVu Sans Mono 12')
 ```
+
+# Command line
+As this project uses gtk-rs, custom option by GtkApplication not supported yet.
+There is workaround to pass nvim execution path.
+```bat
+cargo run -- --nvim-bin-path=E:\Neovim\bin\nvim.exe
+```

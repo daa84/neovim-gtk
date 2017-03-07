@@ -18,13 +18,15 @@ use std::thread;
 use std::env;
 use gio::ApplicationExt;
 
+const BIN_PATH_ARG: &'static str = "--nvim-bin-path";
+
 fn main() {
     let app = gtk::Application::new(Some("org.gtk.neovim-gtk"), gio::ApplicationFlags::empty()).expect("Failed to initialize GTK application");
 
     app.connect_activate(activate);
 
     let args: Vec<String> = env::args().collect();
-    let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+    let argv: Vec<&str> = args.iter().filter(|a| !a.starts_with(BIN_PATH_ARG)).map(String::as_str).collect();
     app.run(argv.len() as i32, &argv);
 }
 
@@ -33,10 +35,19 @@ fn activate(app: &gtk::Application) {
         let mut ui = ui_cell.borrow_mut();
         ui.init(app);
 
-        nvim::initialize(&mut *ui).expect("Can't start nvim instance");
+        let path = nvim_bin_path();
+        nvim::initialize(&mut *ui, path.as_ref()).expect("Can't start nvim instance");
 
         guard_dispatch_thread(&mut *ui);
     });
+}
+
+fn nvim_bin_path() -> Option<String> {
+    std::env::args()
+        .skip_while(|a| !a.starts_with(BIN_PATH_ARG))
+        .map(|p| p.split('=').nth(1).map(str::to_owned))
+        .nth(0)
+        .unwrap_or(None)
 }
 
 fn guard_dispatch_thread(ui: &mut ui::Ui) {
