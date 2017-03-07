@@ -55,7 +55,7 @@ pub struct Ui {
     mode: NvimMode,
     mouse_enabled: bool,
     mouse_pressed: bool,
-    font_desc: String,
+    font_desc: FontDescription,
 }
 
 impl Ui {
@@ -74,7 +74,7 @@ impl Ui {
             mode: NvimMode::Normal,
             mouse_enabled: false,
             mouse_pressed: false,
-            font_desc: FONT_NAME.to_owned(),
+            font_desc: FontDescription::from_string(FONT_NAME),
         }
     }
 
@@ -136,11 +136,11 @@ impl Ui {
     }
 
     fn create_pango_font(&self) -> FontDescription {
-        FontDescription::from_string(&self.font_desc)
+        self.font_desc.clone()
     }
 
     fn set_font_desc(&mut self, desc: &str) {
-        self.font_desc = desc.to_owned();
+        self.font_desc = FontDescription::from_string(desc);
     }
 }
 
@@ -290,6 +290,7 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
 
 
     let layout = pc::create_layout(ctx);
+    let mut desc = ui.create_pango_font();
 
     for (line_idx, line) in ui.model.model().iter().enumerate() {
         ctx.move_to(0.0, line_y);
@@ -332,7 +333,7 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
             }
 
             if !cell.ch.is_whitespace() {
-                let mut desc = ui.create_pango_font();
+                desc.unset_fields(pango::FONT_MASK_STYLE | pango::FONT_MASK_WEIGHT);
                 if cell.attrs.italic {
                     desc.set_style(pango::Style::Italic);
                 }
