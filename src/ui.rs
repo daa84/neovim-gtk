@@ -16,7 +16,7 @@ use glib;
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE};
-use nvim::{RedrawEvents, GuiApi};
+use nvim::{RedrawEvents, GuiApi, ErrorReport};
 
 use input::{convert_key, keyval_to_input_string};
 
@@ -189,12 +189,17 @@ fn gtk_motion_notify(_: &DrawingArea, ev: &EventMotion) -> Inhibit {
 }
 
 fn edit_paste() {
-     UI.with(|ui_cell| {
+    UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
 
-        if let Err(e) = ui.nvim().input("<Esc>\"*p") {
-            println!("Error paste from clipboard {}", e);
-        }
+        let paste_command = if ui.mode == NvimMode::Normal {
+            "\"*p"
+        } else {
+            "<Esc>\"*p"
+        };
+
+        let mut nvim = ui.nvim();
+        nvim.input(paste_command).report_err(nvim, "Error paste from clipboard");
     });
 }
 
@@ -202,9 +207,8 @@ fn edit_save_all() {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
 
-        if let Err(e) = ui.nvim().command(":wa") {
-            println!("Error save all files {}", e);
-        }
+        let mut nvim = ui.nvim();
+        nvim.command(":wa").report_err(nvim, "Error save all files");
     });
 }
 
@@ -396,9 +400,9 @@ fn request_width(ui: &Ui) {
 }
 
 impl GuiApi for Ui {
-   fn set_font(&mut self, font_desc: &str) {
-       self.set_font_desc(font_desc);
-   } 
+    fn set_font(&mut self, font_desc: &str) {
+        self.set_font_desc(font_desc);
+    }
 }
 
 impl RedrawEvents for Ui {

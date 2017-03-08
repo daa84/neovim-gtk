@@ -188,3 +188,17 @@ fn safe_call<F>(cb: F)
         glib::Continue(false)
     });
 }
+
+pub trait ErrorReport {
+    fn report_err(&self, nvim: &mut NeovimApi, ctx_msg: &str);
+}
+
+impl<T> ErrorReport for result::Result<T, String> {
+    fn report_err(&self, _: &mut NeovimApi, ctx_msg: &str) {
+        if let &Err(ref msg) = self {
+            let err_msg = format!("{} {}", ctx_msg, msg);
+            println!("{}", err_msg);
+            //nvim.report_error(&err_msg).expect("Error report error :)");
+        }
+    }
+}
