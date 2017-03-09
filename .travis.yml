@@ -1,0 +1,13 @@
+language: rust
+env:
+  - GTK=3.22
+rust:
+  - stable
+
+addons:
+  apt:
+    packages:
+      - libgtk-3-dev
+script:
+  - cargo test
+  - cargo build
