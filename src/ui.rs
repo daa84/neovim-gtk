@@ -16,7 +16,7 @@ use gdk_sys;
 use glib;
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
-use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE};
+use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim::{RedrawEvents, GuiApi, ErrorReport};
 
 use input::{convert_key, keyval_to_input_string};
@@ -51,6 +51,7 @@ pub struct Ui {
     cur_attrs: Option<Attrs>,
     bg_color: Color,
     fg_color: Color,
+    sp_color: Color,
     line_height: Option<f64>,
     char_width: Option<f64>,
     resize_timer: Option<glib::SourceId>,
@@ -71,6 +72,7 @@ impl Ui {
             cur_attrs: None,
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
+            sp_color: COLOR_RED,
             line_height: None,
             char_width: None,
             resize_timer: None,
@@ -96,12 +98,14 @@ impl Ui {
     pub fn init(&mut self, app: &gtk::Application) {
         self.header_bar.set_show_close_button(true);
 
-        let save_image = Image::new_from_icon_name("document-save", gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+        let save_image = Image::new_from_icon_name("document-save",
+                                                   gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
         let save_btn = ToolButton::new(Some(&save_image), None);
         save_btn.connect_clicked(|_| edit_save_all());
         self.header_bar.pack_start(&save_btn);
 
-        let paste_image = Image::new_from_icon_name("edit-paste", gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+        let paste_image = Image::new_from_icon_name("edit-paste",
+                                                    gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
         let paste_btn = ToolButton::new(Some(&paste_image), None);
         paste_btn.connect_clicked(|_| edit_paste());
         self.header_bar.pack_start(&paste_btn);
@@ -114,7 +118,7 @@ impl Ui {
         self.drawing_area
             .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
                          gdk_sys::GDK_BUTTON_MOTION_MASK)
-                .bits() as i32);
+                            .bits() as i32);
         self.drawing_area.connect_button_press_event(gtk_button_press);
         self.drawing_area.connect_button_release_event(gtk_button_release);
         self.drawing_area.connect_motion_notify_event(gtk_motion_notify);
@@ -220,7 +224,7 @@ fn quit() {
 
         let nvim = ui.nvim();
         nvim.ui_detach().expect("Error in ui_detach");
-        //nvim.quit_no_save().expect("Can't stop nvim instance");
+        // nvim.quit_no_save().expect("Can't stop nvim instance");
     });
 }
 
@@ -343,14 +347,9 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
                 ctx.move_to(current_point.0, current_point.1);
             }
 
+
             if !cell.ch.is_whitespace() {
-                desc.unset_fields(pango::FONT_MASK_STYLE | pango::FONT_MASK_WEIGHT);
-                if cell.attrs.italic {
-                    desc.set_style(pango::Style::Italic);
-                }
-                if cell.attrs.bold {
-                    desc.set_weight(pango::Weight::Bold);
-                }
+                update_font_description(&mut desc, &cell.attrs);
 
                 layout.set_font_description(Some(&desc));
                 buf.clear();
@@ -362,6 +361,25 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
                 pc::show_layout(ctx, &layout);
             }
 
+            if cell.attrs.underline || cell.attrs.undercurl {
+                // [TODO]: Current gtk-rs bindings does not provide fontmetrics access
+                // so it is not possible to find right position for underline or undercurl position
+                // update_font_description(&mut desc, &cell.attrs);
+                // layout.get_context().unwrap().get_metrics();
+                
+                let top_offset = line_height - 1.0;
+                if cell.attrs.undercurl {
+                    ctx.move_to(current_point.0, line_y + top_offset);
+                    ctx.line_to(current_point.0 + char_width,
+                             line_y + top_offset);
+                }
+                else if cell.attrs.underline {
+                    ctx.move_to(current_point.0, line_y + top_offset);
+                    ctx.line_to(current_point.0 + char_width,
+                             line_y + top_offset);
+                }
+            }
+
             ctx.move_to(current_point.0 + char_width, current_point.1);
         }
 
@@ -369,6 +387,17 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
     }
 
 
+}
+
+#[inline]
+fn update_font_description(desc: &mut FontDescription, attrs: &Attrs) {
+    desc.unset_fields(pango::FONT_MASK_STYLE | pango::FONT_MASK_WEIGHT);
+    if attrs.italic {
+        desc.set_style(pango::Style::Italic);
+    }
+    if attrs.bold {
+        desc.set_weight(pango::Weight::Bold);
+    }
 }
 
 fn calc_char_bounds(ui: &Ui, ctx: &cairo::Context) -> (i32, i32) {
@@ -447,6 +476,9 @@ impl RedrawEvents for Ui {
         if let Some(&Value::Integer(Integer::U64(bg))) = attrs.get("background") {
             model_attrs.background = Some(split_color(bg));
         }
+        if let Some(&Value::Integer(Integer::U64(bg))) = attrs.get("special") {
+            model_attrs.special = Some(split_color(bg));
+        }
         if attrs.contains_key("reverse") {
             let fg = if let Some(ref fg) = model_attrs.foreground {
                 fg.clone()
@@ -463,6 +495,8 @@ impl RedrawEvents for Ui {
         }
         model_attrs.bold = attrs.contains_key("bold");
         model_attrs.italic = attrs.contains_key("italic");
+        model_attrs.underline = attrs.contains_key("underline");
+        model_attrs.undercurl = attrs.contains_key("undercurl");
         self.cur_attrs = Some(model_attrs);
     }
 
@@ -479,6 +513,14 @@ impl RedrawEvents for Ui {
             self.fg_color = split_color(fg as u64);
         } else {
             self.fg_color = COLOR_WHITE;
+        }
+    }
+
+    fn on_update_sp(&mut self, sp: i64) {
+        if sp >= 0 {
+            self.sp_color = split_color(sp as u64);
+        } else {
+            self.sp_color = COLOR_RED;
         }
     }
 

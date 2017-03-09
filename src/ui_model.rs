@@ -4,13 +4,17 @@ pub struct Color(pub f64, pub f64, pub f64);
 
 pub const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);
 pub const COLOR_WHITE: Color = Color(1.0, 1.0, 1.0);
+pub const COLOR_RED: Color = Color(1.0, 0.0, 0.0);
 
 #[derive(Clone)]
 pub struct Attrs {
     pub italic: bool,
     pub bold: bool,
+    pub underline: bool,
+    pub undercurl: bool,
     pub foreground: Option<Color>,
     pub background: Option<Color>,
+    pub special: Option<Color>,
 }
 
 impl Attrs {
@@ -18,16 +22,22 @@ impl Attrs {
         Attrs {
             foreground: None,
             background: None,
+            special: None,
             italic: false,
             bold: false,
+            underline: false,
+            undercurl: false,
         }
     }
 
     fn clear(&mut self) {
         self.italic = false;
         self.bold = false;
+        self.underline = false;
+        self.undercurl = false;
         self.foreground = None;
         self.background = None;
+        self.special = None;
     }
 }
 

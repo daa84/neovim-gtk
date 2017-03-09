@@ -30,6 +30,8 @@ pub trait RedrawEvents {
 
     fn on_update_fg(&mut self, fg: i64);
 
+    fn on_update_sp(&mut self, sp: i64);
+
     fn on_mode_change(&mut self, mode: &str);
 
     fn on_mouse_on(&mut self);
@@ -169,6 +171,7 @@ fn call(ui: &mut Ui, method: &str, args: &Vec<Value>) -> result::Result<(), Stri
         "scroll" => ui.on_scroll(try_int!(args[0])),
         "update_bg" => ui.on_update_bg(try_int!(args[0])),
         "update_fg" => ui.on_update_fg(try_int!(args[0])),
+        "update_sp" => ui.on_update_sp(try_int!(args[0])),
         "mode_change" => ui.on_mode_change(try_str!(args[0])),
         "mouse_on" => ui.on_mouse_on(),
         "mouse_off" => ui.on_mouse_off(),
