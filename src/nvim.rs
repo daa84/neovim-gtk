@@ -67,7 +67,6 @@ macro_rules! try_uint {
 
 pub fn initialize(ui: &mut Ui, nvim_bin_path: Option<&String>) -> Result<()> {
     let session = if let Some(path) = nvim_bin_path {
-        println!("{}", path);
         Session::new_child_path(path)?
     } else {
         Session::new_child()?
@@ -193,14 +192,13 @@ fn safe_call<F>(cb: F)
 }
 
 pub trait ErrorReport {
-    fn report_err(&self, nvim: &mut NeovimApi, ctx_msg: &str);
+    fn report_err(&self, nvim: &mut NeovimApi);
 }
 
 impl<T> ErrorReport for result::Result<T, String> {
-    fn report_err(&self, _: &mut NeovimApi, ctx_msg: &str) {
+    fn report_err(&self, _: &mut NeovimApi) {
         if let &Err(ref msg) = self {
-            let err_msg = format!("{} {}", ctx_msg, msg);
-            println!("{}", err_msg);
+            println!("{}", msg);
             //nvim.report_error(&err_msg).expect("Error report error :)");
         }
     }
