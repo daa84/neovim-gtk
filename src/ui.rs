@@ -204,7 +204,7 @@ fn edit_paste() {
         };
 
         let mut nvim = ui.nvim();
-        nvim.input(paste_command).report_err(nvim, "Error paste from clipboard");
+        nvim.input(paste_command).report_err(nvim);
     });
 }
 
@@ -213,7 +213,7 @@ fn edit_save_all() {
         let mut ui = ui_cell.borrow_mut();
 
         let mut nvim = ui.nvim();
-        nvim.command(":wa").report_err(nvim, "Error save all files");
+        nvim.command(":wa").report_err(nvim);
     });
 }
 

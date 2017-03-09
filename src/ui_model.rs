@@ -75,7 +75,17 @@ pub struct UiModel {
 
 impl UiModel {
     pub fn empty() -> UiModel {
-        UiModel::new(0, 0)
+        UiModel {
+            columns: 0,
+            rows: 0,
+            cur_row: 0,
+            cur_col: 0,
+            model: vec![],
+            top: 0,
+            bot: 0,
+            left: 0,
+            right: 0,
+        }
     }
 
     pub fn new(rows: u64, columns: u64) -> UiModel {
@@ -94,9 +104,9 @@ impl UiModel {
             cur_col: 0,
             model: model,
             top: 0,
-            bot: 0,
+            bot: (rows - 1) as usize,
             left: 0,
-            right: 0,
+            right: (columns - 1) as usize,
         }
     }
 
