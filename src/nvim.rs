@@ -18,7 +18,7 @@ pub trait RedrawEvents {
 
     fn on_redraw(&self);
 
-    fn on_highlight_set(&mut self, attrs: &HashMap<String, Value>);
+    fn on_highlight_set(&mut self, attrs: &HashMap<&str, &Value>);
 
     fn on_eol_clear(&mut self);
 
@@ -150,9 +150,9 @@ fn call(ui: &mut Ui, method: &str, args: &Vec<Value>) -> result::Result<(), Stri
         "resize" => ui.on_resize(try_uint!(args[0]), try_uint!(args[1])),
         "highlight_set" => {
             if let Value::Map(ref attrs) = args[0] {
-                let attrs_map: HashMap<String, Value> = attrs.iter()
+                let attrs_map = attrs.iter()
                     .map(|v| match v {
-                        &(Value::String(ref key), ref value) => (key.clone(), value.clone()),
+                        &(Value::String(ref key), ref value) => (key.as_str(), value),
                         _ => panic!("attribute key must be string"),
                     })
                     .collect();

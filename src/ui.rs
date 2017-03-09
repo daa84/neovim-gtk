@@ -451,7 +451,7 @@ impl RedrawEvents for Ui {
     }
 
     fn on_put(&mut self, text: &str) {
-        self.model.put(text, &self.cur_attrs);
+        self.model.put(text, self.cur_attrs.as_ref());
     }
 
     fn on_clear(&mut self) {
@@ -478,15 +478,15 @@ impl RedrawEvents for Ui {
         self.model.scroll(count);
     }
 
-    fn on_highlight_set(&mut self, attrs: &HashMap<String, Value>) {
+    fn on_highlight_set(&mut self, attrs: &HashMap<&str, &Value>) {
         let mut model_attrs = Attrs::new();
-        if let Some(&Value::Integer(Integer::U64(fg))) = attrs.get("foreground") {
+        if let Some(&&Value::Integer(Integer::U64(fg))) = attrs.get("foreground") {
             model_attrs.foreground = Some(split_color(fg));
         }
-        if let Some(&Value::Integer(Integer::U64(bg))) = attrs.get("background") {
+        if let Some(&&Value::Integer(Integer::U64(bg))) = attrs.get("background") {
             model_attrs.background = Some(split_color(bg));
         }
-        if let Some(&Value::Integer(Integer::U64(bg))) = attrs.get("special") {
+        if let Some(&&Value::Integer(Integer::U64(bg))) = attrs.get("special") {
             model_attrs.special = Some(split_color(bg));
         }
         if attrs.contains_key("reverse") {

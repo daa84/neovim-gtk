@@ -113,10 +113,10 @@ impl UiModel {
         (self.cur_row, self.cur_col)
     }
 
-    pub fn put(&mut self, text: &str, attrs: &Option<Attrs>) {
+    pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) {
         let mut cell = &mut self.model[self.cur_row][self.cur_col];
         cell.ch = text.chars().last().unwrap();
-        cell.attrs = attrs.as_ref().map(|o| o.clone()).unwrap_or_else(|| Attrs::new());
+        cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(|| Attrs::new());
         self.cur_col += 1;
     }
 
