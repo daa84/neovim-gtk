@@ -1,4 +1,5 @@
 extern crate gtk;
+extern crate gtk_sys;
 extern crate gio;
 extern crate gdk;
 extern crate gdk_sys;

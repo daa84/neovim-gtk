@@ -26,3 +26,7 @@ phf_codegen = "0.7"
 version = "0.1"
 features = ["v3_10"]
 
+[dependencies.gtk-sys]
+version = "0.3"
+features = ["v3_10"]
+

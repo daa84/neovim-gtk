@@ -10,6 +10,7 @@ use pango::FontDescription;
 use gtk;
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, DrawingArea, ToolButton, Image};
+use gtk_sys;
 use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use gdk_sys;
 use glib;
@@ -95,12 +96,12 @@ impl Ui {
     pub fn init(&mut self, app: &gtk::Application) {
         self.header_bar.set_show_close_button(true);
 
-        let save_image = Image::new_from_icon_name("document-save", 50);
+        let save_image = Image::new_from_icon_name("document-save", gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
         let save_btn = ToolButton::new(Some(&save_image), None);
         save_btn.connect_clicked(|_| edit_save_all());
         self.header_bar.pack_start(&save_btn);
 
-        let paste_image = Image::new_from_icon_name("edit-paste", 50);
+        let paste_image = Image::new_from_icon_name("edit-paste", gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
         let paste_btn = ToolButton::new(Some(&paste_image), None);
         paste_btn.connect_clicked(|_| edit_paste());
         self.header_bar.pack_start(&paste_btn);

@@ -9,6 +9,7 @@ dependencies = [
  "glib 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gtk-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "neovim-lib 0.2.0 (git+https://github.com/daa84/neovim-lib)",
  "pango 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pangocairo 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
