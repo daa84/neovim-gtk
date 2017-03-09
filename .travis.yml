@@ -8,7 +8,7 @@ addons:
   apt:
     packages:
       - libgtk-3-dev
-      - libgio-2-dev
+      - libglib2.0-dev
 script:
   - cargo test
   - cargo build
