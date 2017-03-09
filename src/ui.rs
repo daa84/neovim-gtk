@@ -364,20 +364,30 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
             if cell.attrs.underline || cell.attrs.undercurl {
                 // [TODO]: Current gtk-rs bindings does not provide fontmetrics access
                 // so it is not possible to find right position for underline or undercurl position
-                // update_font_description(&mut desc, &cell.attrs);
-                // layout.get_context().unwrap().get_metrics();
-                
-                let top_offset = line_height - 1.0;
+                // > update_font_description(&mut desc, &cell.attrs);
+                // > layout.get_context().unwrap().get_metrics();
+                let top_offset = line_height - 2.0;
+
+                let sp = if let Some(ref sp) = cell.attrs.special {
+                    sp
+                } else {
+                    &ui.sp_color
+                };
+
+                ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
                 if cell.attrs.undercurl {
+                    ctx.set_line_width(2.0);
                     ctx.move_to(current_point.0, line_y + top_offset);
                     ctx.line_to(current_point.0 + char_width,
                              line_y + top_offset);
                 }
                 else if cell.attrs.underline {
+                    ctx.set_line_width(1.0);
                     ctx.move_to(current_point.0, line_y + top_offset);
                     ctx.line_to(current_point.0 + char_width,
                              line_y + top_offset);
                 }
+                ctx.stroke();
             }
 
             ctx.move_to(current_point.0 + char_width, current_point.1);
