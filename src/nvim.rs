@@ -1,7 +1,6 @@
 use neovim_lib::{Neovim, NeovimApi, Session, Value, Integer};
 use std::io::{Result, Error, ErrorKind};
 use std::result;
-use std::collections::HashMap;
 use ui_model::UiModel;
 use ui;
 use ui::Ui;
@@ -18,7 +17,7 @@ pub trait RedrawEvents {
 
     fn on_redraw(&self);
 
-    fn on_highlight_set(&mut self, attrs: &HashMap<&str, &Value>);
+    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>);
 
     fn on_eol_clear(&mut self);
 
@@ -149,13 +148,7 @@ fn call(ui: &mut Ui, method: &str, args: &Vec<Value>) -> result::Result<(), Stri
         "resize" => ui.on_resize(try_uint!(args[0]), try_uint!(args[1])),
         "highlight_set" => {
             if let Value::Map(ref attrs) = args[0] {
-                let attrs_map = attrs.iter()
-                    .map(|v| match v {
-                        &(Value::String(ref key), ref value) => (key.as_str(), value),
-                        _ => panic!("attribute key must be string"),
-                    })
-                    .collect();
-                ui.on_highlight_set(&attrs_map);
+                ui.on_highlight_set(attrs);
             } else {
                 panic!("Supports only map value as argument");
             }

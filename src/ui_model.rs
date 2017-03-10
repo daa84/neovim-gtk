@@ -15,6 +15,7 @@ pub struct Attrs {
     pub foreground: Option<Color>,
     pub background: Option<Color>,
     pub special: Option<Color>,
+    pub reverse: bool,
 }
 
 impl Attrs {
@@ -27,6 +28,7 @@ impl Attrs {
             bold: false,
             underline: false,
             undercurl: false,
+            reverse: false,
         }
     }
 
@@ -35,6 +37,7 @@ impl Attrs {
         self.bold = false;
         self.underline = false;
         self.undercurl = false;
+        self.reverse = false;
         self.foreground = None;
         self.background = None;
         self.special = None;

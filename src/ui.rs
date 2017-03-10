@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::thread;
-use std::collections::HashMap;
 use std::string::String;
 
 use cairo;
@@ -313,7 +312,24 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
 
             let current_point = ctx.get_current_point();
 
-            if let Some(ref bg) = cell.attrs.background {
+            let mut bg = if let Some(ref bg) = cell.attrs.background {
+                bg
+            } else {
+                &ui.bg_color
+            };
+            let mut fg = if let Some(ref fg) = cell.attrs.foreground {
+                fg
+            } else {
+                &ui.fg_color
+            };
+
+            if cell.attrs.reverse {
+                let tmp = fg;
+                fg = bg;
+                bg = tmp;
+            }
+
+            if cell.attrs.background.is_some() || cell.attrs.reverse {
                 ctx.set_source_rgb(bg.0, bg.1, bg.2);
                 ctx.rectangle(current_point.0, line_y, char_width, line_height);
                 ctx.fill();
@@ -321,17 +337,6 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
                 ctx.move_to(current_point.0, current_point.1);
             }
 
-            let fg = if let Some(ref fg) = cell.attrs.foreground {
-                fg
-            } else {
-                &ui.fg_color
-            };
-
-            let bg = if let Some(ref bg) = cell.attrs.background {
-                bg
-            } else {
-                &ui.bg_color
-            };
 
             if row == line_idx && col == col_idx {
                 ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.5);
@@ -366,7 +371,7 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
                 // so it is not possible to find right position for underline or undercurl position
                 // > update_font_description(&mut desc, &cell.attrs);
                 // > layout.get_context().unwrap().get_metrics();
-                let top_offset = line_height - 2.0;
+                let top_offset = line_height * 0.9;
 
                 let sp = if let Some(ref sp) = cell.attrs.special {
                     sp
@@ -376,18 +381,18 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
 
                 ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
                 if cell.attrs.undercurl {
+                    ctx.set_dash(&[4.0, 2.0], 0.0);
                     ctx.set_line_width(2.0);
                     ctx.move_to(current_point.0, line_y + top_offset);
-                    ctx.line_to(current_point.0 + char_width,
-                             line_y + top_offset);
-                }
-                else if cell.attrs.underline {
+                    ctx.line_to(current_point.0 + char_width, line_y + top_offset);
+                    ctx.stroke();
+                    ctx.set_dash(&[], 0.0);
+                } else if cell.attrs.underline {
                     ctx.set_line_width(1.0);
                     ctx.move_to(current_point.0, line_y + top_offset);
-                    ctx.line_to(current_point.0 + char_width,
-                             line_y + top_offset);
+                    ctx.line_to(current_point.0 + char_width, line_y + top_offset);
+                    ctx.stroke();
                 }
-                ctx.stroke();
             }
 
             ctx.move_to(current_point.0 + char_width, current_point.1);
@@ -478,35 +483,39 @@ impl RedrawEvents for Ui {
         self.model.scroll(count);
     }
 
-    fn on_highlight_set(&mut self, attrs: &HashMap<&str, &Value>) {
+    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) {
         let mut model_attrs = Attrs::new();
-        if let Some(&&Value::Integer(Integer::U64(fg))) = attrs.get("foreground") {
-            model_attrs.foreground = Some(split_color(fg));
-        }
-        if let Some(&&Value::Integer(Integer::U64(bg))) = attrs.get("background") {
-            model_attrs.background = Some(split_color(bg));
-        }
-        if let Some(&&Value::Integer(Integer::U64(bg))) = attrs.get("special") {
-            model_attrs.special = Some(split_color(bg));
-        }
-        if attrs.contains_key("reverse") {
-            let fg = if let Some(ref fg) = model_attrs.foreground {
-                fg.clone()
+
+        for &(ref key_val, ref val) in attrs {
+            if let &Value::String(ref key) = key_val {
+                match key.as_ref() {
+                    "foreground" => {
+                        if let &Value::Integer(Integer::U64(fg)) = val {
+                            model_attrs.foreground = Some(split_color(fg));
+                        }
+                    },
+                    "background" => {
+                        if let &Value::Integer(Integer::U64(bg)) = val {
+                            model_attrs.background = Some(split_color(bg));
+                        }
+                    },
+                    "special" => {
+                        if let &Value::Integer(Integer::U64(bg)) = val {
+                            model_attrs.special = Some(split_color(bg));
+                        }
+                    },
+                    "reverse" => model_attrs.reverse = true,
+                    "bold" => model_attrs.bold = true,
+                    "italic" => model_attrs.italic = true,
+                    "underline" => model_attrs.underline = true,
+                    "undercurl" => model_attrs.undercurl = true,
+                    attr_key => println!("unknown attribute {}", attr_key),
+                };
             } else {
-                self.fg_color.clone()
-            };
-            let bg = if let Some(ref bg) = model_attrs.background {
-                bg.clone()
-            } else {
-                self.bg_color.clone()
-            };
-            model_attrs.foreground = Some(bg);
-            model_attrs.background = Some(fg);
+                panic!("attr key must be string");
+            }
         }
-        model_attrs.bold = attrs.contains_key("bold");
-        model_attrs.italic = attrs.contains_key("italic");
-        model_attrs.underline = attrs.contains_key("underline");
-        model_attrs.undercurl = attrs.contains_key("undercurl");
+
         self.cur_attrs = Some(model_attrs);
     }
 
