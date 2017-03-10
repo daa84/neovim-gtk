@@ -1,5 +1,5 @@
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Color(pub f64, pub f64, pub f64);
 
 pub const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);

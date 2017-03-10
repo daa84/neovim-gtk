@@ -15,7 +15,7 @@ use gdk_sys;
 use glib;
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
-use ui_model::{UiModel, Attrs, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
+use ui_model::{UiModel, Cell, Attrs, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim::{RedrawEvents, GuiApi, ErrorReport};
 
 use input::{convert_key, keyval_to_input_string};
@@ -141,6 +141,25 @@ impl Ui {
 
     fn set_font_desc(&mut self, desc: &str) {
         self.font_desc = FontDescription::from_string(desc);
+    }
+
+    fn colors<'a>(&'a self, cell: &'a Cell) -> (&'a Color, &'a Color) {
+        let bg = if let Some(ref bg) = cell.attrs.background {
+            bg
+        } else {
+            &self.bg_color
+        };
+        let fg = if let Some(ref fg) = cell.attrs.foreground {
+            fg
+        } else {
+            &self.fg_color
+        };
+
+        if cell.attrs.reverse {
+            (fg, bg)
+        } else {
+            (bg, fg)
+        }
     }
 }
 
@@ -291,6 +310,26 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
     false
 }
 
+#[inline]
+fn draw_joined_rect(ui: &Ui,
+                    ctx: &cairo::Context,
+                    from_col_idx: usize,
+                    col_idx: usize,
+                    char_width: f64,
+                    line_height: f64,
+                    color: &Color) {
+    let current_point = ctx.get_current_point();
+    let rect_width = char_width * (col_idx - from_col_idx) as f64;
+
+    if &ui.bg_color != color {
+        ctx.set_source_rgb(color.0, color.1, color.2);
+        ctx.rectangle(current_point.0, current_point.1, rect_width, line_height);
+        ctx.fill();
+    }
+
+    ctx.move_to(current_point.0 + rect_width, current_point.1);
+}
+
 fn draw(ui: &Ui, ctx: &cairo::Context) {
     ctx.set_source_rgb(ui.bg_color.0, ui.bg_color.1, ui.bg_color.2);
     ctx.paint();
@@ -308,35 +347,45 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
 
     for (line_idx, line) in ui.model.model().iter().enumerate() {
         ctx.move_to(0.0, line_y);
+
+        // first draw background
+        // here we join same bg color for given line
+        // this gives less drawing primitives
+        let mut from_col_idx = 0;
+        let mut from_bg = None;
+        for (col_idx, cell) in line.iter().enumerate() {
+            let (bg, _) = ui.colors(cell);
+
+            if from_bg.is_none() {
+                from_bg = Some(bg);
+                from_col_idx = col_idx;
+            } else if from_bg != Some(bg) {
+                draw_joined_rect(ui,
+                                 ctx,
+                                 from_col_idx,
+                                 col_idx,
+                                 char_width,
+                                 line_height,
+                                 from_bg.take().unwrap());
+                from_bg = Some(bg);
+                from_col_idx = col_idx;
+            }
+        }
+        draw_joined_rect(ui,
+                         ctx,
+                         from_col_idx,
+                         line.len(),
+                         char_width,
+                         line_height,
+                         from_bg.take().unwrap());
+
+        ctx.move_to(0.0, line_y);
+
         for (col_idx, cell) in line.iter().enumerate() {
 
             let current_point = ctx.get_current_point();
 
-            let mut bg = if let Some(ref bg) = cell.attrs.background {
-                bg
-            } else {
-                &ui.bg_color
-            };
-            let mut fg = if let Some(ref fg) = cell.attrs.foreground {
-                fg
-            } else {
-                &ui.fg_color
-            };
-
-            if cell.attrs.reverse {
-                let tmp = fg;
-                fg = bg;
-                bg = tmp;
-            }
-
-            if cell.attrs.background.is_some() || cell.attrs.reverse {
-                ctx.set_source_rgb(bg.0, bg.1, bg.2);
-                ctx.rectangle(current_point.0, line_y, char_width, line_height);
-                ctx.fill();
-
-                ctx.move_to(current_point.0, current_point.1);
-            }
-
+            let (bg, fg) = ui.colors(cell);
 
             if row == line_idx && col == col_idx {
                 ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.5);
@@ -400,8 +449,6 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
 
         line_y += line_height;
     }
-
-
 }
 
 #[inline]
@@ -493,17 +540,17 @@ impl RedrawEvents for Ui {
                         if let &Value::Integer(Integer::U64(fg)) = val {
                             model_attrs.foreground = Some(split_color(fg));
                         }
-                    },
+                    }
                     "background" => {
                         if let &Value::Integer(Integer::U64(bg)) = val {
                             model_attrs.background = Some(split_color(bg));
                         }
-                    },
+                    }
                     "special" => {
                         if let &Value::Integer(Integer::U64(bg)) = val {
                             model_attrs.special = Some(split_color(bg));
                         }
-                    },
+                    }
                     "reverse" => model_attrs.reverse = true,
                     "bold" => model_attrs.bold = true,
                     "italic" => model_attrs.italic = true,
