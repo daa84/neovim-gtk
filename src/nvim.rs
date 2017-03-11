@@ -1,4 +1,4 @@
-use neovim_lib::{Neovim, NeovimApi, Session, Value, Integer};
+use neovim_lib::{Neovim, NeovimApi, Session, Value, Integer, UiAttachOptions, CallError};
 use std::io::{Result, Error, ErrorKind};
 use std::result;
 use ui_model::UiModel;
@@ -78,7 +78,7 @@ pub fn initialize(ui: &mut Ui, nvim_bin_path: Option<&String>) -> Result<()> {
     let mut nvim = ui.nvim();
 
     nvim.session.start_event_loop_cb(move |m, p| nvim_cb(m, p));
-    nvim.ui_attach(80, 24, true).map_err(|e| Error::new(ErrorKind::Other, e))?;
+    nvim.ui_attach(80, 24, UiAttachOptions::new()).map_err(|e| Error::new(ErrorKind::Other, e))?;
     nvim.command("runtime! ginit.vim").map_err(|e| Error::new(ErrorKind::Other, e))?;
 
     Ok(())
@@ -188,10 +188,10 @@ pub trait ErrorReport {
     fn report_err(&self, nvim: &mut NeovimApi);
 }
 
-impl<T> ErrorReport for result::Result<T, String> {
+impl<T> ErrorReport for result::Result<T, CallError> {
     fn report_err(&self, _: &mut NeovimApi) {
-        if let &Err(ref msg) = self {
-            println!("{}", msg);
+        if let &Err(ref err) = self {
+            println!("{}", err);
             //nvim.report_error(&err_msg).expect("Error report error :)");
         }
     }

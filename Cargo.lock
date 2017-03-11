@@ -10,7 +10,7 @@ dependencies = [
  "glib-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "neovim-lib 0.2.0 (git+https://github.com/daa84/neovim-lib)",
+ "neovim-lib 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pango 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pangocairo 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "phf 0.7.21 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -236,7 +236,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "neovim-lib"
 version = "0.2.0"
-source = "git+https://github.com/daa84/neovim-lib#2807c85972a24bb36ed23a0c3d50d7b4a76d11a4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rmp 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -380,7 +380,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum gtk-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "7445eb281879ac472e5f5816058d53eaceff2bab7b78a095a4044f4c0cccc754"
 "checksum libc 0.2.21 (registry+https://github.com/rust-lang/crates.io-index)" = "88ee81885f9f04bff991e306fea7c1c60a5f0f9e409e99f6b40e3311a3363135"
 "checksum log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)" = "ab83497bf8bf4ed2a74259c1c802351fcd67a65baa86394b6ba73c36f4838054"
-"checksum neovim-lib 0.2.0 (git+https://github.com/daa84/neovim-lib)" = "<none>"
+"checksum neovim-lib 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8eb0ce042e5a820f9b832fab374f9cdebf99ed805cee89cf70a1303ceefa5eb2"
 "checksum num-traits 0.1.37 (registry+https://github.com/rust-lang/crates.io-index)" = "e1cbfa3781f3fe73dc05321bed52a06d2d491eaa764c52335cf4399f046ece99"
 "checksum pango 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "21d777a87f13107b96be840dec1c34e0fe1a7b5630dd90c74b4eec923c439187"
 "checksum pango-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "f29f64bc081e778cb897e3ef20aae178150d165d0eb77065b9e20437407c5546"
