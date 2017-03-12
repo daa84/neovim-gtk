@@ -16,6 +16,7 @@ pub struct Attrs {
     pub background: Option<Color>,
     pub special: Option<Color>,
     pub reverse: bool,
+    pub double_width: bool,
 }
 
 impl Attrs {
@@ -29,6 +30,7 @@ impl Attrs {
             underline: false,
             undercurl: false,
             reverse: false,
+            double_width: false,
         }
     }
 
@@ -41,6 +43,7 @@ impl Attrs {
         self.foreground = None;
         self.background = None;
         self.special = None;
+        self.double_width = false;
     }
 }
 
@@ -128,8 +131,9 @@ impl UiModel {
 
     pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) {
         let mut cell = &mut self.model[self.cur_row][self.cur_col];
-        cell.ch = text.chars().last().unwrap();
+        cell.ch = text.chars().last().unwrap_or(' ');
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(|| Attrs::new());
+        cell.attrs.double_width = text.len() == 0;
         self.cur_col += 1;
     }
 

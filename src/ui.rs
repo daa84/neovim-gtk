@@ -382,7 +382,7 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
         ctx.move_to(0.0, line_y);
 
         for (col_idx, cell) in line.iter().enumerate() {
-
+            let double_width = line.get(col_idx + 1).map(|c| c.attrs.double_width).unwrap_or(false);
             let current_point = ctx.get_current_point();
 
             let (bg, fg) = ui.colors(cell);
@@ -393,7 +393,11 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
                 let cursor_width = if ui.mode == NvimMode::Insert {
                     char_width / 5.0
                 } else {
-                    char_width
+                    if double_width {
+                        char_width * 2.0
+                    } else {
+                        char_width
+                    }
                 };
 
                 ctx.rectangle(current_point.0, line_y, cursor_width, line_height);
@@ -409,6 +413,14 @@ fn draw(ui: &Ui, ctx: &cairo::Context) {
                 buf.clear();
                 buf.push(cell.ch);
                 layout.set_text(&buf, -1);
+
+                // correct layout for double_width chars
+                if double_width {
+                    let (dw_width, dw_height) = layout.get_pixel_size();
+                    let x_offset = (char_width * 2.0 - dw_width as f64) / 2.0;
+                    let y_offset = (line_height - dw_height as f64) / 2.0;
+                    ctx.rel_move_to(x_offset, y_offset);
+                }
 
                 ctx.set_source_rgb(fg.0, fg.1, fg.2);
                 pc::update_layout(ctx, &layout);
