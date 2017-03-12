@@ -13,6 +13,7 @@ use gtk_sys;
 use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use gdk_sys;
 use glib;
+use gio;
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use ui_model::{UiModel, Cell, Attrs, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
@@ -20,9 +21,6 @@ use nvim::{RedrawEvents, GuiApi, ErrorReport};
 
 use input::{convert_key, keyval_to_input_string};
 
-#[cfg(target_os = "linux")]
-const FONT_NAME: &'static str = "Droid Sans Mono for Powerline 12";
-#[cfg(target_os = "windows")]
 const FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
 thread_local!(pub static UI: RefCell<Ui> = {
@@ -39,6 +37,13 @@ enum NvimMode {
     Normal,
     Insert,
     Other,
+}
+
+#[derive(PartialEq)]
+enum FontSource {
+    Rpc,
+    Gnome,
+    Default,
 }
 
 pub struct Ui {
@@ -58,6 +63,8 @@ pub struct Ui {
     mouse_enabled: bool,
     mouse_pressed: bool,
     font_desc: FontDescription,
+    font_source: FontSource,
+    gnome_interface_settings: gio::Settings,
 }
 
 impl Ui {
@@ -79,6 +86,8 @@ impl Ui {
             mouse_enabled: false,
             mouse_pressed: false,
             font_desc: FontDescription::from_string(FONT_NAME),
+            gnome_interface_settings: gio::Settings::new("org.gnome.desktop.interface"),
+            font_source: FontSource::Default,
         }
     }
 
@@ -95,6 +104,9 @@ impl Ui {
     }
 
     pub fn init(&mut self, app: &gtk::Application) {
+        self.gnome_interface_settings.connect_changed(|_, _| monospace_font_changed());
+        self.update_font();
+
         self.header_bar.set_show_close_button(true);
 
         let save_image = Image::new_from_icon_name("document-save",
@@ -161,6 +173,30 @@ impl Ui {
             (bg, fg)
         }
     }
+
+    fn update_font(&mut self) {
+        // rpc is priority for font
+        if self.font_source == FontSource::Rpc {
+            return;
+        }
+
+       if let Some(ref font_name) = self.gnome_interface_settings.get_string("monospace-font-name") {
+           self.set_font_desc(font_name);
+           self.font_source = FontSource::Gnome;
+       }
+    }
+}
+
+fn monospace_font_changed() {
+    UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+
+        // rpc is priority for font
+        if ui.font_source != FontSource::Rpc {
+            ui.update_font();
+            ui.on_redraw();
+        }
+    });
 }
 
 fn gtk_button_press(_: &DrawingArea, ev: &EventButton) -> Inhibit {
@@ -506,6 +542,7 @@ fn request_width(ui: &Ui) {
 impl GuiApi for Ui {
     fn set_font(&mut self, font_desc: &str) {
         self.set_font_desc(font_desc);
+        self.font_source = FontSource::Rpc;
     }
 }
 
