@@ -23,7 +23,7 @@ pub fn keyval_to_input_string(val: &str, state: gdk::ModifierType) -> String {
 
     input.push_str(val);
 
-    if input.len() > 1 {
+    if input.chars().count() > 1 {
         format!("<{}>", input)
     } else {
         input
