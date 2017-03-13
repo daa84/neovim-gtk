@@ -13,37 +13,35 @@ use gtk_sys;
 use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use gdk_sys;
 use glib;
-use gio;
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use ui_model::{UiModel, Cell, Attrs, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim::{RedrawEvents, GuiApi, ErrorReport};
+use settings;
 
 use input::{convert_key, keyval_to_input_string};
 
 const FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
-thread_local!(pub static UI: RefCell<Ui> = {
-    let thread = thread::current();
-    let current_thread_name = thread.name();
-    if current_thread_name != Some("main") {
-        panic!("Can create UI  only from main thread, {:?}", current_thread_name);
-    }
-    RefCell::new(Ui::new())
-});
+macro_rules! ui_thread_var {
+    ($id:ident, $ty:ty, $expr:expr) => (thread_local!(pub static $id: RefCell<$ty> = {
+        let thread = thread::current();
+        let current_thread_name = thread.name();
+        if current_thread_name != Some("main") {
+            panic!("Can create UI  only from main thread, {:?}", current_thread_name);
+        }
+        RefCell::new($expr)
+    });)
+}
+
+ui_thread_var![UI, Ui, Ui::new()];
+ui_thread_var![SET, settings::Settings, settings::Settings::new()];
 
 #[derive(PartialEq)]
 enum NvimMode {
     Normal,
     Insert,
     Other,
-}
-
-#[derive(PartialEq)]
-enum FontSource {
-    Rpc,
-    Gnome,
-    Default,
 }
 
 pub struct Ui {
@@ -63,8 +61,6 @@ pub struct Ui {
     mouse_enabled: bool,
     mouse_pressed: bool,
     font_desc: FontDescription,
-    font_source: FontSource,
-    gnome_interface_settings: gio::Settings,
 }
 
 impl Ui {
@@ -86,8 +82,6 @@ impl Ui {
             mouse_enabled: false,
             mouse_pressed: false,
             font_desc: FontDescription::from_string(FONT_NAME),
-            gnome_interface_settings: gio::Settings::new("org.gnome.desktop.interface"),
-            font_source: FontSource::Default,
         }
     }
 
@@ -104,8 +98,10 @@ impl Ui {
     }
 
     pub fn init(&mut self, app: &gtk::Application) {
-        self.gnome_interface_settings.connect_changed(|_, _| monospace_font_changed());
-        self.update_font();
+        SET.with(|settings| {
+            let mut settings = settings.borrow_mut();
+            settings.init(self);
+        });
 
         self.header_bar.set_show_close_button(true);
 
@@ -151,7 +147,7 @@ impl Ui {
         self.font_desc.clone()
     }
 
-    fn set_font_desc(&mut self, desc: &str) {
+    pub fn set_font_desc(&mut self, desc: &str) {
         self.font_desc = FontDescription::from_string(desc);
     }
 
@@ -173,30 +169,6 @@ impl Ui {
             (bg, fg)
         }
     }
-
-    fn update_font(&mut self) {
-        // rpc is priority for font
-        if self.font_source == FontSource::Rpc {
-            return;
-        }
-
-       if let Some(ref font_name) = self.gnome_interface_settings.get_string("monospace-font-name") {
-           self.set_font_desc(font_name);
-           self.font_source = FontSource::Gnome;
-       }
-    }
-}
-
-fn monospace_font_changed() {
-    UI.with(|ui_cell| {
-        let mut ui = ui_cell.borrow_mut();
-
-        // rpc is priority for font
-        if ui.font_source != FontSource::Rpc {
-            ui.update_font();
-            ui.on_redraw();
-        }
-    });
 }
 
 fn gtk_button_press(_: &DrawingArea, ev: &EventButton) -> Inhibit {
@@ -542,7 +514,11 @@ fn request_width(ui: &Ui) {
 impl GuiApi for Ui {
     fn set_font(&mut self, font_desc: &str) {
         self.set_font_desc(font_desc);
-        self.font_source = FontSource::Rpc;
+
+        SET.with(|settings| {
+            let mut settings = settings.borrow_mut();
+            settings.set_font_source(settings::FontSource::Rpc);
+        });
     }
 }
 

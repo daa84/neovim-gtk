@@ -14,6 +14,7 @@ mod nvim;
 mod ui_model;
 mod ui;
 mod input;
+mod settings;
 
 use std::thread;
 use std::env;
