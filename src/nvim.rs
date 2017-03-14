@@ -64,7 +64,7 @@ macro_rules! try_uint {
     })
 }
 
-pub fn initialize(ui: &mut Ui, nvim_bin_path: Option<&String>) -> Result<()> {
+pub fn initialize(ui: &mut Ui, nvim_bin_path: Option<&String>, open_arg: Option<&String>) -> Result<()> {
     let session = if let Some(path) = nvim_bin_path {
         Session::new_child_path(path)?
     } else {
@@ -80,6 +80,10 @@ pub fn initialize(ui: &mut Ui, nvim_bin_path: Option<&String>) -> Result<()> {
     nvim.session.start_event_loop_cb(move |m, p| nvim_cb(m, p));
     nvim.ui_attach(80, 24, UiAttachOptions::new()).map_err(|e| Error::new(ErrorKind::Other, e))?;
     nvim.command("runtime! ginit.vim").map_err(|e| Error::new(ErrorKind::Other, e))?;
+
+    if let Some(ref file) = open_arg {
+        nvim.command(&format!("e {}", file)).report_err(nvim);
+    }
 
     Ok(())
 }
