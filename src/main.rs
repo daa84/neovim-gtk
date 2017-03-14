@@ -64,7 +64,7 @@ fn open_arg() -> Option<String> {
 fn open_arg_impl<I>(args: I) -> Option<String> 
     where I: Iterator<Item=String>
 {
-    args.last().map(|a| {
+    args.skip(1).last().map(|a| {
         if !a.starts_with("-") {
             Some(a.to_owned())
         } else {
@@ -100,5 +100,11 @@ mod tests {
     fn test_open_arg() {
         assert_eq!(Some("some_file.txt".to_string()), 
                    open_arg_impl(vec!["neovim-gtk", "--nvim-bin-path=/test_path", "some_file.txt"].iter().map(|s| s.to_string())));
+    }
+
+    #[test]
+    fn test_empty_open_arg() {
+        assert_eq!(None, 
+                   open_arg_impl(vec!["neovim-gtk"].iter().map(|s| s.to_string())));
     }
 }
