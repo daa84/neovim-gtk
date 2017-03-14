@@ -10,6 +10,7 @@ use gio;
 #[derive(PartialEq)]
 pub enum FontSource {
     Rpc,
+    #[cfg(unix)]
     Gnome,
     Default,
 }
@@ -23,10 +24,9 @@ pub struct Settings {
 }
 
 impl Settings {
-
     #[cfg(unix)]
     pub fn new() -> Settings {
-        Settings { 
+        Settings {
             font_source: FontSource::Default,
             gnome_interface_settings: gio::Settings::new("org.gnome.desktop.interface"),
         }
@@ -34,9 +34,7 @@ impl Settings {
 
     #[cfg(target_os = "windows")]
     pub fn new() -> Settings {
-        Settings { 
-            font_source: FontSource::Default,
-        }
+        Settings { font_source: FontSource::Default }
     }
 
     #[cfg(unix)]
@@ -46,13 +44,7 @@ impl Settings {
     }
 
     #[cfg(target_os = "windows")]
-    pub fn init(&mut self, ui: &mut Ui) {
-        
-    }
-
-    #[cfg(target_os = "windows")]
-    fn update_font(&mut self, ui: &mut Ui) {
-    }
+    pub fn init(&mut self, _: &mut Ui) {}
 
     #[cfg(unix)]
     fn update_font(&mut self, ui: &mut Ui) {
@@ -61,10 +53,11 @@ impl Settings {
             return;
         }
 
-       if let Some(ref font_name) = self.gnome_interface_settings.get_string("monospace-font-name") {
-           ui.set_font_desc(font_name);
-           self.font_source = FontSource::Gnome;
-       }
+        if let Some(ref font_name) = self.gnome_interface_settings
+                                         .get_string("monospace-font-name") {
+            ui.set_font_desc(font_name);
+            self.font_source = FontSource::Gnome;
+        }
     }
 
     pub fn set_font_source(&mut self, src: FontSource) {
@@ -87,4 +80,3 @@ fn monospace_font_changed() {
         });
     });
 }
-
