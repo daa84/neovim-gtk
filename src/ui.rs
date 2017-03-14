@@ -226,7 +226,7 @@ fn edit_paste() {
         let paste_command = if ui.mode == NvimMode::Normal {
             "\"*p"
         } else {
-            "<Esc>\"*p"
+            "<Esc>\"*pa"
         };
 
         let mut nvim = ui.nvim();
