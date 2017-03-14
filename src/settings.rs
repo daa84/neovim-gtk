@@ -53,8 +53,9 @@ impl Settings {
             return;
         }
 
-        if let Some(ref font_name) = self.gnome_interface_settings
-                                         .get_string("monospace-font-name") {
+        if let Some(ref font_name) =
+            self.gnome_interface_settings
+                .get_string("monospace-font-name") {
             ui.set_font_desc(font_name);
             self.font_source = FontSource::Gnome;
         }

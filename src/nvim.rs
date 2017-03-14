@@ -64,7 +64,10 @@ macro_rules! try_uint {
     })
 }
 
-pub fn initialize(ui: &mut Ui, nvim_bin_path: Option<&String>, open_arg: Option<&String>) -> Result<()> {
+pub fn initialize(ui: &mut Ui,
+                  nvim_bin_path: Option<&String>,
+                  open_arg: Option<&String>)
+                  -> Result<()> {
     let session = if let Some(path) = nvim_bin_path {
         Session::new_child_path(path)?
     } else {
