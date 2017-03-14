@@ -46,6 +46,7 @@ enum NvimMode {
 
 pub struct Ui {
     pub model: UiModel,
+    pub initialized: bool,
     nvim: Option<Neovim>,
     drawing_area: DrawingArea,
     window: Option<ApplicationWindow>,
@@ -82,6 +83,7 @@ impl Ui {
             mouse_enabled: false,
             mouse_pressed: false,
             font_desc: FontDescription::from_string(FONT_NAME),
+            initialized: false,
         }
     }
 
@@ -98,6 +100,11 @@ impl Ui {
     }
 
     pub fn init(&mut self, app: &gtk::Application) {
+        if self.initialized { 
+            return
+        }
+        self.initialized = true;
+
         SET.with(|settings| {
             let mut settings = settings.borrow_mut();
             settings.init(self);

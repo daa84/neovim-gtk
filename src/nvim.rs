@@ -65,8 +65,7 @@ macro_rules! try_uint {
 }
 
 pub fn initialize(ui: &mut Ui,
-                  nvim_bin_path: Option<&String>,
-                  open_arg: Option<&String>)
+                  nvim_bin_path: Option<&String>)
                   -> Result<()> {
     let session = if let Some(path) = nvim_bin_path {
         Session::new_child_path(path)?
@@ -84,11 +83,13 @@ pub fn initialize(ui: &mut Ui,
     nvim.ui_attach(80, 24, UiAttachOptions::new()).map_err(|e| Error::new(ErrorKind::Other, e))?;
     nvim.command("runtime! ginit.vim").map_err(|e| Error::new(ErrorKind::Other, e))?;
 
-    if let Some(ref file) = open_arg {
-        nvim.command(&format!("e {}", file)).report_err(nvim);
-    }
-
     Ok(())
+}
+
+pub fn open_file(nvim: &mut NeovimApi, file: Option<&String>) {
+    if let Some(file_name) = file {
+        nvim.command(&format!("e {}", file_name)).report_err(nvim);
+    }
 }
 
 fn nvim_cb(method: &str, params: Vec<Value>) {

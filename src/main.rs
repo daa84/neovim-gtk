@@ -40,14 +40,17 @@ fn main() {
 fn activate(app: &gtk::Application) {
     ui::UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
-        ui.init(app);
+        if !ui.initialized {
+            ui.init(app);
 
-        let path = nvim_bin_path(std::env::args());
-        let open_arg = open_arg();
-        nvim::initialize(&mut *ui, path.as_ref(), open_arg.as_ref())
-            .expect("Can't start nvim instance");
+            let path = nvim_bin_path(std::env::args());
+            nvim::initialize(&mut *ui, path.as_ref())
+                .expect("Can't start nvim instance");
 
-        guard_dispatch_thread(&mut *ui);
+            guard_dispatch_thread(&mut *ui);
+        }
+
+        nvim::open_file(ui.nvim(), open_arg().as_ref());
     });
 }
 
