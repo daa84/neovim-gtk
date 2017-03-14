@@ -34,8 +34,8 @@ macro_rules! ui_thread_var {
     });)
 }
 
-ui_thread_var![UI, Ui, Ui::new()]
-ui_thread_var![SET, settings::Settings, settings::Settings::new()]
+ui_thread_var![UI, Ui, Ui::new()];
+ui_thread_var![SET, settings::Settings, settings::Settings::new()];
 
 #[derive(PartialEq)]
 enum NvimMode {
