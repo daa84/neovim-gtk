@@ -11,6 +11,7 @@ extern crate neovim_lib;
 extern crate phf;
 
 mod nvim;
+mod shell;
 mod ui_model;
 mod ui;
 mod input;

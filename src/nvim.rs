@@ -3,7 +3,7 @@ use std::io::{Result, Error, ErrorKind};
 use std::result;
 use ui_model::UiModel;
 use ui;
-use ui::Ui;
+use shell::Shell;
 use glib;
 
 pub trait RedrawEvents {
@@ -64,7 +64,7 @@ macro_rules! try_uint {
     })
 }
 
-pub fn initialize(ui: &mut Ui,
+pub fn initialize(ui: &mut Shell,
                   nvim_bin_path: Option<&String>)
                   -> Result<()> {
     let session = if let Some(path) = nvim_bin_path {
@@ -140,7 +140,7 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
     }
 }
 
-fn call_gui_event(ui: &mut Ui, method: &str, args: &Vec<Value>) -> result::Result<(), String> {
+fn call_gui_event(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<(), String> {
     match method {
         "Font" => ui.set_font(try_str!(args[0])),
         _ => return Err(format!("Unsupported event {}({:?})", method, args)),
@@ -148,7 +148,7 @@ fn call_gui_event(ui: &mut Ui, method: &str, args: &Vec<Value>) -> result::Resul
     Ok(())
 }
 
-fn call(ui: &mut Ui, method: &str, args: &Vec<Value>) -> result::Result<(), String> {
+fn call(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<(), String> {
     match method {
         "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
         "put" => ui.on_put(try_str!(args[0])),
@@ -182,10 +182,10 @@ fn call(ui: &mut Ui, method: &str, args: &Vec<Value>) -> result::Result<(), Stri
 }
 
 fn safe_call<F>(cb: F)
-    where F: Fn(&mut Ui) -> result::Result<(), String> + 'static + Send
+    where F: Fn(&mut Shell) -> result::Result<(), String> + 'static + Send
 {
     glib::idle_add(move || {
-        ui::UI.with(|ui_cell| if let Err(msg) = cb(&mut *ui_cell.borrow_mut()) {
+        ui::UI.with(|ui_cell| if let Err(msg) = cb(&mut ui_cell.borrow_mut().shell) {
             println!("Error call function: {}", msg);
         });
         glib::Continue(false)
