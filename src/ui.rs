@@ -4,15 +4,14 @@ use std::thread;
 use gtk;
 use gtk_sys;
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, HeaderBar, DrawingArea, ToolButton, Image};
-use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
-use glib;
+use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image};
+use gdk::Event;
 
-use neovim_lib::{Neovim, NeovimApi, Value, Integer};
+use neovim_lib::NeovimApi;
 
 use settings;
 use shell::{Shell, NvimMode};
-use nvim::{RedrawEvents, GuiApi, ErrorReport};
+use nvim::ErrorReport;
 
 
 macro_rules! ui_thread_var {
@@ -47,8 +46,13 @@ impl Ui {
         }
     }
 
-    pub fn destroy(&self) {
+    pub fn close_window(&self) {
         self.window.as_ref().unwrap().destroy();
+    }
+
+    pub fn destroy(&mut self) {
+        self.close_window();
+        self.shell.nvim().ui_detach().expect("Error in ui_detach");
     }
 
     pub fn init(&mut self, app: &gtk::Application) {
@@ -120,10 +124,6 @@ fn quit() {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
         ui.destroy();
-
-        let nvim = ui.nvim();
-        nvim.ui_detach().expect("Error in ui_detach");
-        // nvim.quit_no_save().expect("Can't stop nvim instance");
     });
 }
 

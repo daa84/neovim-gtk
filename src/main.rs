@@ -21,6 +21,8 @@ use std::thread;
 use std::env;
 use gio::ApplicationExt;
 
+use shell::Shell;
+
 const BIN_PATH_ARG: &'static str = "--nvim-bin-path";
 
 fn main() {
@@ -45,13 +47,13 @@ fn activate(app: &gtk::Application) {
             ui.init(app);
 
             let path = nvim_bin_path(std::env::args());
-            nvim::initialize(&mut *ui, path.as_ref())
+            nvim::initialize(&mut ui.shell, path.as_ref())
                 .expect("Can't start nvim instance");
 
-            guard_dispatch_thread(&mut *ui);
+            guard_dispatch_thread(&mut ui.shell);
         }
 
-        nvim::open_file(ui.nvim(), open_arg().as_ref());
+        nvim::open_file(ui.shell.nvim(), open_arg().as_ref());
     });
 }
 
@@ -81,12 +83,12 @@ fn open_arg_impl<I>(args: I) -> Option<String>
         .unwrap_or(None)
 }
 
-fn guard_dispatch_thread(ui: &mut ui::Ui) {
-    let guard = ui.nvim().session.take_dispatch_guard();
+fn guard_dispatch_thread(shell: &mut Shell) {
+    let guard = shell.nvim().session.take_dispatch_guard();
     thread::spawn(move || {
         guard.join().expect("Can't join dispatch thread");
         glib::idle_add(move || {
-            ui::UI.with(|ui_cell| { ui_cell.borrow().destroy(); });
+            ui::UI.with(|ui_cell| { ui_cell.borrow().close_window(); });
             glib::Continue(false)
         });
     });

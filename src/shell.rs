@@ -4,18 +4,17 @@ use cairo;
 use pangocairo as pc;
 use pango;
 use pango::FontDescription;
-use gdk::{ModifierType, Event, EventKey, EventConfigure, EventButton, EventMotion, EventType};
+use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType};
 use gdk_sys;
 use glib;
 use gtk::prelude::*;
-use gtk;
-use gtk::{ApplicationWindow, HeaderBar, DrawingArea, ToolButton, Image};
+use gtk::DrawingArea;
 
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use settings;
 use ui_model::{UiModel, Cell, Attrs, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
-use nvim::{RedrawEvents, GuiApi, ErrorReport};
+use nvim::{RedrawEvents, GuiApi};
 use input::{convert_key, keyval_to_input_string};
 use ui::{UI, Ui, SET};
 
@@ -24,7 +23,7 @@ const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 macro_rules! SHELL {
     ($id:ident = $expr:expr) => (
         UI.with(|ui_cell| {
-        let mut $id = ui_cell.borrow_mut().shell;
+        let mut $id = &mut ui_cell.borrow_mut().shell;
         $expr
     });
     )
@@ -78,6 +77,7 @@ impl Shell {
         self.drawing_area.set_size_request(500, 300);
         self.drawing_area.set_hexpand(true);
         self.drawing_area.set_vexpand(true);
+        self.drawing_area.set_can_focus(true);
 
         self.drawing_area
             .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
