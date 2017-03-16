@@ -1,9 +1,10 @@
 #[cfg(unix)]
 use ui::{UI, SET};
+
 #[cfg(unix)]
 use nvim::RedrawEvents;
 
-use ui::Ui;
+use shell::Shell;
 #[cfg(unix)]
 use gio;
 
@@ -38,16 +39,16 @@ impl Settings {
     }
 
     #[cfg(unix)]
-    pub fn init(&mut self, ui: &mut Ui) {
+    pub fn init(&mut self, shell: &mut Shell) {
         self.gnome_interface_settings.connect_changed(|_, _| monospace_font_changed());
-        self.update_font(ui);
+        self.update_font(shell);
     }
 
     #[cfg(target_os = "windows")]
-    pub fn init(&mut self, _: &mut Ui) {}
+    pub fn init(&mut self, _: &mut Shell) {}
 
     #[cfg(unix)]
-    fn update_font(&mut self, ui: &mut Ui) {
+    fn update_font(&mut self, shell: &mut Shell) {
         // rpc is priority for font
         if self.font_source == FontSource::Rpc {
             return;
@@ -56,7 +57,7 @@ impl Settings {
         if let Some(ref font_name) =
             self.gnome_interface_settings
                 .get_string("monospace-font-name") {
-            ui.set_font_desc(font_name);
+            shell.set_font_desc(font_name);
             self.font_source = FontSource::Gnome;
         }
     }
@@ -75,8 +76,8 @@ fn monospace_font_changed() {
             let mut set = set_cell.borrow_mut();
             // rpc is priority for font
             if set.font_source != FontSource::Rpc {
-                set.update_font(&mut *ui);
-                ui.on_redraw();
+                set.update_font(&mut ui.shell);
+                ui.shell.on_redraw();
             }
         });
     });

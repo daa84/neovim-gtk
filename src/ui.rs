@@ -63,7 +63,7 @@ impl Ui {
 
         SET.with(|settings| {
             let mut settings = settings.borrow_mut();
-            settings.init(self);
+            settings.init(&mut self.shell);
         });
 
         self.header_bar.set_show_close_button(true);
