@@ -4,7 +4,7 @@ use cairo;
 use pangocairo as pc;
 use pango;
 use pango::FontDescription;
-use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType};
+use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType, EventScroll, ScrollDirection};
 use gdk_sys;
 use glib;
 use gtk::prelude::*;
@@ -66,7 +66,7 @@ impl Shell {
             line_height: None,
             char_width: None,
             mode: NvimMode::Normal,
-            mouse_enabled: false,
+            mouse_enabled: true,
             mouse_pressed: false,
             font_desc: FontDescription::from_string(DEFAULT_FONT_NAME),
             resize_timer: None,
@@ -81,13 +81,14 @@ impl Shell {
 
         self.drawing_area
             .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
-                         gdk_sys::GDK_BUTTON_MOTION_MASK)
+                         gdk_sys::GDK_BUTTON_MOTION_MASK | gdk_sys::GDK_SCROLL_MASK)
                             .bits() as i32);
         self.drawing_area.connect_button_press_event(gtk_button_press);
         self.drawing_area.connect_button_release_event(gtk_button_release);
         self.drawing_area.connect_motion_notify_event(gtk_motion_notify);
         self.drawing_area.connect_draw(gtk_draw);
         self.drawing_area.connect_key_press_event(gtk_key_press);
+        self.drawing_area.connect_scroll_event(gtk_scroll_event);
     }
 
     pub fn add_configure_event(&mut self) {
@@ -128,6 +129,23 @@ impl Shell {
             (bg, fg)
         }
     }
+}
+
+fn gtk_scroll_event(_: &DrawingArea, ev: &EventScroll) -> Inhibit {
+    SHELL!(shell = {
+        if !shell.mouse_enabled {
+            return;
+        }
+
+        match ev.as_ref().direction {
+            ScrollDirection::Right => mouse_input(&mut shell, "ScrollWheelRight", ev.get_state(), ev.get_position()),
+            ScrollDirection::Left => mouse_input(&mut shell, "ScrollWheelLeft", ev.get_state(), ev.get_position()),
+            ScrollDirection::Up => mouse_input(&mut shell, "ScrollWheelUp", ev.get_state(), ev.get_position()),
+            ScrollDirection::Down => mouse_input(&mut shell, "ScrollWheelDown", ev.get_state(), ev.get_position()),
+            _ => (),
+        }
+    });
+    Inhibit(false)
 }
 
 fn gtk_button_press(_: &DrawingArea, ev: &EventButton) -> Inhibit {
