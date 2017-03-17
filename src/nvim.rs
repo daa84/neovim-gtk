@@ -1,7 +1,7 @@
 use neovim_lib::{Neovim, NeovimApi, Session, Value, Integer, UiAttachOptions, CallError};
 use std::io::{Result, Error, ErrorKind};
 use std::result;
-use ui_model::UiModel;
+use ui_model::{UiModel, ModelRect};
 use ui;
 use shell::Shell;
 use glib;
@@ -15,7 +15,7 @@ pub trait RedrawEvents {
 
     fn on_resize(&mut self, columns: u64, rows: u64);
 
-    fn on_redraw(&self);
+    fn on_redraw(&self, mode: &RepaintMode);
 
     fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>);
 
@@ -114,7 +114,7 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
                     }
                 }
 
-                ui.on_redraw();
+                ui.on_redraw(&RepaintMode::All);
                 Ok(())
             });
         }
@@ -124,7 +124,7 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
                     let args = params.iter().skip(1).cloned().collect();
                     safe_call(move |ui| {
                         call_gui_event(ui, &ev_name, &args)?;
-                        ui.on_redraw();
+                        ui.on_redraw(&RepaintMode::All);
                         Ok(())
                     });
                 } else {
@@ -204,3 +204,9 @@ impl<T> ErrorReport for result::Result<T, CallError> {
         }
     }
 }
+
+pub enum RepaintMode {
+    All,
+    Area(ModelRect),
+}
+

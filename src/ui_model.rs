@@ -258,4 +258,10 @@ impl ModelRect {
             rect.right
         };
     }
+
+    pub fn to_area(&self, line_height: i32, char_width: i32) -> (i32, i32, i32, i32) {
+        let y = self.top as i32 * line_height;
+        let x = self.left as i32 * char_width;
+        (x, y, self.right as i32 * char_width - x, self.bot as i32 * line_height - y)
+    }
 }

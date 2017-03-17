@@ -2,6 +2,9 @@
 use ui::{UI, SET};
 
 #[cfg(unix)]
+use nvim::RepaintMode;
+
+#[cfg(unix)]
 use nvim::RedrawEvents;
 
 use shell::Shell;
@@ -77,7 +80,7 @@ fn monospace_font_changed() {
             // rpc is priority for font
             if set.font_source != FontSource::Rpc {
                 set.update_font(&mut ui.shell);
-                ui.shell.on_redraw();
+                ui.shell.on_redraw(&RepaintMode::All);
             }
         });
     });

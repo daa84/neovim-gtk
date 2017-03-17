@@ -14,19 +14,25 @@ use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use settings;
 use ui_model::{UiModel, Cell, Attrs, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
-use nvim::{RedrawEvents, GuiApi};
+use nvim::{RedrawEvents, GuiApi, RepaintMode};
 use input::{convert_key, keyval_to_input_string};
 use ui::{UI, Ui, SET};
 
 const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
 macro_rules! SHELL {
+    (&$id:ident = $expr:expr) => (
+        UI.with(|ui_cell| {
+        let $id = &ui_cell.borrow().shell;
+        $expr
+    });
+    );
     ($id:ident = $expr:expr) => (
         UI.with(|ui_cell| {
         let mut $id = &mut ui_cell.borrow_mut().shell;
         $expr
     });
-    )
+    );
 }
 
 #[derive(PartialEq)]
@@ -473,8 +479,20 @@ impl RedrawEvents for Shell {
         self.model = UiModel::new(rows, columns);
     }
 
-    fn on_redraw(&self) {
-        self.drawing_area.queue_draw();
+    fn on_redraw(&self, mode: &RepaintMode) {
+        match mode {
+            &RepaintMode::All => self.drawing_area.queue_draw(),
+            &RepaintMode::Area(ref rect) => {
+                SHELL!(&shell = {
+                    if let Some(line_height) = shell.line_height {
+                        if let Some(char_width) = shell.char_width {
+                            let (x, y, width, height) = rect.to_area(line_height as i32, char_width as i32);
+                            self.drawing_area.queue_draw_area(x, y, width, height);
+                        }
+                    }
+                });
+            },
+        }
     }
 
     fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) {
