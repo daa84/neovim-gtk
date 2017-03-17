@@ -482,7 +482,7 @@ impl RedrawEvents for Shell {
     }
 
     fn on_scroll(&mut self, count: i64) {
-        self.model.scroll(count);
+        self.model.scroll(count as usize);
     }
 
     fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) {

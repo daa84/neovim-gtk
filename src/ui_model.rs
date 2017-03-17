@@ -120,21 +120,32 @@ impl UiModel {
         &self.model
     }
 
-    pub fn set_cursor(&mut self, row: u64, col: u64) {
+    pub fn set_cursor(&mut self, row: u64, col: u64) -> ModelRect {
+        let mut changed_region = ModelRect::point(self.cur_row, self.cur_col);
+
         self.cur_row = row as usize;
         self.cur_col = col as usize;
+
+        changed_region.join(&ModelRect::point(self.cur_row, self.cur_col));
+
+        changed_region
+
     }
 
     pub fn get_cursor(&self) -> (usize, usize) {
         (self.cur_row, self.cur_col)
     }
 
-    pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) {
+    pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) -> ModelRect {
         let mut cell = &mut self.model[self.cur_row][self.cur_col];
+        let changed_region = ModelRect::point(self.cur_row, self.cur_col);
+
         cell.ch = text.chars().last().unwrap_or(' ');
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(|| Attrs::new());
         cell.attrs.double_width = text.len() == 0;
         self.cur_col += 1;
+
+        changed_region
     }
 
     pub fn set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) {
@@ -144,42 +155,49 @@ impl UiModel {
         self.right = right as usize;
     }
 
-    fn copy_row(&mut self, row: usize, offset: i64, left: usize, right: usize) {
+    #[inline]
+    fn copy_row(&mut self, row: usize, offset: usize, left: usize, right: usize) {
         for col in left..right + 1 {
-            let from_row = (row as i64 + offset) as usize;
+            let from_row = row + offset;
             let from_cell = self.model[from_row][col].clone();
             self.model[row][col] = from_cell;
         }
     }
 
-    pub fn scroll(&mut self, count: i64) {
-        let (top, bot, left, right) = (self.top as i64, self.bot as i64, self.left, self.right);
+    pub fn scroll(&mut self, count: usize) -> ModelRect {
+        let (top, bot, left, right) = (self.top, self.bot, self.left, self.right);
 
         if count > 0 {
-            for row in top as usize..(bot - count + 1) as usize {
+            for row in top..(bot - count + 1) {
                 self.copy_row(row, count, left, right);
             }
         } else {
-            for row in ((top - count) as usize..(bot + 1) as usize).rev() {
+            for row in ((top - count)..(bot + 1)).rev() {
                 self.copy_row(row, count, left, right);
             }
         }
 
         if count > 0 {
-            self.clear_region((bot - count + 1) as usize, bot as usize, left, right);
+            self.clear_region((bot - count + 1), bot, left, right);
         } else {
-            self.clear_region(top as usize, (top - count - 1) as usize, left, right);
+            self.clear_region(top, (top - count - 1), left, right);
         }
+
+        ModelRect::new(top, bot, left ,right)
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self) -> ModelRect {
         let (rows, columns) = (self.rows, self.columns);
         self.clear_region(0, rows - 1, 0, columns - 1);
+
+        ModelRect::new(0, 0, rows -1, columns -1)
     }
 
-    pub fn eol_clear(&mut self) {
+    pub fn eol_clear(&mut self) -> ModelRect {
         let (cur_row, cur_col, columns) = (self.cur_row, self.cur_col, self.columns);
         self.clear_region(cur_row, cur_row, cur_col, columns - 1);
+
+        ModelRect::new(cur_row, cur_col, cur_col, columns -1)
     }
 
     fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize) {
@@ -188,5 +206,56 @@ impl UiModel {
                 cell.clear();
             }
         }
+    }
+}
+
+pub struct ModelRect {
+    top: usize,
+    bot: usize,
+    left: usize,
+    right: usize,
+}
+
+impl ModelRect {
+    pub fn new(top: usize, bot: usize, left: usize, right: usize) -> ModelRect {
+        ModelRect {
+            top: top,
+            bot: bot,
+            left: left,
+            right: right,
+        }
+    }
+
+    pub fn point(x: usize, y: usize) -> ModelRect {
+        ModelRect {
+            top: x,
+            bot: x,
+            left: y,
+            right: y,
+        }
+    }
+
+    pub fn join(&mut self, rect: &ModelRect) {
+        self.top = if self.top < rect.top {
+            self.top
+        } else {
+            rect.top
+        };
+        self.left = if self.left < rect.left {
+            self.left
+        } else {
+            rect.left
+        };
+
+        self.bot = if self.bot > rect.bot {
+            self.bot
+        } else {
+            rect.bot
+        };
+        self.right = if self.right > rect.right {
+            self.right
+        } else {
+            rect.right
+        };
     }
 }
