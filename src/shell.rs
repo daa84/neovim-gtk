@@ -526,7 +526,7 @@ impl RedrawEvents for Shell {
     }
 
     fn on_scroll(&mut self, count: i64) -> RepaintMode {
-        RepaintMode::Area(self.model.scroll(count as usize))
+        RepaintMode::Area(self.model.scroll(count))
     }
 
     fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) -> RepaintMode {

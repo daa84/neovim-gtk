@@ -141,13 +141,18 @@ impl UiModel {
     }
 
     pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) -> ModelRect {
-        let changed_region = self.cur_point();
+        let mut changed_region = self.cur_point();
         let mut cell = &mut self.model[self.cur_row][self.cur_col];
 
         cell.ch = text.chars().last().unwrap_or(' ');
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(|| Attrs::new());
         cell.attrs.double_width = text.len() == 0;
         self.cur_col += 1;
+        if self.cur_col >= self.columns {
+            self.cur_col -= 1;
+        }
+
+        changed_region.join(&ModelRect::point(self.cur_row, self.cur_col));
 
         changed_region
     }
@@ -160,16 +165,17 @@ impl UiModel {
     }
 
     #[inline]
-    fn copy_row(&mut self, row: usize, offset: usize, left: usize, right: usize) {
+    fn copy_row(&mut self, row: i64, offset: i64, left: usize, right: usize) {
         for col in left..right + 1 {
-            let from_row = row + offset;
+            let from_row = (row + offset) as usize;
             let from_cell = self.model[from_row][col].clone();
-            self.model[row][col] = from_cell;
+            self.model[row as usize][col] = from_cell;
         }
     }
 
-    pub fn scroll(&mut self, count: usize) -> ModelRect {
-        let (top, bot, left, right) = (self.top, self.bot, self.left, self.right);
+    pub fn scroll(&mut self, count: i64) -> ModelRect {
+        let (top, bot, left, right) = (self.top as i64, self.bot as i64, self.left, self.right);
+        println!("{}, {}, {}, {}", top, bot, left, right);
 
         if count > 0 {
             for row in top..(bot - count + 1) {
@@ -182,12 +188,12 @@ impl UiModel {
         }
 
         if count > 0 {
-            self.clear_region((bot - count + 1), bot, left, right);
+            self.clear_region((bot - count + 1) as usize, bot as usize, left, right);
         } else {
-            self.clear_region(top, (top - count - 1), left, right);
+            self.clear_region(top as usize, (top - count - 1) as usize, left, right);
         }
 
-        ModelRect::new(top, bot, left, right)
+        ModelRect::new(top as usize, bot as usize, left, right)
     }
 
     pub fn clear(&mut self) {
@@ -324,7 +330,7 @@ mod tests {
         assert_eq!(1, rect.top);
         assert_eq!(1, rect.left);
         assert_eq!(1, rect.bot);
-        assert_eq!(1, rect.right);
+        assert_eq!(2, rect.right);
     }
 
     #[test]
