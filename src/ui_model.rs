@@ -273,11 +273,30 @@ impl ModelRect {
          (self.right - self.left + 1) as i32 * char_width,
          (self.bot - self.top + 1) as i32 * line_height)
     }
+
+    pub fn from_area(line_height: i32, char_width: i32, x1: f64, y1: f64, x2: f64, y2: f64) -> ModelRect {
+        let left = (x1 / char_width as f64) as usize;
+        let right = (x2 / char_width as f64) as usize;
+        let top = (y1 / line_height as f64) as usize;
+        let bot = (y2 / line_height as f64) as usize;
+
+        ModelRect::new(top, bot, left, right)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_from_area() {
+        let rect = ModelRect::from_area(10, 5, 3.0, 3.0, 9.0, 17.0);
+
+        assert_eq!(0, rect.top);
+        assert_eq!(0, rect.left);
+        assert_eq!(1, rect.bot);
+        assert_eq!(1, rect.right);
+    }
 
     #[test]
     fn test_cursor_area() {
