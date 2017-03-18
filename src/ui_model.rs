@@ -175,7 +175,6 @@ impl UiModel {
 
     pub fn scroll(&mut self, count: i64) -> ModelRect {
         let (top, bot, left, right) = (self.top as i64, self.bot as i64, self.left, self.right);
-        println!("{}, {}, {}, {}", top, bot, left, right);
 
         if count > 0 {
             for row in top..(bot - count + 1) {
