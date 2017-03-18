@@ -459,24 +459,26 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
 }
 
 impl RedrawEvents for Shell {
-    fn on_cursor_goto(&mut self, row: u64, col: u64) {
-        self.model.set_cursor(row, col);
+    fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
+        RepaintMode::Area(self.model.set_cursor(row, col))
     }
 
-    fn on_put(&mut self, text: &str) {
-        self.model.put(text, self.cur_attrs.as_ref());
+    fn on_put(&mut self, text: &str) -> RepaintMode {
+        RepaintMode::Area(self.model.put(text, self.cur_attrs.as_ref()))
     }
 
-    fn on_clear(&mut self) {
+    fn on_clear(&mut self) -> RepaintMode {
         self.model.clear();
+        RepaintMode::All
     }
 
-    fn on_eol_clear(&mut self) {
-        self.model.eol_clear();
+    fn on_eol_clear(&mut self) -> RepaintMode {
+        RepaintMode::Area(self.model.eol_clear())
     }
 
-    fn on_resize(&mut self, columns: u64, rows: u64) {
+    fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         self.model = UiModel::new(rows, columns);
+        RepaintMode::All
     }
 
     fn on_redraw(&self, mode: &RepaintMode) {
@@ -492,18 +494,20 @@ impl RedrawEvents for Shell {
                     }
                 });
             },
+            &RepaintMode::Nothing => (),
         }
     }
 
-    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) {
+    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) -> RepaintMode {
         self.model.set_scroll_region(top, bot, left, right);
+        RepaintMode::Nothing
     }
 
-    fn on_scroll(&mut self, count: i64) {
-        self.model.scroll(count as usize);
+    fn on_scroll(&mut self, count: i64) -> RepaintMode {
+        RepaintMode::Area(self.model.scroll(count as usize))
     }
 
-    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) {
+    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) -> RepaintMode {
         let mut model_attrs = Attrs::new();
 
         for &(ref key_val, ref val) in attrs {
@@ -537,46 +541,54 @@ impl RedrawEvents for Shell {
         }
 
         self.cur_attrs = Some(model_attrs);
+        RepaintMode::Nothing
     }
 
-    fn on_update_bg(&mut self, bg: i64) {
+    fn on_update_bg(&mut self, bg: i64) -> RepaintMode {
         if bg >= 0 {
             self.bg_color = split_color(bg as u64);
         } else {
             self.bg_color = COLOR_BLACK;
         }
+        RepaintMode::Nothing
     }
 
-    fn on_update_fg(&mut self, fg: i64) {
+    fn on_update_fg(&mut self, fg: i64) -> RepaintMode {
         if fg >= 0 {
             self.fg_color = split_color(fg as u64);
         } else {
             self.fg_color = COLOR_WHITE;
         }
+        RepaintMode::Nothing
     }
 
-    fn on_update_sp(&mut self, sp: i64) {
+    fn on_update_sp(&mut self, sp: i64) -> RepaintMode {
         if sp >= 0 {
             self.sp_color = split_color(sp as u64);
         } else {
             self.sp_color = COLOR_RED;
         }
+        RepaintMode::Nothing
     }
 
-    fn on_mode_change(&mut self, mode: &str) {
+    fn on_mode_change(&mut self, mode: &str) -> RepaintMode {
         match mode {
             "normal" => self.mode = NvimMode::Normal,
             "insert" => self.mode = NvimMode::Insert,
             _ => self.mode = NvimMode::Other,
         }
+
+        RepaintMode::Area(self.model.cur_point())
     }
 
-    fn on_mouse_on(&mut self) {
+    fn on_mouse_on(&mut self) -> RepaintMode {
         self.mouse_enabled = true;
+        RepaintMode::Nothing
     }
 
-    fn on_mouse_off(&mut self) {
+    fn on_mouse_off(&mut self) -> RepaintMode {
         self.mouse_enabled = false;
+        RepaintMode::Nothing
     }
 }
 

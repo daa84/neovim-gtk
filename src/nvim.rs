@@ -7,35 +7,35 @@ use shell::Shell;
 use glib;
 
 pub trait RedrawEvents {
-    fn on_cursor_goto(&mut self, row: u64, col: u64);
+    fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode;
 
-    fn on_put(&mut self, text: &str);
+    fn on_put(&mut self, text: &str) -> RepaintMode;
 
-    fn on_clear(&mut self);
+    fn on_clear(&mut self) -> RepaintMode;
 
-    fn on_resize(&mut self, columns: u64, rows: u64);
+    fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode;
 
     fn on_redraw(&self, mode: &RepaintMode);
 
-    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>);
+    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) -> RepaintMode;
 
-    fn on_eol_clear(&mut self);
+    fn on_eol_clear(&mut self) -> RepaintMode;
 
-    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64);
+    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) -> RepaintMode;
 
-    fn on_scroll(&mut self, count: i64);
+    fn on_scroll(&mut self, count: i64) -> RepaintMode;
 
-    fn on_update_bg(&mut self, bg: i64);
+    fn on_update_bg(&mut self, bg: i64) -> RepaintMode;
 
-    fn on_update_fg(&mut self, fg: i64);
+    fn on_update_fg(&mut self, fg: i64) -> RepaintMode;
 
-    fn on_update_sp(&mut self, sp: i64);
+    fn on_update_sp(&mut self, sp: i64) -> RepaintMode;
 
-    fn on_mode_change(&mut self, mode: &str);
+    fn on_mode_change(&mut self, mode: &str) -> RepaintMode;
 
-    fn on_mouse_on(&mut self);
+    fn on_mouse_on(&mut self) -> RepaintMode;
 
-    fn on_mouse_off(&mut self);
+    fn on_mouse_off(&mut self) -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -96,6 +96,8 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
     match method {
         "redraw" => {
             safe_call(move |ui| {
+                let mut repaint_mode = RepaintMode::Nothing;
+
                 for ev in &params {
                     if let &Value::Array(ref ev_args) = ev {
                         if let Value::String(ref ev_name) = ev_args[0] {
@@ -104,7 +106,8 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
                                     &Value::Array(ref ar) => ar.clone(),
                                     _ => vec![],
                                 };
-                                call(ui, ev_name, &args)?;
+                                let call_reapint_mode = call(ui, ev_name, &args)?;
+                                repaint_mode = repaint_mode.join(&call_reapint_mode);
                             }
                         } else {
                             println!("Unsupported event {:?}", ev_args);
@@ -114,7 +117,7 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
                     }
                 }
 
-                ui.on_redraw(&RepaintMode::All);
+                ui.on_redraw(&repaint_mode);
                 Ok(())
             });
         }
@@ -148,8 +151,8 @@ fn call_gui_event(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Re
     Ok(())
 }
 
-fn call(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<(), String> {
-    match method {
+fn call(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<RepaintMode, String> {
+    Ok(match method {
         "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
         "put" => ui.on_put(try_str!(args[0])),
         "clear" => ui.on_clear(),
@@ -160,6 +163,7 @@ fn call(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<(), S
             } else {
                 panic!("Supports only map value as argument");
             }
+            RepaintMode::Nothing
         }
         "eol_clear" => ui.on_eol_clear(),
         "set_scroll_region" => {
@@ -167,6 +171,7 @@ fn call(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<(), S
                                     try_uint!(args[1]),
                                     try_uint!(args[2]),
                                     try_uint!(args[3]));
+            RepaintMode::Nothing
         }
         "scroll" => ui.on_scroll(try_int!(args[0])),
         "update_bg" => ui.on_update_bg(try_int!(args[0])),
@@ -175,10 +180,11 @@ fn call(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<(), S
         "mode_change" => ui.on_mode_change(try_str!(args[0])),
         "mouse_on" => ui.on_mouse_on(),
         "mouse_off" => ui.on_mouse_off(),
-        _ => println!("Event {}({:?})", method, args),
-    };
-
-    Ok(())
+        _ => {
+            println!("Event {}({:?})", method, args);
+            RepaintMode::Nothing
+        },
+    })
 }
 
 fn safe_call<F>(cb: F)
@@ -205,8 +211,25 @@ impl<T> ErrorReport for result::Result<T, CallError> {
     }
 }
 
+#[derive(Clone)]
 pub enum RepaintMode {
+    Nothing,
     All,
     Area(ModelRect),
 }
 
+impl RepaintMode {
+    pub fn join(&self, mode: &RepaintMode) -> RepaintMode {
+        match (self, mode) {
+            (&RepaintMode::Nothing, m) => m.clone(),
+            (m, &RepaintMode::Nothing) => m.clone(),
+            (&RepaintMode::All, _) => RepaintMode::All,
+            (_, &RepaintMode::All) => RepaintMode::All,
+            (&RepaintMode::Area(ref mr1), &RepaintMode::Area(ref mr2)) => {
+                let mut area = mr1.clone();
+                area.join(mr2);
+                RepaintMode::Area(area)
+            }
+        }
+    }
+}

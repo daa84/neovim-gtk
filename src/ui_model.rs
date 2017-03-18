@@ -120,13 +120,17 @@ impl UiModel {
         &self.model
     }
 
+    pub fn cur_point(&self) -> ModelRect {
+        ModelRect::point(self.cur_row, self.cur_col)
+    }
+
     pub fn set_cursor(&mut self, row: u64, col: u64) -> ModelRect {
-        let mut changed_region = ModelRect::point(self.cur_row, self.cur_col);
+        let mut changed_region = self.cur_point();
 
         self.cur_row = row as usize;
         self.cur_col = col as usize;
 
-        changed_region.join(&ModelRect::point(self.cur_row, self.cur_col));
+        changed_region.join(&self.cur_point());
 
         changed_region
 
@@ -137,8 +141,8 @@ impl UiModel {
     }
 
     pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) -> ModelRect {
+        let changed_region = self.cur_point();
         let mut cell = &mut self.model[self.cur_row][self.cur_col];
-        let changed_region = ModelRect::point(self.cur_row, self.cur_col);
 
         cell.ch = text.chars().last().unwrap_or(' ');
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(|| Attrs::new());
@@ -183,21 +187,19 @@ impl UiModel {
             self.clear_region(top, (top - count - 1), left, right);
         }
 
-        ModelRect::new(top, bot, left ,right)
+        ModelRect::new(top, bot, left, right)
     }
 
-    pub fn clear(&mut self) -> ModelRect {
+    pub fn clear(&mut self) {
         let (rows, columns) = (self.rows, self.columns);
         self.clear_region(0, rows - 1, 0, columns - 1);
-
-        ModelRect::new(0, 0, rows -1, columns -1)
     }
 
     pub fn eol_clear(&mut self) -> ModelRect {
         let (cur_row, cur_col, columns) = (self.cur_row, self.cur_col, self.columns);
         self.clear_region(cur_row, cur_row, cur_col, columns - 1);
 
-        ModelRect::new(cur_row, cur_col, cur_col, columns -1)
+        ModelRect::new(cur_row, cur_col, cur_col, columns - 1)
     }
 
     fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize) {
@@ -209,6 +211,7 @@ impl UiModel {
     }
 }
 
+#[derive(Clone)]
 pub struct ModelRect {
     top: usize,
     bot: usize,
@@ -260,8 +263,81 @@ impl ModelRect {
     }
 
     pub fn to_area(&self, line_height: i32, char_width: i32) -> (i32, i32, i32, i32) {
-        let y = self.top as i32 * line_height;
-        let x = self.left as i32 * char_width;
-        (x, y, self.right as i32 * char_width - x, self.bot as i32 * line_height - y)
+        (self.left as i32 * char_width,
+         self.top as i32 * line_height,
+         (self.right - self.left + 1) as i32 * char_width,
+         (self.bot - self.top + 1) as i32 * line_height)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cursor_area() {
+        let mut model = UiModel::new(10, 20);
+
+        model.set_cursor(1, 1);
+
+        let rect = model.set_cursor(5, 5);
+
+        assert_eq!(1, rect.top);
+        assert_eq!(1, rect.left);
+        assert_eq!(5, rect.bot);
+        assert_eq!(5, rect.right);
+    }
+
+    #[test]
+    fn test_eol_clear_area() {
+        let mut model = UiModel::new(10, 20);
+
+        model.set_cursor(1, 1);
+
+        let rect = model.eol_clear();
+
+        assert_eq!(1, rect.top);
+        assert_eq!(1, rect.left);
+        assert_eq!(1, rect.bot);
+        assert_eq!(19, rect.right);
+    }
+
+    #[test]
+    fn test_repaint_rect() {
+        let rect = ModelRect::point(1, 1);
+        let (x, y, width, height) = rect.to_area(10, 5);
+
+        assert_eq!(5, x);
+        assert_eq!(10, y);
+        assert_eq!(5, width);
+        assert_eq!(10, height);
+    }
+
+    #[test]
+    fn test_put_area() {
+        let mut model = UiModel::new(10, 20);
+
+        model.set_cursor(1, 1);
+
+        let rect = model.put(" ", None);
+
+        assert_eq!(1, rect.top);
+        assert_eq!(1, rect.left);
+        assert_eq!(1, rect.bot);
+        assert_eq!(1, rect.right);
+    }
+
+    #[test]
+    fn test_scroll_area() {
+        let mut model = UiModel::new(10, 20);
+
+        model.set_scroll_region(1, 5, 1, 5);
+
+        let rect = model.scroll(3);
+
+        assert_eq!(1, rect.top);
+        assert_eq!(1, rect.left);
+        assert_eq!(5, rect.bot);
+        assert_eq!(5, rect.right);
     }
 }
