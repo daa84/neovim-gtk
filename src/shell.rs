@@ -4,7 +4,8 @@ use cairo;
 use pangocairo as pc;
 use pango;
 use pango::FontDescription;
-use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType, EventScroll, ScrollDirection};
+use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType, EventScroll,
+          ScrollDirection};
 use gdk_sys;
 use glib;
 use gtk::prelude::*;
@@ -61,7 +62,7 @@ pub struct Shell {
 
 impl Shell {
     pub fn new() -> Shell {
-        Shell { 
+        Shell {
             model: UiModel::empty(),
             drawing_area: DrawingArea::new(),
             nvim: None,
@@ -87,8 +88,9 @@ impl Shell {
 
         self.drawing_area
             .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
-                         gdk_sys::GDK_BUTTON_MOTION_MASK | gdk_sys::GDK_SCROLL_MASK)
-                            .bits() as i32);
+                         gdk_sys::GDK_BUTTON_MOTION_MASK |
+                         gdk_sys::GDK_SCROLL_MASK)
+                .bits() as i32);
         self.drawing_area.connect_button_press_event(gtk_button_press);
         self.drawing_area.connect_button_release_event(gtk_button_release);
         self.drawing_area.connect_motion_notify_event(gtk_motion_notify);
@@ -144,10 +146,30 @@ fn gtk_scroll_event(_: &DrawingArea, ev: &EventScroll) -> Inhibit {
         }
 
         match ev.as_ref().direction {
-            ScrollDirection::Right => mouse_input(&mut shell, "ScrollWheelRight", ev.get_state(), ev.get_position()),
-            ScrollDirection::Left => mouse_input(&mut shell, "ScrollWheelLeft", ev.get_state(), ev.get_position()),
-            ScrollDirection::Up => mouse_input(&mut shell, "ScrollWheelUp", ev.get_state(), ev.get_position()),
-            ScrollDirection::Down => mouse_input(&mut shell, "ScrollWheelDown", ev.get_state(), ev.get_position()),
+            ScrollDirection::Right => {
+                mouse_input(&mut shell,
+                            "ScrollWheelRight",
+                            ev.get_state(),
+                            ev.get_position())
+            }
+            ScrollDirection::Left => {
+                mouse_input(&mut shell,
+                            "ScrollWheelLeft",
+                            ev.get_state(),
+                            ev.get_position())
+            }
+            ScrollDirection::Up => {
+                mouse_input(&mut shell,
+                            "ScrollWheelUp",
+                            ev.get_state(),
+                            ev.get_position())
+            }
+            ScrollDirection::Down => {
+                mouse_input(&mut shell,
+                            "ScrollWheelDown",
+                            ev.get_state(),
+                            ev.get_position())
+            }
             _ => (),
         }
     });
@@ -445,7 +467,8 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
                         let rows = (height as f64 / line_height).trunc() as usize;
                         let columns = (width as f64 / char_width).trunc() as usize;
                         if shell.model.rows != rows || shell.model.columns != columns {
-                            if let Err(err) = shell.nvim().ui_try_resize(columns as u64, rows as u64) {
+                            if let Err(err) = shell.nvim()
+                                .ui_try_resize(columns as u64, rows as u64) {
                                 println!("Error trying resize nvim {}", err);
                             }
                         }
@@ -485,15 +508,14 @@ impl RedrawEvents for Shell {
         match mode {
             &RepaintMode::All => self.drawing_area.queue_draw(),
             &RepaintMode::Area(ref rect) => {
-                SHELL!(&shell = {
-                    if let Some(line_height) = shell.line_height {
-                        if let Some(char_width) = shell.char_width {
-                            let (x, y, width, height) = rect.to_area(line_height as i32, char_width as i32);
-                            self.drawing_area.queue_draw_area(x, y, width, height);
-                        }
+                if let Some(line_height) = self.line_height {
+                    if let Some(char_width) = self.char_width {
+                        let (x, y, width, height) =
+                            rect.to_area(line_height as i32, char_width as i32);
+                        self.drawing_area.queue_draw_area(x, y, width, height);
                     }
-                });
-            },
+                }
+            }
             &RepaintMode::Nothing => (),
         }
     }
@@ -602,4 +624,3 @@ impl GuiApi for Shell {
         });
     }
 }
-
