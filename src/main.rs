@@ -26,7 +26,7 @@ use shell::Shell;
 const BIN_PATH_ARG: &'static str = "--nvim-bin-path";
 
 fn main() {
-    let app = gtk::Application::new(Some("org.gtk.neovim-gtk"), gio::ApplicationFlags::empty())
+    let app = gtk::Application::new(Some("org.daa.NeovimGtk"), gio::ApplicationFlags::empty())
         .expect("Failed to initialize GTK application");
 
     app.connect_activate(activate);
