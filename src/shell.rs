@@ -14,7 +14,7 @@ use gtk::DrawingArea;
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use settings;
-use ui_model::{UiModel, Cell, Attrs, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
+use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim::{RedrawEvents, GuiApi, RepaintMode};
 use input::{convert_key, keyval_to_input_string};
 use ui::{UI, Ui, SET};
@@ -276,17 +276,24 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
 
     let line_height = shell.line_height.unwrap();
     let char_width = shell.char_width.unwrap();
+    let clip = ctx.clip_extents();
+    let model_clip = ModelRect::from_area(line_height, char_width, 
+                                          clip.0, clip.1, clip.2, clip.3);
+
+    let line_x = model_clip.left as f64 * char_width;
+    let mut line_y: f64 = model_clip.top as f64 * line_height;
+
     let (row, col) = shell.model.get_cursor();
     let mut buf = String::with_capacity(4);
 
-    let mut line_y: f64 = 0.0;
 
 
     let layout = pc::create_layout(ctx);
     let mut desc = shell.create_pango_font();
 
-    for (line_idx, line) in shell.model.model().iter().enumerate() {
-        ctx.move_to(0.0, line_y);
+    // FIXME: col_idx is wrong
+    for (line_idx, line) in shell.model.clip_model(&model_clip) {
+        ctx.move_to(line_x, line_y);
 
         // first draw background
         // here we join same bg color for given line
@@ -319,7 +326,7 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
                          line_height,
                          from_bg.take().unwrap());
 
-        ctx.move_to(0.0, line_y);
+        ctx.move_to(line_x, line_y);
 
         for (col_idx, cell) in line.iter().enumerate() {
             let double_width = line.get(col_idx + 1).map(|c| c.attrs.double_width).unwrap_or(false);
@@ -508,12 +515,13 @@ impl RedrawEvents for Shell {
         match mode {
             &RepaintMode::All => self.drawing_area.queue_draw(),
             &RepaintMode::Area(ref rect) => {
-                if let Some(line_height) = self.line_height {
-                    if let Some(char_width) = self.char_width {
+                match (&self.line_height, &self.char_width) {
+                    (&Some(line_height), &Some(char_width)) => {
                         let (x, y, width, height) =
-                            rect.to_area(line_height as i32, char_width as i32);
+                            rect.to_area(line_height, char_width);
                         self.drawing_area.queue_draw_area(x, y, width, height);
                     }
+                    _ => self.drawing_area.queue_draw(),
                 }
             }
             &RepaintMode::Nothing => (),

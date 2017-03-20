@@ -1,3 +1,4 @@
+use std::slice::Iter;
 
 #[derive(Clone, PartialEq)]
 pub struct Color(pub f64, pub f64, pub f64);
@@ -120,6 +121,10 @@ impl UiModel {
         &self.model
     }
 
+    pub fn clip_model<'a> (&'a self, clip: &'a ModelRect) -> ClipRowIterator<'a> {
+        ClipRowIterator::new(self, clip)
+    }
+
     pub fn cur_point(&self) -> ModelRect {
         ModelRect::point(self.cur_row, self.cur_col)
     }
@@ -218,10 +223,10 @@ impl UiModel {
 
 #[derive(Clone)]
 pub struct ModelRect {
-    top: usize,
-    bot: usize,
-    left: usize,
-    right: usize,
+    pub top: usize,
+    pub bot: usize,
+    pub left: usize,
+    pub right: usize,
 }
 
 impl ModelRect {
@@ -267,20 +272,86 @@ impl ModelRect {
         };
     }
 
-    pub fn to_area(&self, line_height: i32, char_width: i32) -> (i32, i32, i32, i32) {
-        (self.left as i32 * char_width,
-         self.top as i32 * line_height,
-         (self.right - self.left + 1) as i32 * char_width,
-         (self.bot - self.top + 1) as i32 * line_height)
+    pub fn to_area(&self, line_height: f64, char_width: f64) -> (i32, i32, i32, i32) {
+        (self.left as i32 * char_width as i32,
+         self.top as i32 * line_height as i32,
+         (self.right - self.left + 1) as i32 * char_width as i32,
+         (self.bot - self.top + 1) as i32 * line_height as i32)
     }
 
-    pub fn from_area(line_height: i32, char_width: i32, x1: f64, y1: f64, x2: f64, y2: f64) -> ModelRect {
-        let left = (x1 / char_width as f64) as usize;
-        let right = (x2 / char_width as f64) as usize;
-        let top = (y1 / line_height as f64) as usize;
-        let bot = (y2 / line_height as f64) as usize;
+    pub fn from_area(line_height: f64, char_width: f64, x1: f64, y1: f64, x2: f64, y2: f64) -> ModelRect {
+        let left = (x1 / char_width) as usize;
+        let right = (x2 / char_width) as usize;
+        let top = (y1 / line_height) as usize;
+        let bot = (y2 / line_height) as usize;
 
         ModelRect::new(top, bot, left, right)
+    }
+}
+
+pub struct ClipRowIterator<'a> {
+    rect: &'a ModelRect,
+    pos: usize,
+    iter: Iter<'a, Vec<Cell>>,
+}
+
+impl <'a> ClipRowIterator<'a> {
+    pub fn new(model: &'a UiModel, rect: &'a ModelRect) -> ClipRowIterator<'a> {
+        ClipRowIterator { 
+            rect: rect,
+            pos: 0,
+            iter: model.model()[rect.top..rect.bot + 1].iter(),
+        }
+    }
+}
+
+impl <'a> Iterator for ClipRowIterator<'a> {
+    type Item = (usize, ClipColIterator<'a>);
+
+    fn next(&mut self) -> Option<(usize, ClipColIterator<'a>)> {
+        self.pos += 1;
+        self.iter.next().map(|line| {
+            (self.rect.top + self.pos, ClipColIterator::new(line, self.rect))
+        })
+    }
+}
+
+pub struct ClipColIterator<'a> {
+    rect: &'a ModelRect,
+    len: usize,
+    line: &'a Vec<Cell>,
+    pos: usize,
+    iter: Iter<'a, Cell>,
+}
+
+impl <'a> ClipColIterator<'a> {
+    pub fn new(model: &'a Vec<Cell>, rect: &'a ModelRect) -> ClipColIterator<'a> {
+        ClipColIterator { 
+            len: rect.right - rect.left + 1,
+            line: model,
+            rect: rect,
+            pos: 0,
+            iter: model[rect.left..rect.right + 1].iter(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn get(&self, idx: usize) -> Option<&Cell> {
+        self.line.get(idx)
+    }
+}
+
+impl <'a>Iterator for ClipColIterator<'a> {
+    type Item = (usize, &'a Cell);
+
+    fn next(&mut self) -> Option<(usize, &'a Cell)> {
+        self.pos += 1;
+        self.iter.next().map(|line| {
+            (self.rect.left + self.pos, line)
+        })
     }
 }
 
@@ -289,8 +360,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_iterator() {
+        let model = UiModel::new(10, 20);
+        let rect = ModelRect::new(1, 2, 1, 2);
+
+        assert_eq!(2, model.clip_model(&rect).count());
+        assert_eq!(2, model.clip_model(&rect).nth(0).unwrap().count());
+    }
+
+    #[test]
     fn test_from_area() {
-        let rect = ModelRect::from_area(10, 5, 3.0, 3.0, 9.0, 17.0);
+        let rect = ModelRect::from_area(10.0, 5.0, 3.0, 3.0, 9.0, 17.0);
 
         assert_eq!(0, rect.top);
         assert_eq!(0, rect.left);

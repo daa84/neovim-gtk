@@ -233,3 +233,24 @@ impl RepaintMode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mode() {
+        let mode = RepaintMode::Area(ModelRect::point(1, 1));
+        mode.join(&RepaintMode::Nothing);
+
+        match mode {
+            RepaintMode::Area(ref rect) => {
+                assert_eq!(1, rect.top);
+                assert_eq!(1, rect.bot);
+                assert_eq!(1, rect.left);
+                assert_eq!(1, rect.right);
+            }
+            _ => panic!("mode is worng")
+        }
+    }
+}
