@@ -277,8 +277,9 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
     let line_height = shell.line_height.unwrap();
     let char_width = shell.char_width.unwrap();
     let clip = ctx.clip_extents();
-    let model_clip = ModelRect::from_area(line_height, char_width, 
+    let mut model_clip = ModelRect::from_area(line_height, char_width, 
                                           clip.0, clip.1, clip.2, clip.3);
+    shell.model.limit_to_model(&mut model_clip);
 
     let line_x = model_clip.left as f64 * char_width;
     let mut line_y: f64 = model_clip.top as f64 * line_height;
@@ -291,16 +292,15 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
     let layout = pc::create_layout(ctx);
     let mut desc = shell.create_pango_font();
 
-    // FIXME: col_idx is wrong
     for (line_idx, line) in shell.model.clip_model(&model_clip) {
         ctx.move_to(line_x, line_y);
 
         // first draw background
         // here we join same bg color for given line
         // this gives less drawing primitives
-        let mut from_col_idx = 0;
+        let mut from_col_idx = model_clip.left;
         let mut from_bg = None;
-        for (col_idx, cell) in line.iter().enumerate() {
+        for (col_idx, cell) in line.iter() {
             let (bg, _) = shell.colors(cell);
 
             if from_bg.is_none() {
@@ -321,14 +321,14 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
         draw_joined_rect(shell,
                          ctx,
                          from_col_idx,
-                         line.len(),
+                         model_clip.right + 1,
                          char_width,
                          line_height,
                          from_bg.take().unwrap());
 
         ctx.move_to(line_x, line_y);
 
-        for (col_idx, cell) in line.iter().enumerate() {
+        for (col_idx, cell) in line.iter() {
             let double_width = line.get(col_idx + 1).map(|c| c.attrs.double_width).unwrap_or(false);
             let current_point = ctx.get_current_point();
 
