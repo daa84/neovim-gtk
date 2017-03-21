@@ -1,3 +1,0 @@
-[submodule "flatpak"]
-	path = flatpak
-	url = https://github.com/daa84/neovim-gtk-flatpak
