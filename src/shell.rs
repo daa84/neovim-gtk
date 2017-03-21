@@ -4,7 +4,8 @@ use cairo;
 use pangocairo as pc;
 use pango;
 use pango::FontDescription;
-use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType, EventScroll, ScrollDirection};
+use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType, EventScroll,
+          ScrollDirection};
 use gdk_sys;
 use glib;
 use gtk::prelude::*;
@@ -13,20 +14,26 @@ use gtk::DrawingArea;
 use neovim_lib::{Neovim, NeovimApi, Value, Integer};
 
 use settings;
-use ui_model::{UiModel, Cell, Attrs, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
-use nvim::{RedrawEvents, GuiApi};
+use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
+use nvim::{RedrawEvents, GuiApi, RepaintMode};
 use input::{convert_key, keyval_to_input_string};
 use ui::{UI, Ui, SET};
 
 const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
 macro_rules! SHELL {
+    (&$id:ident = $expr:expr) => (
+        UI.with(|ui_cell| {
+        let $id = &ui_cell.borrow().shell;
+        $expr
+    });
+    );
     ($id:ident = $expr:expr) => (
         UI.with(|ui_cell| {
         let mut $id = &mut ui_cell.borrow_mut().shell;
         $expr
     });
-    )
+    );
 }
 
 #[derive(PartialEq)]
@@ -55,7 +62,7 @@ pub struct Shell {
 
 impl Shell {
     pub fn new() -> Shell {
-        Shell { 
+        Shell {
             model: UiModel::empty(),
             drawing_area: DrawingArea::new(),
             nvim: None,
@@ -81,8 +88,9 @@ impl Shell {
 
         self.drawing_area
             .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
-                         gdk_sys::GDK_BUTTON_MOTION_MASK | gdk_sys::GDK_SCROLL_MASK)
-                            .bits() as i32);
+                         gdk_sys::GDK_BUTTON_MOTION_MASK |
+                         gdk_sys::GDK_SCROLL_MASK)
+                .bits() as i32);
         self.drawing_area.connect_button_press_event(gtk_button_press);
         self.drawing_area.connect_button_release_event(gtk_button_release);
         self.drawing_area.connect_motion_notify_event(gtk_motion_notify);
@@ -138,10 +146,30 @@ fn gtk_scroll_event(_: &DrawingArea, ev: &EventScroll) -> Inhibit {
         }
 
         match ev.as_ref().direction {
-            ScrollDirection::Right => mouse_input(&mut shell, "ScrollWheelRight", ev.get_state(), ev.get_position()),
-            ScrollDirection::Left => mouse_input(&mut shell, "ScrollWheelLeft", ev.get_state(), ev.get_position()),
-            ScrollDirection::Up => mouse_input(&mut shell, "ScrollWheelUp", ev.get_state(), ev.get_position()),
-            ScrollDirection::Down => mouse_input(&mut shell, "ScrollWheelDown", ev.get_state(), ev.get_position()),
+            ScrollDirection::Right => {
+                mouse_input(&mut shell,
+                            "ScrollWheelRight",
+                            ev.get_state(),
+                            ev.get_position())
+            }
+            ScrollDirection::Left => {
+                mouse_input(&mut shell,
+                            "ScrollWheelLeft",
+                            ev.get_state(),
+                            ev.get_position())
+            }
+            ScrollDirection::Up => {
+                mouse_input(&mut shell,
+                            "ScrollWheelUp",
+                            ev.get_state(),
+                            ev.get_position())
+            }
+            ScrollDirection::Down => {
+                mouse_input(&mut shell,
+                            "ScrollWheelDown",
+                            ev.get_state(),
+                            ev.get_position())
+            }
             _ => (),
         }
     });
@@ -248,24 +276,31 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
 
     let line_height = shell.line_height.unwrap();
     let char_width = shell.char_width.unwrap();
+    let clip = ctx.clip_extents();
+    let mut model_clip = ModelRect::from_area(line_height, char_width, 
+                                          clip.0, clip.1, clip.2, clip.3);
+    shell.model.limit_to_model(&mut model_clip);
+
+    let line_x = model_clip.left as f64 * char_width;
+    let mut line_y: f64 = model_clip.top as f64 * line_height;
+
     let (row, col) = shell.model.get_cursor();
     let mut buf = String::with_capacity(4);
 
-    let mut line_y: f64 = 0.0;
 
 
     let layout = pc::create_layout(ctx);
     let mut desc = shell.create_pango_font();
 
-    for (line_idx, line) in shell.model.model().iter().enumerate() {
-        ctx.move_to(0.0, line_y);
+    for (line_idx, line) in shell.model.clip_model(&model_clip) {
+        ctx.move_to(line_x, line_y);
 
         // first draw background
         // here we join same bg color for given line
         // this gives less drawing primitives
-        let mut from_col_idx = 0;
+        let mut from_col_idx = model_clip.left;
         let mut from_bg = None;
-        for (col_idx, cell) in line.iter().enumerate() {
+        for (col_idx, cell) in line.iter() {
             let (bg, _) = shell.colors(cell);
 
             if from_bg.is_none() {
@@ -286,14 +321,14 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
         draw_joined_rect(shell,
                          ctx,
                          from_col_idx,
-                         line.len(),
+                         model_clip.right + 1,
                          char_width,
                          line_height,
                          from_bg.take().unwrap());
 
-        ctx.move_to(0.0, line_y);
+        ctx.move_to(line_x, line_y);
 
-        for (col_idx, cell) in line.iter().enumerate() {
+        for (col_idx, cell) in line.iter() {
             let double_width = line.get(col_idx + 1).map(|c| c.attrs.double_width).unwrap_or(false);
             let current_point = ctx.get_current_point();
 
@@ -439,7 +474,8 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
                         let rows = (height as f64 / line_height).trunc() as usize;
                         let columns = (width as f64 / char_width).trunc() as usize;
                         if shell.model.rows != rows || shell.model.columns != columns {
-                            if let Err(err) = shell.nvim().ui_try_resize(columns as u64, rows as u64) {
+                            if let Err(err) = shell.nvim()
+                                .ui_try_resize(columns as u64, rows as u64) {
                                 println!("Error trying resize nvim {}", err);
                             }
                         }
@@ -453,39 +489,55 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
 }
 
 impl RedrawEvents for Shell {
-    fn on_cursor_goto(&mut self, row: u64, col: u64) {
-        self.model.set_cursor(row, col);
+    fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
+        RepaintMode::Area(self.model.set_cursor(row, col))
     }
 
-    fn on_put(&mut self, text: &str) {
-        self.model.put(text, self.cur_attrs.as_ref());
+    fn on_put(&mut self, text: &str) -> RepaintMode {
+        RepaintMode::Area(self.model.put(text, self.cur_attrs.as_ref()))
     }
 
-    fn on_clear(&mut self) {
+    fn on_clear(&mut self) -> RepaintMode {
         self.model.clear();
+        RepaintMode::All
     }
 
-    fn on_eol_clear(&mut self) {
-        self.model.eol_clear();
+    fn on_eol_clear(&mut self) -> RepaintMode {
+        RepaintMode::Area(self.model.eol_clear())
     }
 
-    fn on_resize(&mut self, columns: u64, rows: u64) {
+    fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         self.model = UiModel::new(rows, columns);
+        RepaintMode::All
     }
 
-    fn on_redraw(&self) {
-        self.drawing_area.queue_draw();
+    fn on_redraw(&self, mode: &RepaintMode) {
+        match mode {
+            &RepaintMode::All => self.drawing_area.queue_draw(),
+            &RepaintMode::Area(ref rect) => {
+                match (&self.line_height, &self.char_width) {
+                    (&Some(line_height), &Some(char_width)) => {
+                        let (x, y, width, height) =
+                            rect.to_area(line_height, char_width);
+                        self.drawing_area.queue_draw_area(x, y, width, height);
+                    }
+                    _ => self.drawing_area.queue_draw(),
+                }
+            }
+            &RepaintMode::Nothing => (),
+        }
     }
 
-    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) {
+    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) -> RepaintMode {
         self.model.set_scroll_region(top, bot, left, right);
+        RepaintMode::Nothing
     }
 
-    fn on_scroll(&mut self, count: i64) {
-        self.model.scroll(count);
+    fn on_scroll(&mut self, count: i64) -> RepaintMode {
+        RepaintMode::Area(self.model.scroll(count))
     }
 
-    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) {
+    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) -> RepaintMode {
         let mut model_attrs = Attrs::new();
 
         for &(ref key_val, ref val) in attrs {
@@ -519,46 +571,54 @@ impl RedrawEvents for Shell {
         }
 
         self.cur_attrs = Some(model_attrs);
+        RepaintMode::Nothing
     }
 
-    fn on_update_bg(&mut self, bg: i64) {
+    fn on_update_bg(&mut self, bg: i64) -> RepaintMode {
         if bg >= 0 {
             self.bg_color = split_color(bg as u64);
         } else {
             self.bg_color = COLOR_BLACK;
         }
+        RepaintMode::Nothing
     }
 
-    fn on_update_fg(&mut self, fg: i64) {
+    fn on_update_fg(&mut self, fg: i64) -> RepaintMode {
         if fg >= 0 {
             self.fg_color = split_color(fg as u64);
         } else {
             self.fg_color = COLOR_WHITE;
         }
+        RepaintMode::Nothing
     }
 
-    fn on_update_sp(&mut self, sp: i64) {
+    fn on_update_sp(&mut self, sp: i64) -> RepaintMode {
         if sp >= 0 {
             self.sp_color = split_color(sp as u64);
         } else {
             self.sp_color = COLOR_RED;
         }
+        RepaintMode::Nothing
     }
 
-    fn on_mode_change(&mut self, mode: &str) {
+    fn on_mode_change(&mut self, mode: &str) -> RepaintMode {
         match mode {
             "normal" => self.mode = NvimMode::Normal,
             "insert" => self.mode = NvimMode::Insert,
             _ => self.mode = NvimMode::Other,
         }
+
+        RepaintMode::Area(self.model.cur_point())
     }
 
-    fn on_mouse_on(&mut self) {
+    fn on_mouse_on(&mut self) -> RepaintMode {
         self.mouse_enabled = true;
+        RepaintMode::Nothing
     }
 
-    fn on_mouse_off(&mut self) {
+    fn on_mouse_off(&mut self) -> RepaintMode {
         self.mouse_enabled = false;
+        RepaintMode::Nothing
     }
 }
 
@@ -572,4 +632,3 @@ impl GuiApi for Shell {
         });
     }
 }
-
