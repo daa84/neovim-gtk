@@ -18,6 +18,7 @@ use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE,
 use nvim::{RedrawEvents, GuiApi, RepaintMode};
 use input::{convert_key, keyval_to_input_string};
 use ui::{UI, Ui, SET};
+use cursor::Cursor;
 
 const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
@@ -58,6 +59,7 @@ pub struct Shell {
     mouse_pressed: bool,
     font_desc: FontDescription,
     resize_timer: Option<glib::SourceId>,
+    cursor: Cursor,
 }
 
 impl Shell {
@@ -77,6 +79,7 @@ impl Shell {
             mouse_pressed: false,
             font_desc: FontDescription::from_string(DEFAULT_FONT_NAME),
             resize_timer: None,
+            cursor: Cursor::new(),
         }
     }
 
@@ -119,7 +122,7 @@ impl Shell {
         self.font_desc = FontDescription::from_string(desc);
     }
 
-    fn colors<'a>(&'a self, cell: &'a Cell) -> (&'a Color, &'a Color) {
+    pub fn colors<'a>(&'a self, cell: &'a Cell) -> (&'a Color, &'a Color) {
         let bg = if let Some(ref bg) = cell.attrs.background {
             bg
         } else {
@@ -335,20 +338,8 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
             let (bg, fg) = shell.colors(cell);
 
             if row == line_idx && col == col_idx {
-                ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.5);
+                shell.cursor.draw(ctx, shell, char_width, line_height, line_y, double_width, bg);
 
-                let cursor_width = if shell.mode == NvimMode::Insert {
-                    char_width / 5.0
-                } else {
-                    if double_width {
-                        char_width * 2.0
-                    } else {
-                        char_width
-                    }
-                };
-
-                ctx.rectangle(current_point.0, line_y, cursor_width, line_height);
-                ctx.fill();
                 ctx.move_to(current_point.0, current_point.1);
             }
 

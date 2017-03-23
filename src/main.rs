@@ -16,6 +16,7 @@ mod ui_model;
 mod ui;
 mod input;
 mod settings;
+mod cursor;
 
 use std::thread;
 use std::env;
