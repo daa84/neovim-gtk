@@ -22,20 +22,6 @@ use cursor::Cursor;
 
 const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
-macro_rules! SHELL {
-    (&$id:ident = $expr:expr) => (
-        UI.with(|ui_cell| {
-        let $id = &ui_cell.borrow().shell;
-        $expr
-    });
-    );
-    ($id:ident = $expr:expr) => (
-        UI.with(|ui_cell| {
-        let mut $id = &mut ui_cell.borrow_mut().shell;
-        $expr
-    });
-    );
-}
 
 #[derive(PartialEq)]
 pub enum NvimMode {
@@ -104,6 +90,8 @@ impl Shell {
 
     pub fn add_configure_event(&mut self) {
         self.drawing_area.connect_configure_event(gtk_configure_event);
+
+        self.cursor.start();
     }
 
     pub fn set_nvim(&mut self, nvim: Neovim) {

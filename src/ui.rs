@@ -29,6 +29,22 @@ ui_thread_var!(UI, Ui, Ui::new());
 ui_thread_var!(SET, settings::Settings, settings::Settings::new());
 
 
+#[macro_export]
+macro_rules! SHELL {
+    (&$id:ident = $expr:expr) => (
+        UI.with(|ui_cell| {
+        let $id = &ui_cell.borrow().shell;
+        $expr
+    });
+    );
+    ($id:ident = $expr:expr) => (
+        UI.with(|ui_cell| {
+        let mut $id = &mut ui_cell.borrow_mut().shell;
+        $expr
+    });
+    );
+}
+
 pub struct Ui {
     pub initialized: bool,
     pub window: Option<ApplicationWindow>,
