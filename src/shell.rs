@@ -469,7 +469,7 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
 
 impl RedrawEvents for Shell {
     fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
-        RepaintMode::Area(self.model.set_cursor(row, col))
+        RepaintMode::Area(self.model.set_cursor(row as usize, col as usize))
     }
 
     fn on_put(&mut self, text: &str) -> RepaintMode {

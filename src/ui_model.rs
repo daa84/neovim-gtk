@@ -152,11 +152,11 @@ impl UiModel {
         ModelRect::point(self.cur_row, self.cur_col)
     }
 
-    pub fn set_cursor(&mut self, row: u64, col: u64) -> ModelRect {
+    pub fn set_cursor(&mut self, row: usize, col: usize) -> ModelRect {
         let mut changed_region = self.cur_point();
 
-        self.cur_row = row as usize;
-        self.cur_col = col as usize;
+        self.cur_row = row;
+        self.cur_col = col;
 
         changed_region.join(&self.cur_point());
 
@@ -298,8 +298,8 @@ impl ModelRect {
     pub fn to_area(&self, line_height: f64, char_width: f64) -> (i32, i32, i32, i32) {
         (self.left as i32 * char_width as i32,
          self.top as i32 * line_height as i32,
-         (self.right - self.left + 1) as i32 * char_width as i32- 1,
-         (self.bot - self.top + 1) as i32 * line_height as i32 - 1)
+         (self.right - self.left + 1) as i32 * char_width as i32,
+         (self.bot - self.top + 1) as i32 * line_height as i32)
     }
 
     pub fn from_area(line_height: f64, char_width: f64, x1: f64, y1: f64, x2: f64, y2: f64) -> ModelRect {
@@ -474,8 +474,8 @@ mod tests {
 
         assert_eq!(5, x);
         assert_eq!(10, y);
-        assert_eq!(4, width);
-        assert_eq!(9, height);
+        assert_eq!(5, width);
+        assert_eq!(10, height);
     }
 
     #[test]
