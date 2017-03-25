@@ -84,7 +84,6 @@ impl Cursor {
                 double_width: bool,
                 bg: &Color) {
 
-
         let current_point = ctx.get_current_point();
         let state = self.state.lock().unwrap();
         ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.6 * state.alpha.0);

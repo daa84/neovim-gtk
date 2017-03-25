@@ -144,7 +144,7 @@ impl UiModel {
         };
     }
 
-    pub fn clip_model<'a> (&'a self, clip: &'a ModelRect) -> ClipRowIterator<'a> {
+    pub fn clip_model<'a>(&'a self, clip: &'a ModelRect) -> ClipRowIterator<'a> {
         ClipRowIterator::new(self, clip)
     }
 
@@ -302,7 +302,33 @@ impl ModelRect {
          (self.bot - self.top + 1) as i32 * line_height as i32)
     }
 
-    pub fn from_area(line_height: f64, char_width: f64, x1: f64, y1: f64, x2: f64, y2: f64) -> ModelRect {
+    pub fn from_area(line_height: f64,
+                     char_width: f64,
+                     x1: f64,
+                     y1: f64,
+                     x2: f64,
+                     y2: f64)
+                     -> ModelRect {
+        let x1 = if x1 > 0.0 {
+            x1 - 1.0
+        } else {
+            x1
+        };
+        let x2 = if x2 > 0.0 {
+            x2 - 1.0
+        } else {
+            x2
+        };
+        let y1 = if y1 > 0.0 {
+            y1 - 1.0
+        } else {
+            y1
+        };
+        let y2 = if y2 > 0.0 {
+            y2 - 1.0
+        } else {
+            y2
+        };
         let left = (x1 / char_width) as usize;
         let right = (x2 / char_width) as usize;
         let top = (y1 / line_height) as usize;
@@ -318,9 +344,9 @@ pub struct ClipRowIterator<'a> {
     iter: Iter<'a, Vec<Cell>>,
 }
 
-impl <'a> ClipRowIterator<'a> {
+impl<'a> ClipRowIterator<'a> {
     pub fn new(model: &'a UiModel, rect: &'a ModelRect) -> ClipRowIterator<'a> {
-        ClipRowIterator { 
+        ClipRowIterator {
             rect: rect,
             pos: 0,
             iter: model.model()[rect.top..rect.bot + 1].iter(),
@@ -328,23 +354,21 @@ impl <'a> ClipRowIterator<'a> {
     }
 }
 
-impl <'a> Iterator for ClipRowIterator<'a> {
+impl<'a> Iterator for ClipRowIterator<'a> {
     type Item = (usize, ClipLine<'a>);
 
     fn next(&mut self) -> Option<(usize, ClipLine<'a>)> {
         self.pos += 1;
-        self.iter.next().map(|line| {
-            (self.rect.top + self.pos - 1, ClipLine::new(line, self.rect))
-        })
+        self.iter.next().map(|line| (self.rect.top + self.pos - 1, ClipLine::new(line, self.rect)))
     }
 }
 
-pub struct ClipLine <'a> {
+pub struct ClipLine<'a> {
     rect: &'a ModelRect,
     line: &'a Vec<Cell>,
 }
 
-impl <'a> ClipLine<'a> {
+impl<'a> ClipLine<'a> {
     pub fn new(model: &'a Vec<Cell>, rect: &'a ModelRect) -> ClipLine<'a> {
         ClipLine {
             line: model,
@@ -367,25 +391,22 @@ pub struct ClipColIterator<'a> {
     iter: Iter<'a, Cell>,
 }
 
-impl <'a> ClipColIterator<'a> {
+impl<'a> ClipColIterator<'a> {
     pub fn new(model: &'a Vec<Cell>, rect: &'a ModelRect) -> ClipColIterator<'a> {
-        ClipColIterator { 
+        ClipColIterator {
             rect: rect,
             pos: 0,
             iter: model[rect.left..rect.right + 1].iter(),
         }
     }
-
 }
 
-impl <'a>Iterator for ClipColIterator<'a> {
+impl<'a> Iterator for ClipColIterator<'a> {
     type Item = (usize, &'a Cell);
 
     fn next(&mut self) -> Option<(usize, &'a Cell)> {
         self.pos += 1;
-        self.iter.next().map(|line| {
-            (self.rect.left + self.pos - 1, line)
-        })
+        self.iter.next().map(|line| (self.rect.left + self.pos - 1, line))
     }
 }
 
@@ -431,12 +452,20 @@ mod tests {
         assert_eq!(1, rect.right);
 
 
-        let rect = ModelRect::from_area(10.0, 5.0, 0.0, 0.0, 9.0, 19.0);
+        let rect = ModelRect::from_area(10.0, 5.0, 0.0, 0.0, 10.0, 20.0);
 
         assert_eq!(0, rect.top);
         assert_eq!(0, rect.left);
         assert_eq!(1, rect.bot);
         assert_eq!(1, rect.right);
+
+
+        let rect = ModelRect::from_area(10.0, 5.0, 0.0, 0.0, 11.0, 21.0);
+
+        assert_eq!(0, rect.top);
+        assert_eq!(0, rect.left);
+        assert_eq!(2, rect.bot);
+        assert_eq!(2, rect.right);
     }
 
     #[test]
