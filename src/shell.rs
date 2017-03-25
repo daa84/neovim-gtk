@@ -219,6 +219,7 @@ fn gtk_key_press(_: &DrawingArea, ev: &EventKey) -> Inhibit {
     if let Some(input) = convert_key(ev) {
         SHELL!(shell = {
             shell.nvim().input(&input).expect("Error run input command to nvim");
+            shell.cursor.reset_state();
         });
         Inhibit(true)
     } else {

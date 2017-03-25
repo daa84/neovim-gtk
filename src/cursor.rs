@@ -37,7 +37,7 @@ enum AnimPhase {
     Show,
 }
 
-pub struct State {
+struct State {
     alpha: Alpha,
     anim_phase: AnimPhase,
 
@@ -45,12 +45,17 @@ pub struct State {
 }
 
 impl State {
-    pub fn new() -> State {
+    fn new() -> State {
         State {
             alpha: Alpha(1.0),
             anim_phase: AnimPhase::Shown,
             timer: None,
         }
+    }
+
+    fn reset(&mut self) {
+        self.alpha = Alpha(1.0);
+        self.anim_phase = AnimPhase::Shown;
     }
 }
 
@@ -61,18 +66,22 @@ pub struct Cursor {
 impl Cursor {
     pub fn new() -> Cursor {
 
-        Cursor {
-            state: Arc::new(Mutex::new(State::new())),
-        }
+        Cursor { state: Arc::new(Mutex::new(State::new())) }
 
     }
 
     pub fn start(&mut self) {
         let state = self.state.clone();
         let mut mut_state = self.state.lock().unwrap();
-        if mut_state.timer.is_none() {
-            mut_state.timer = Some(glib::timeout_add(100, move || anim_step(&state)));
+        mut_state.reset();
+        if let Some(timer_id) = mut_state.timer {
+            glib::source_remove(timer_id);
         }
+        mut_state.timer = Some(glib::timeout_add(500, move || anim_step(&state)));
+    }
+
+    pub fn reset_state(&mut self) {
+        self.start();
     }
 
     pub fn draw(&self,
@@ -103,7 +112,6 @@ impl Cursor {
     }
 }
 
-// [TODO]: Reset animation phase on events - 2017-03-24 11:33
 fn anim_step(state: &Arc<Mutex<State>>) -> glib::Continue {
     let moved_state = state.clone();
     let mut mut_state = state.lock().unwrap();
@@ -111,7 +119,7 @@ fn anim_step(state: &Arc<Mutex<State>>) -> glib::Continue {
     let next_event = match mut_state.anim_phase {
         AnimPhase::Shown => {
             mut_state.anim_phase = AnimPhase::Hide;
-            Some(100)
+            Some(60)
         }
         AnimPhase::Hide => {
             if !mut_state.alpha.hide(0.3) {
@@ -125,7 +133,7 @@ fn anim_step(state: &Arc<Mutex<State>>) -> glib::Continue {
         AnimPhase::Hidden => {
             mut_state.anim_phase = AnimPhase::Show;
 
-            Some(100)
+            Some(60)
         }
         AnimPhase::Show => {
             if !mut_state.alpha.show(0.3) {
@@ -143,9 +151,9 @@ fn anim_step(state: &Arc<Mutex<State>>) -> glib::Continue {
         shell.on_redraw(&RepaintMode::Area(point));
     });
 
-    
+
     if let Some(timeout) = next_event {
-        mut_state.timer = Some(glib::timeout_add(timeout, move || anim_step(&moved_state) ));
+        mut_state.timer = Some(glib::timeout_add(timeout, move || anim_step(&moved_state)));
 
         glib::Continue(false)
     } else {
