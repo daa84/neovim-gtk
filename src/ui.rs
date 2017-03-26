@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref, RefMut};
 use std::thread;
 
 use gtk;
@@ -13,14 +13,9 @@ use settings;
 use shell::{Shell, NvimMode};
 use nvim::ErrorReport;
 
-
 macro_rules! ui_thread_var {
     ($id:ident, $ty:ty, $expr:expr) => (thread_local!(pub static $id: RefCell<$ty> = {
-        let thread = thread::current();
-        let current_thread_name = thread.name();
-        if current_thread_name != Some("main") {
-            panic!("Can create UI  only from main thread, {:?}", current_thread_name);
-        }
+        assert_ui_thread();
         RefCell::new($expr)
     });)
 }
@@ -109,7 +104,6 @@ impl Ui {
 
         self.shell.add_configure_event();
     }
-
 }
 
 fn edit_paste() {
@@ -146,5 +140,43 @@ fn quit() {
 fn gtk_delete(_: &ApplicationWindow, _: &Event) -> Inhibit {
     quit();
     Inhibit(false)
+}
+
+
+pub struct UiMutex<T: ?Sized> {
+    data: RefCell<T>,
+}
+
+unsafe impl<T: ?Sized + Send> Send for UiMutex<T> {}
+unsafe impl<T: ?Sized + Send> Sync for UiMutex<T> {}
+
+impl<T> UiMutex<T> {
+    pub fn new(t: T) -> UiMutex<T> {
+        UiMutex { data: RefCell::new(t) }
+    }
+}
+
+impl<T: ?Sized> UiMutex<T> {
+    pub fn borrow(&self) -> Ref<T> {
+        assert_ui_thread();
+        self.data.borrow()
+    }
+
+    pub fn borrow_mut(&self) -> RefMut<T> {
+        assert_ui_thread();
+        self.data.borrow_mut()
+    }
+}
+
+
+#[inline]
+fn assert_ui_thread() {
+    match thread::current().name() {
+        Some("main") => (),
+        Some(ref name) => {
+            panic!("Can create UI  only from main thread, {}", name);
+        }
+        None => panic!("Can create UI  only from main thread, current thiread has no name"),
+    }
 }
 

@@ -1,9 +1,9 @@
 use cairo;
 use ui_model::Color;
-use ui::UI;
+use ui::{UI, UiMutex};
 use shell::{Shell, NvimMode};
 use nvim::{RepaintMode, RedrawEvents};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use glib;
 
@@ -60,19 +60,17 @@ impl State {
 }
 
 pub struct Cursor {
-    state: Arc<Mutex<State>>,
+    state: Arc<UiMutex<State>>,
 }
 
 impl Cursor {
     pub fn new() -> Cursor {
-
-        Cursor { state: Arc::new(Mutex::new(State::new())) }
-
+        Cursor { state: Arc::new(UiMutex::new(State::new())) }
     }
 
     pub fn start(&mut self) {
         let state = self.state.clone();
-        let mut mut_state = self.state.lock().unwrap();
+        let mut mut_state = self.state.borrow_mut();
         mut_state.reset();
         if let Some(timer_id) = mut_state.timer {
             glib::source_remove(timer_id);
@@ -94,7 +92,7 @@ impl Cursor {
                 bg: &Color) {
 
         let current_point = ctx.get_current_point();
-        let state = self.state.lock().unwrap();
+        let state = self.state.borrow();
         ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.6 * state.alpha.0);
 
         let cursor_width = if shell.mode == NvimMode::Insert {
@@ -112,9 +110,9 @@ impl Cursor {
     }
 }
 
-fn anim_step(state: &Arc<Mutex<State>>) -> glib::Continue {
+fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
     let moved_state = state.clone();
-    let mut mut_state = state.lock().unwrap();
+    let mut mut_state = state.borrow_mut();
 
     let next_event = match mut_state.anim_phase {
         AnimPhase::Shown => {
@@ -164,7 +162,7 @@ fn anim_step(state: &Arc<Mutex<State>>) -> glib::Continue {
 
 impl Drop for Cursor {
     fn drop(&mut self) {
-        if let Some(timer_id) = self.state.lock().unwrap().timer {
+        if let Some(timer_id) = self.state.borrow().timer {
             glib::source_remove(timer_id);
         }
     }
