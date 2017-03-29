@@ -1,5 +1,5 @@
 [package]
-name = "neovim-gtk"
+name = "nvim-gtk"
 version = "0.1.1"
 authors = ["daa84 <daa84@inbox.ru>"]
 build = "build.rs"
