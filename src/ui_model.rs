@@ -310,7 +310,7 @@ impl ModelRect {
                      y2: f64)
                      -> ModelRect {
         let x1 = if x1 > 0.0 {
-            x1 - 1.0
+            x1 // - 1.0
         } else {
             x1
         };
@@ -320,7 +320,7 @@ impl ModelRect {
             x2
         };
         let y1 = if y1 > 0.0 {
-            y1 - 1.0
+            y1 // - 1.0
         } else {
             y1
         };

@@ -40,6 +40,7 @@ pub struct Shell {
     sp_color: Color,
     line_height: Option<f64>,
     char_width: Option<f64>,
+    request_width: bool,
     pub mode: NvimMode,
     mouse_enabled: bool,
     mouse_pressed: bool,
@@ -60,6 +61,7 @@ impl Shell {
             sp_color: COLOR_RED,
             line_height: None,
             char_width: None,
+            request_width: true,
             mode: NvimMode::Normal,
             mouse_enabled: true,
             mouse_pressed: false,
@@ -106,8 +108,14 @@ impl Shell {
         self.font_desc.clone()
     }
 
+    fn request_width(&mut self) {
+        self.request_width = true;
+    }
+
     pub fn set_font_desc(&mut self, desc: &str) {
         self.font_desc = FontDescription::from_string(desc);
+        self.line_height = None;
+        self.char_width = None;
     }
 
     pub fn colors<'a>(&'a self, cell: &'a Cell) -> (&'a Color, &'a Color) {
@@ -231,12 +239,15 @@ fn gtk_draw(_: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
     UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
 
-        let (width, height) = calc_char_bounds(&ui.shell, ctx);
-        ui.shell.line_height = Some(height as f64);
-        ui.shell.char_width = Some(width as f64);
+        if ui.shell.line_height.is_none() {
+            let (width, height) = calc_char_bounds(&ui.shell, ctx);
+            ui.shell.line_height = Some(height as f64);
+            ui.shell.char_width = Some(width as f64);
+        }
 
         draw(&ui.shell, ctx);
-        request_width(&ui);
+
+        request_width(&mut ui);
     });
 
     Inhibit(false)
@@ -411,10 +422,15 @@ fn calc_char_bounds(shell: &Shell, ctx: &cairo::Context) -> (i32, i32) {
     layout.get_pixel_size()
 }
 
-fn request_width(ui: &Ui) {
+fn request_width(ui: &mut Ui) {
+    if !ui.shell.request_width {
+        return;
+    }
     if ui.shell.resize_timer.is_some() {
         return;
     }
+
+    ui.shell.request_width = false;
 
     let width = ui.shell.drawing_area.get_allocated_width();
     let height = ui.shell.drawing_area.get_allocated_height();
@@ -459,6 +475,7 @@ fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
                                 println!("Error trying resize nvim {}", err);
                             }
                         }
+                        shell.request_width();
                     });
                     Continue(false)
                 }));
