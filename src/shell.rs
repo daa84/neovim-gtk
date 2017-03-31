@@ -17,7 +17,7 @@ use settings;
 use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim::{RedrawEvents, GuiApi, RepaintMode};
 use input::{convert_key, keyval_to_input_string};
-use ui::{UI, Ui, SET};
+use ui::{UI, SH, SET};
 use cursor::Cursor;
 
 const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
@@ -256,19 +256,17 @@ fn gtk_key_press(_: &DrawingArea, ev: &EventKey) -> Inhibit {
 }
 
 fn gtk_draw(_: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
-    UI.with(|ui_cell| {
-        let mut ui = ui_cell.borrow_mut();
-
-        if ui.shell.line_height.is_none() {
-            let (width, height) = calc_char_bounds(&ui.shell, ctx);
-            ui.shell.line_height = Some(height as f64);
-            ui.shell.char_width = Some(width as f64);
+    SHELL!(shell = {
+        if shell.line_height.is_none() {
+            let (width, height) = calc_char_bounds(&shell, ctx);
+            shell.line_height = Some(height as f64);
+            shell.char_width = Some(width as f64);
         }
 
-        draw(&ui.shell, ctx);
-
-        request_width(&mut ui);
+        draw(&shell, ctx);
+        request_width(&mut shell);
     });
+
 
     Inhibit(false)
 }
@@ -442,27 +440,31 @@ fn calc_char_bounds(shell: &Shell, ctx: &cairo::Context) -> (i32, i32) {
     layout.get_pixel_size()
 }
 
-fn request_width(ui: &mut Ui) {
-    if !ui.shell.request_width {
+fn request_width(shell: &mut Shell) {
+    if !shell.request_width {
         return;
     }
-    if ui.shell.resize_timer.is_some() {
+    if shell.resize_timer.is_some() {
         return;
     }
 
-    ui.shell.request_width = false;
+    shell.request_width = false;
 
-    let width = ui.shell.drawing_area.get_allocated_width();
-    let height = ui.shell.drawing_area.get_allocated_height();
-    let request_height = (ui.shell.model.rows as f64 * ui.shell.line_height.unwrap()) as i32;
-    let request_width = (ui.shell.model.columns as f64 * ui.shell.char_width.unwrap()) as i32;
+    let width = shell.drawing_area.get_allocated_width();
+    let height = shell.drawing_area.get_allocated_height();
+    let request_height = (shell.model.rows as f64 * shell.line_height.unwrap()) as i32;
+    let request_width = (shell.model.columns as f64 * shell.char_width.unwrap()) as i32;
 
     if width != request_width || height != request_height {
-        let window = ui.window.as_ref().unwrap();
-        let (win_width, win_height) = window.get_size();
-        let h_border = win_width - width;
-        let v_border = win_height - height;
-        window.resize(request_width + h_border, request_height + v_border);
+        UI.with(|ui_cell| {
+            let ui = ui_cell.borrow();
+
+            let window = ui.window.as_ref().unwrap();
+            let (win_width, win_height) = window.get_size();
+            let h_border = win_width - width;
+            let v_border = win_height - height;
+            window.resize(request_width + h_border, request_height + v_border);
+        });
     }
 }
 

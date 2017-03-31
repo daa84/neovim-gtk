@@ -2,7 +2,7 @@ use neovim_lib::{Neovim, NeovimApi, Session, Value, Integer, UiAttachOptions, Ca
 use std::io::{Result, Error, ErrorKind};
 use std::result;
 use ui_model::{UiModel, ModelRect};
-use ui;
+use ui::SH;
 use shell::Shell;
 use glib;
 
@@ -191,9 +191,9 @@ fn safe_call<F>(cb: F)
     where F: Fn(&mut Shell) -> result::Result<(), String> + 'static + Send
 {
     glib::idle_add(move || {
-        ui::UI.with(|ui_cell| if let Err(msg) = cb(&mut ui_cell.borrow_mut().shell) {
+        SHELL!(shell = { if let Err(msg) = cb(&mut shell) {
             println!("Error call function: {}", msg);
-        });
+        }});
         glib::Continue(false)
     });
 }

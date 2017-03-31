@@ -10,10 +10,10 @@ extern crate pangocairo;
 extern crate neovim_lib;
 extern crate phf;
 
-mod nvim;
 mod ui_model;
 #[macro_use]
 mod ui;
+mod nvim;
 mod shell;
 mod input;
 mod settings;
@@ -24,6 +24,7 @@ use std::env;
 use gio::ApplicationExt;
 
 use shell::Shell;
+use ui::SH;
 
 const BIN_PATH_ARG: &'static str = "--nvim-bin-path";
 
@@ -45,17 +46,21 @@ fn main() {
 fn activate(app: &gtk::Application) {
     ui::UI.with(|ui_cell| {
         let mut ui = ui_cell.borrow_mut();
-        if !ui.initialized {
-            ui.init(app);
+            if !ui.initialized {
+                ui.init(app);
 
-            let path = nvim_bin_path(std::env::args());
-            nvim::initialize(&mut ui.shell, path.as_ref())
-                .expect("Can't start nvim instance");
+                let path = nvim_bin_path(std::env::args());
+                SHELL!(shell = {
+                    nvim::initialize(&mut shell, path.as_ref())
+                        .expect("Can't start nvim instance");
 
-            guard_dispatch_thread(&mut ui.shell);
-        }
+                    guard_dispatch_thread(&mut shell);
+                });
+            }
 
-        nvim::open_file(ui.shell.nvim(), open_arg().as_ref());
+            SHELL!(shell = {
+                nvim::open_file(shell.nvim(), open_arg().as_ref());
+            });
     });
 }
 

@@ -1,6 +1,6 @@
 use cairo;
 use ui_model::Color;
-use ui::{UI, UiMutex};
+use ui::{SH, UiMutex};
 use shell::{Shell, NvimMode};
 use nvim::{RepaintMode, RedrawEvents};
 use std::sync::Arc;
