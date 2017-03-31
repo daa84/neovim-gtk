@@ -6,8 +6,19 @@ use phf;
 include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
 
-pub fn keyval_to_input_string(val: &str, state: gdk::ModifierType) -> String {
+pub fn keyval_to_input_string(in_str: &str, state: gdk::ModifierType) -> String {
+    let mut val = in_str;
     let mut input = String::new();
+
+    // CTRL-^ and CTRL-@ don't work in the normal way.
+    if state.contains(gdk::CONTROL_MASK) && !state.contains(gdk::SHIFT_MASK) &&
+       !state.contains(gdk::MOD1_MASK) {
+        if val == "6" {
+            val = "^";
+        } else if val == "2" {
+            val = "@";
+        }
+    }
 
     if state.contains(gdk::SHIFT_MASK) {
         if val != "\"" {
