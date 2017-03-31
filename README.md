@@ -22,10 +22,12 @@ cargo run -- --nvim-bin-path=E:\Neovim\bin\nvim.exe
 ```
 
 # Build
-Build command:
+## Linux
+Install GTK development packages. Install latest rust compiler, better use *rustup* tool. Build command:
 ```
 cargo build --release
 ```
+
 ## Windows
 Neovim-gtk can be compiled using MSYS2 GTK packages. In this case use 'windows-gnu' rust toolchain.
 ```
