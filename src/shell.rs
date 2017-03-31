@@ -5,7 +5,7 @@ use pangocairo as pc;
 use pango;
 use pango::FontDescription;
 use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType, EventScroll,
-          ScrollDirection};
+          ScrollDirection, EventFocus};
 use gdk_sys;
 use glib;
 use gtk::prelude::*;
@@ -88,6 +88,8 @@ impl Shell {
         self.drawing_area.connect_draw(gtk_draw);
         self.drawing_area.connect_key_press_event(gtk_key_press);
         self.drawing_area.connect_scroll_event(gtk_scroll_event);
+        self.drawing_area.connect_focus_in_event(gtk_focus_in);
+        self.drawing_area.connect_focus_out_event(gtk_focus_out);
     }
 
     pub fn add_configure_event(&mut self) {
@@ -136,6 +138,24 @@ impl Shell {
             (bg, fg)
         }
     }
+}
+
+fn gtk_focus_in(_: &DrawingArea, _: &EventFocus) -> Inhibit {
+    SHELL!(shell = {
+        shell.cursor.enter_focus();
+        let point = shell.model.cur_point();
+        shell.on_redraw(&RepaintMode::Area(point));
+    });
+    Inhibit(false)
+}
+
+fn gtk_focus_out(_: &DrawingArea, _: &EventFocus) -> Inhibit {
+    SHELL!(shell = {
+        shell.cursor.leave_focus();
+        let point = shell.model.cur_point();
+        shell.on_redraw(&RepaintMode::Area(point));
+    });
+    Inhibit(false)
 }
 
 fn gtk_scroll_event(_: &DrawingArea, ev: &EventScroll) -> Inhibit {

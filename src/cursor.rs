@@ -30,11 +30,13 @@ impl Alpha {
     }
 }
 
+#[derive(PartialEq)]
 enum AnimPhase {
     Shown,
     Hide,
     Hidden,
     Show,
+    NoFocus,
 }
 
 struct State {
@@ -53,9 +55,13 @@ impl State {
         }
     }
 
-    fn reset(&mut self) {
+    fn reset_to(&mut self, phase: AnimPhase) {
         self.alpha = Alpha(1.0);
-        self.anim_phase = AnimPhase::Shown;
+        self.anim_phase = phase;
+        if let Some(timer_id) = self.timer {
+            glib::source_remove(timer_id);
+            self.timer = None;
+        }
     }
 }
 
@@ -71,15 +77,20 @@ impl Cursor {
     pub fn start(&mut self) {
         let state = self.state.clone();
         let mut mut_state = self.state.borrow_mut();
-        mut_state.reset();
-        if let Some(timer_id) = mut_state.timer {
-            glib::source_remove(timer_id);
-        }
+        mut_state.reset_to(AnimPhase::Shown);
         mut_state.timer = Some(glib::timeout_add(500, move || anim_step(&state)));
     }
 
     pub fn reset_state(&mut self) {
         self.start();
+    }
+    
+    pub fn enter_focus(&mut self) {
+        self.start();
+    }
+
+    pub fn leave_focus(&mut self) {
+        self.state.borrow_mut().reset_to(AnimPhase::NoFocus);
     }
 
     pub fn draw(&self,
@@ -106,7 +117,11 @@ impl Cursor {
         };
 
         ctx.rectangle(current_point.0, line_y, cursor_width, line_height);
-        ctx.fill();
+        if state.anim_phase == AnimPhase::NoFocus {
+            ctx.stroke();
+        } else {
+            ctx.fill();
+        }
     }
 }
 
@@ -142,6 +157,7 @@ fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
                 None
             }
         }
+        AnimPhase::NoFocus => None, 
     };
 
     SHELL!(&shell = {
