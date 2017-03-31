@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use ui::{UI, SET};
+use ui::{SET, SH};
 
 #[cfg(unix)]
 use nvim::RepaintMode;
@@ -72,16 +72,14 @@ impl Settings {
 
 #[cfg(unix)]
 fn monospace_font_changed() {
-    UI.with(|ui_cell| {
-        let mut ui = ui_cell.borrow_mut();
-
-        SET.with(|set_cell| {
-            let mut set = set_cell.borrow_mut();
-            // rpc is priority for font
-            if set.font_source != FontSource::Rpc {
-                set.update_font(&mut ui.shell);
-                ui.shell.on_redraw(&RepaintMode::All);
-            }
-        });
+    SET.with(|set_cell| {
+        let mut set = set_cell.borrow_mut();
+        // rpc is priority for font
+        if set.font_source != FontSource::Rpc {
+            SHELL!(shell = {
+                set.update_font(&mut shell);
+                shell.on_redraw(&RepaintMode::All);
+            });
+        }
     });
 }
