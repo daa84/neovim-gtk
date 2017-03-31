@@ -4,8 +4,10 @@ use std::thread;
 use gtk;
 use gtk_sys;
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image};
+use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image, AboutDialog};
 use gdk::Event;
+use gio::{Menu, MenuItem, SimpleAction};
+use glib::variant::Variant;
 
 use neovim_lib::NeovimApi;
 
@@ -73,6 +75,8 @@ impl Ui {
         }
         self.initialized = true;
 
+        self.create_main_menu(app);
+
         SHELL!(shell = {
             SET.with(|settings| {
                 let mut settings = settings.borrow_mut();
@@ -107,6 +111,42 @@ impl Ui {
             shell.add_configure_event();
         });
     }
+
+    fn create_main_menu(&self, app: &gtk::Application) {
+        let menu = Menu::new();
+        let help = Menu::new();
+
+        let about = MenuItem::new("About", None);
+        about.set_detailed_action("app.HelpAbout");
+        help.append_item(&about);
+
+
+        menu.append_item(&MenuItem::new_submenu("Help", &help));
+
+        app.set_menubar(Some(&menu));
+
+
+        let about_action = SimpleAction::new("HelpAbout", None);
+        about_action.connect_activate(on_help_about);
+        about_action.set_enabled(true);
+        app.add_action(&about_action);
+    }
+}
+
+fn on_help_about(_: &SimpleAction, _: &Option<Variant>) {
+    UI.with(|ui_cell| {
+        let ui = ui_cell.borrow();
+
+        let about = AboutDialog::new();
+        about.set_transient_for(ui.window.as_ref());
+        about.set_program_name("NeovimGtk");
+        about.set_version(env!("CARGO_PKG_VERSION"));
+        about.set_logo(None);
+        about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
+
+        about.connect_response(|about, _| about.destroy());
+        about.show();
+    });
 }
 
 fn edit_paste() {
