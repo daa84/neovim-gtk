@@ -18,6 +18,7 @@ mod shell;
 mod input;
 mod settings;
 mod cursor;
+mod shell_dlg;
 
 use std::thread;
 use std::env;

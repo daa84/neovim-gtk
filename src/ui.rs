@@ -13,6 +13,7 @@ use neovim_lib::NeovimApi;
 
 use settings;
 use shell::{Shell, NvimMode};
+use shell_dlg;
 use nvim::ErrorReport;
 
 macro_rules! ui_thread_var {
@@ -169,16 +170,17 @@ fn edit_save_all() {
     });
 }
 
-fn quit() {
-    UI.with(|ui_cell| {
-        let mut ui = ui_cell.borrow_mut();
-        ui.destroy();
-    });
-}
 
 fn gtk_delete(_: &ApplicationWindow, _: &Event) -> Inhibit {
-    quit();
-    Inhibit(false)
+    Inhibit(UI.with(|ui_cell| {
+        let mut ui = ui_cell.borrow_mut();
+        if shell_dlg::can_close_window(&ui) {
+            ui.destroy();
+            false
+        } else {
+            true
+        }
+    }))
 }
 
 
