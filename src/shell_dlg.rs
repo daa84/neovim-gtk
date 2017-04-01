@@ -1,8 +1,8 @@
 use ui::{SH, Ui};
 use neovim_lib::{NeovimApi, CallError, Value};
 use gtk;
-use gtk_sys;
-use gtk::{Dialog, DialogExt};
+use gtk::prelude::DialogExtManual;
+use gtk::{DialogExt, MessageDialog, MessageType, ButtonsType};
 
 pub fn can_close_window(ui: &Ui) -> bool {
     match get_changed_buffers() {
@@ -21,16 +21,30 @@ pub fn can_close_window(ui: &Ui) -> bool {
 }
 
 fn show_not_saved_dlg(ui: &Ui, changed_bufs: &Vec<String>) -> bool {
+    let mut changed_files = changed_bufs.iter()
+        .map(|n| if n.is_empty() { "<No name>" } else { n })
+        .fold(String::new(), |acc, v| acc + v + "\n");
+    changed_files.pop();
+
     let flags = gtk::DIALOG_MODAL | gtk::DIALOG_DESTROY_WITH_PARENT;
-    let dlg = Dialog::new_with_buttons(Some("Question"),
-                                       ui.window.as_ref(),
-                                       flags,
-                                       &[("_OK", gtk_sys::GTK_RESPONSE_ACCEPT as i32),
-                                         ("_Cancel", gtk_sys::GTK_RESPONSE_REJECT as i32)]);
+    let dlg = MessageDialog::new(ui.window.as_ref(),
+                                 flags,
+                                 MessageType::Question,
+                                 ButtonsType::None,
+                                 &format!("Save changes to '{}'?", changed_files));
 
-    dlg.run();
+    const ACCEPT_ID: i32 = 1;
+    const CLOSE_ID: i32 = 2;
+    const REJECT_ID: i32 = 3;
 
-    true
+    dlg.add_buttons(&[("_Yes", ACCEPT_ID), ("_No", CLOSE_ID), ("_Cancel", REJECT_ID)]);
+
+    match dlg.run() {
+        ACCEPT_ID => true,
+        CLOSE_ID => true,
+        REJECT_ID => false,
+        _ => false,
+    }
 }
 
 fn get_changed_buffers() -> Result<Vec<String>, CallError> {
