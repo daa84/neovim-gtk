@@ -1,4 +1,4 @@
-use neovim_lib::{Neovim, NeovimApi, Session, Value, Integer, UiAttachOptions, CallError};
+use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError};
 use std::io::{Result, Error, ErrorKind};
 use std::result;
 use ui_model::{UiModel, ModelRect};
@@ -43,30 +43,27 @@ pub trait GuiApi {
 }
 
 macro_rules! try_str {
-    ($exp:expr) => (match $exp {
-        Value::String(ref val) => val,
+    ($exp:expr) => (match $exp.as_str() {
+        Some(val) => val,
         _ => return Err("Can't convert argument to string".to_owned())
     })
 }
 
 macro_rules! try_int {
-    ($expr:expr) => (match $expr {
-        Value::Integer(Integer::U64(val)) => val as i64,
-        Value::Integer(Integer::I64(val)) => val,
+    ($expr:expr) => (match $expr.as_i64() {
+        Some(val) => val,
         _ =>  return Err("Can't convert argument to int".to_owned())
     })
 }
 
 macro_rules! try_uint {
-    ($exp:expr) => (match $exp {
-        Value::Integer(Integer::U64(val)) => val,
+    ($exp:expr) => (match $exp.as_u64() {
+        Some(val) => val,
         _ => return Err("Can't convert argument to u64".to_owned())
     })
 }
 
-pub fn initialize(ui: &mut Shell,
-                  nvim_bin_path: Option<&String>)
-                  -> Result<()> {
+pub fn initialize(ui: &mut Shell, nvim_bin_path: Option<&String>) -> Result<()> {
     let session = if let Some(path) = nvim_bin_path {
         Session::new_child_path(path)?
     } else {
@@ -79,7 +76,7 @@ pub fn initialize(ui: &mut Shell,
 
     let mut nvim = ui.nvim();
 
-    nvim.session.start_event_loop_cb(move |m, p| nvim_cb(m, p));
+    nvim.session.start_event_loop_handler(NvimHandler::new());
     nvim.ui_attach(80, 24, UiAttachOptions::new()).map_err(|e| Error::new(ErrorKind::Other, e))?;
     nvim.command("runtime! ginit.vim").map_err(|e| Error::new(ErrorKind::Other, e))?;
 
@@ -92,6 +89,20 @@ pub fn open_file(nvim: &mut NeovimApi, file: Option<&String>) {
     }
 }
 
+pub struct NvimHandler {}
+
+impl NvimHandler {
+    pub fn new() -> NvimHandler {
+        NvimHandler {}
+    }
+}
+
+impl Handler for NvimHandler {
+    fn handle_notify(&mut self, name: &str, args: &Vec<Value>) {
+        nvim_cb(name, args.clone());
+    }
+}
+
 fn nvim_cb(method: &str, params: Vec<Value>) {
     match method {
         "redraw" => {
@@ -99,8 +110,8 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
                 let mut repaint_mode = RepaintMode::Nothing;
 
                 for ev in &params {
-                    if let &Value::Array(ref ev_args) = ev {
-                        if let Value::String(ref ev_name) = ev_args[0] {
+                    if let Some(ev_args) = ev.as_array() {
+                        if let Some(ev_name) = ev_args[0].as_str() {
                             for ref local_args in ev_args.iter().skip(1) {
                                 let args = match *local_args {
                                     &Value::Array(ref ar) => ar.clone(),
@@ -123,7 +134,7 @@ fn nvim_cb(method: &str, params: Vec<Value>) {
         }
         "Gui" => {
             if params.len() > 0 {
-                if let Value::String(ev_name) = params[0].clone() {
+                if let Some(ev_name) = params[0].as_str().map(String::from) {
                     let args = params.iter().skip(1).cloned().collect();
                     safe_call(move |ui| {
                         call_gui_event(ui, &ev_name, &args)?;
@@ -183,7 +194,7 @@ fn call(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<Repai
         _ => {
             println!("Event {}({:?})", method, args);
             RepaintMode::Nothing
-        },
+        }
     })
 }
 
@@ -191,9 +202,11 @@ fn safe_call<F>(cb: F)
     where F: Fn(&mut Shell) -> result::Result<(), String> + 'static + Send
 {
     glib::idle_add(move || {
-        SHELL!(shell = { if let Err(msg) = cb(&mut shell) {
-            println!("Error call function: {}", msg);
-        }});
+        SHELL!(shell = {
+            if let Err(msg) = cb(&mut shell) {
+                println!("Error call function: {}", msg);
+            }
+        });
         glib::Continue(false)
     });
 }
@@ -250,7 +263,7 @@ mod tests {
                 assert_eq!(1, rect.left);
                 assert_eq!(1, rect.right);
             }
-            _ => panic!("mode is worng")
+            _ => panic!("mode is worng"),
         }
     }
 }

@@ -11,7 +11,7 @@ use glib;
 use gtk::prelude::*;
 use gtk::DrawingArea;
 
-use neovim_lib::{Neovim, NeovimApi, Value, Integer};
+use neovim_lib::{Neovim, NeovimApi, Value};
 
 use settings;
 use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
@@ -298,8 +298,8 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
     let line_height = shell.line_height.unwrap();
     let char_width = shell.char_width.unwrap();
     let clip = ctx.clip_extents();
-    let mut model_clip = ModelRect::from_area(line_height, char_width, 
-                                          clip.0, clip.1, clip.2, clip.3);
+    let mut model_clip =
+        ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
     shell.model.limit_to_model(&mut model_clip);
 
     let line_x = model_clip.left as f64 * char_width;
@@ -356,7 +356,13 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
             let (bg, fg) = shell.colors(cell);
 
             if row == line_idx && col == col_idx {
-                shell.cursor.draw(ctx, shell, char_width, line_height, line_y, double_width, bg);
+                shell.cursor.draw(ctx,
+                                  shell,
+                                  char_width,
+                                  line_height,
+                                  line_y,
+                                  double_width,
+                                  bg);
 
                 ctx.move_to(current_point.0, current_point.1);
             }
@@ -536,8 +542,7 @@ impl RedrawEvents for Shell {
             &RepaintMode::Area(ref rect) => {
                 match (&self.line_height, &self.char_width) {
                     (&Some(line_height), &Some(char_width)) => {
-                        let (x, y, width, height) =
-                            rect.to_area(line_height, char_width);
+                        let (x, y, width, height) = rect.to_area(line_height, char_width);
                         self.drawing_area.queue_draw_area(x, y, width, height);
                     }
                     _ => self.drawing_area.queue_draw(),
@@ -560,20 +565,20 @@ impl RedrawEvents for Shell {
         let mut model_attrs = Attrs::new();
 
         for &(ref key_val, ref val) in attrs {
-            if let &Value::String(ref key) = key_val {
-                match key.as_ref() {
+            if let Some(key) = key_val.as_str() {
+                match key {
                     "foreground" => {
-                        if let &Value::Integer(Integer::U64(fg)) = val {
+                        if let Some(fg) = val.as_u64() {
                             model_attrs.foreground = Some(split_color(fg));
                         }
                     }
                     "background" => {
-                        if let &Value::Integer(Integer::U64(bg)) = val {
+                        if let Some(bg) = val.as_u64() {
                             model_attrs.background = Some(split_color(bg));
                         }
                     }
                     "special" => {
-                        if let &Value::Integer(Integer::U64(bg)) = val {
+                        if let Some(bg) = val.as_u64() {
                             model_attrs.special = Some(split_color(bg));
                         }
                     }

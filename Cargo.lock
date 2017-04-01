@@ -10,7 +10,7 @@ dependencies = [
  "glib-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "neovim-lib 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "neovim-lib 0.2.1 (git+https://github.com/daa84/neovim-lib)",
  "pango 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pangocairo 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "phf 0.7.21 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -70,6 +70,11 @@ dependencies = [
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "cfg-if"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "gdk"
@@ -235,11 +240,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "neovim-lib"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.2.1"
+source = "git+https://github.com/daa84/neovim-lib#c0d5edd74cd43264019cd42ec33f61bd8c9f4d39"
 dependencies = [
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rmp 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rmpv 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "unix_socket 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -350,9 +357,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmpv"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "num-traits 0.1.37 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rmp 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "siphasher"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "unix_socket"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "cfg-if 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.21 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "winapi"
@@ -367,6 +392,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum c_vec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0059f5a658f62a4bd3937a7addc52ccfda144b75cce7a92b187e528629cdc507"
 "checksum cairo-rs 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "efce5d4fc3d3369f0b6d249ece7807b8f05c3e08a149bdfe85f99ad5740b7919"
 "checksum cairo-sys-rs 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ee7f9df649493d57a37ae84f57e0d5848714802276151ad742c4ff75ef8e8cd8"
+"checksum cfg-if 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "de1e760d7b6535af4241fca8bd8adf68e2e7edacc6b29f5d399050c5e48cf88c"
 "checksum gdk 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "763c9a7cc10e18660c80f04d49a12da55743ef3363af4718320b119b60aaa49e"
 "checksum gdk-pixbuf 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "792bacc7473ab6da4aaaba55f0b8b359f70ed1dee297af3decfb44c44f6e1fb8"
 "checksum gdk-pixbuf-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "878cb15fd8a6d8bc7e429b9648630dc91beefda8e1cb0d3a97172dbe9fdcfeff"
@@ -380,7 +406,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum gtk-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "7445eb281879ac472e5f5816058d53eaceff2bab7b78a095a4044f4c0cccc754"
 "checksum libc 0.2.21 (registry+https://github.com/rust-lang/crates.io-index)" = "88ee81885f9f04bff991e306fea7c1c60a5f0f9e409e99f6b40e3311a3363135"
 "checksum log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)" = "ab83497bf8bf4ed2a74259c1c802351fcd67a65baa86394b6ba73c36f4838054"
-"checksum neovim-lib 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8eb0ce042e5a820f9b832fab374f9cdebf99ed805cee89cf70a1303ceefa5eb2"
+"checksum neovim-lib 0.2.1 (git+https://github.com/daa84/neovim-lib)" = "<none>"
 "checksum num-traits 0.1.37 (registry+https://github.com/rust-lang/crates.io-index)" = "e1cbfa3781f3fe73dc05321bed52a06d2d491eaa764c52335cf4399f046ece99"
 "checksum pango 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "21d777a87f13107b96be840dec1c34e0fe1a7b5630dd90c74b4eec923c439187"
 "checksum pango-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "f29f64bc081e778cb897e3ef20aae178150d165d0eb77065b9e20437407c5546"
@@ -393,5 +419,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "3a8b4c6b8165cd1a1cd4b9b120978131389f64bdaf456435caa41e630edba903"
 "checksum rand 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)" = "022e0636ec2519ddae48154b028864bdce4eaf7d35226ab8e65c611be97b189d"
 "checksum rmp 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)" = "41db0e2867a9baf8ae20c8b5f7167eb287c7e9532d7e6f09c8b4a54001a678b8"
+"checksum rmpv 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "45368daa6c60116376d8813ec6a2556df640229709becb8f80df1651f882e7af"
 "checksum siphasher 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2ffc669b726f2bc9a3bcff66e5e23b56ba6bf70e22a34c3d7b6d0b3450b65b84"
+"checksum unix_socket 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6aa2700417c405c38f5e6902d699345241c28c0b7ade4abaad71e35a87eb1564"
 "checksum winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)" = "167dc9d6949a9b857f3451275e911c3f44255842c1f7a76f33c55103a909087a"
