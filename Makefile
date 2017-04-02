@@ -9,8 +9,10 @@ run:
 install:
 	mkdir -p $(PREFIX)/bin/
 	cp target/release/nvim-gtk $(PREFIX)/bin/
-	xdg-desktop-menu install --novendor ./desktop/nvim-gtk.desktop
-	xdg-icon-resource install --novendor --mode system --size 128 ./desktop/nvim-gtk.png nvim-gtk
+	mkdir -p $(PREFIX)/share/applications/
+	cp desktop/nvim-gtk.desktop $(PREFIX)/share/applications/
+	mkdir -p $(PREFIX)/share/icons/nvim-gtk/
+	cp desktop/nvim-gtk.png $(PREFIX)/share/pixmaps/nvim-gtk/
 	mkdir -p $(PREFIX)/share/fonts/
 	cp -n desktop/dejavu_font/*.ttf $(PREFIX)/share/fonts/
 	fc-cache -fv
