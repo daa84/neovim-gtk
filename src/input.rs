@@ -3,11 +3,14 @@ use gdk;
 use gdk::EventKey;
 use phf;
 
+use std::ascii::AsciiExt;
+
 include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
 
-pub fn keyval_to_input_string(in_str: &str, state: gdk::ModifierType) -> String {
+pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> String {
     let mut val = in_str;
+    let mut state = in_state;
     let mut input = String::new();
 
     // CTRL-^ and CTRL-@ don't work in the normal way.
@@ -20,10 +23,23 @@ pub fn keyval_to_input_string(in_str: &str, state: gdk::ModifierType) -> String 
         }
     }
 
-    if state.contains(gdk::SHIFT_MASK) {
-        if val != "\"" {
-            input.push_str("S-");
+    let chars: Vec<char> = in_str.chars().collect();
+
+    if chars.len() == 1 {
+        let ch = chars[0];
+
+        // Remove SHIFT
+        if ch.is_ascii() && !ch.is_alphanumeric() {
+            state.remove(gdk::SHIFT_MASK);
         }
+    }
+
+    if val == "<" {
+        val = "lt";
+    }
+
+    if state.contains(gdk::SHIFT_MASK) {
+        input.push_str("S-");
     }
     if state.contains(gdk::CONTROL_MASK) {
         input.push_str("C-");
