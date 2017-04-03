@@ -15,6 +15,8 @@ gdk-sys = "0.3"
 neovim-lib = "0.3"
 phf = "0.7"
 gio = "0.1"
+log = "0.3"
+env_logger = "0.4"
 
 #[dependencies.neovim-lib]
 #git = "https://github.com/daa84/neovim-lib"

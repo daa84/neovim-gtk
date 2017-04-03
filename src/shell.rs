@@ -246,6 +246,7 @@ fn gtk_motion_notify(_: &DrawingArea, ev: &EventMotion) -> Inhibit {
 fn gtk_key_press(_: &DrawingArea, ev: &EventKey) -> Inhibit {
     if let Some(input) = convert_key(ev) {
         SHELL!(shell = {
+            debug!("nvim_input -> {}", input);
             shell.nvim().input(&input).expect("Error run input command to nvim");
             shell.cursor.reset_state();
         });

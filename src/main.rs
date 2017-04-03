@@ -9,6 +9,9 @@ extern crate pango;
 extern crate pangocairo;
 extern crate neovim_lib;
 extern crate phf;
+#[macro_use] 
+extern crate log;
+extern crate env_logger;
 
 mod ui_model;
 #[macro_use]
@@ -30,6 +33,8 @@ use ui::SH;
 const BIN_PATH_ARG: &'static str = "--nvim-bin-path";
 
 fn main() {
+    env_logger::init().expect("Can't initialize env_logger");
+
     let app = gtk::Application::new(Some("org.daa.NeovimGtk"), gio::ApplicationFlags::empty())
         .expect("Failed to initialize GTK application");
 

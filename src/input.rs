@@ -13,6 +13,8 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     let mut state = in_state;
     let mut input = String::new();
 
+    debug!("keyval -> {}", in_str);
+
     // CTRL-^ and CTRL-@ don't work in the normal way.
     if state.contains(gdk::CONTROL_MASK) && !state.contains(gdk::SHIFT_MASK) &&
        !state.contains(gdk::MOD1_MASK) {
