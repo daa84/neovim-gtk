@@ -37,6 +37,7 @@ enum AnimPhase {
     Hidden,
     Show,
     NoFocus,
+    Busy,
 }
 
 struct State {
@@ -93,6 +94,14 @@ impl Cursor {
         self.state.borrow_mut().reset_to(AnimPhase::NoFocus);
     }
 
+    pub fn busy_on(&mut self) {
+        self.state.borrow_mut().reset_to(AnimPhase::Busy);
+    }
+
+    pub fn busy_off(&mut self) {
+        self.start();
+    }
+
     pub fn draw(&self,
                 ctx: &cairo::Context,
                 shell: &Shell,
@@ -102,8 +111,13 @@ impl Cursor {
                 double_width: bool,
                 bg: &Color) {
 
-        let current_point = ctx.get_current_point();
         let state = self.state.borrow();
+
+        if state.anim_phase == AnimPhase::Busy {
+            return;
+        }
+
+        let current_point = ctx.get_current_point();
         ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.6 * state.alpha.0);
 
         let cursor_width = if shell.mode == NvimMode::Insert {
@@ -158,6 +172,7 @@ fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
             }
         }
         AnimPhase::NoFocus => None, 
+        AnimPhase::Busy => None,
     };
 
     SHELL!(&shell = {

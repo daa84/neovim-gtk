@@ -33,9 +33,9 @@ pub trait RedrawEvents {
 
     fn on_mode_change(&mut self, mode: &str) -> RepaintMode;
 
-    fn on_mouse_on(&mut self) -> RepaintMode;
+    fn on_mouse(&mut self, on: bool) -> RepaintMode;
 
-    fn on_mouse_off(&mut self) -> RepaintMode;
+    fn on_busy(&mut self, busy: bool) -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -189,8 +189,10 @@ fn call(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<Repai
         "update_fg" => ui.on_update_fg(try_int!(args[0])),
         "update_sp" => ui.on_update_sp(try_int!(args[0])),
         "mode_change" => ui.on_mode_change(try_str!(args[0])),
-        "mouse_on" => ui.on_mouse_on(),
-        "mouse_off" => ui.on_mouse_off(),
+        "mouse_on" => ui.on_mouse(true),
+        "mouse_off" => ui.on_mouse(false),
+        "busy_start" => ui.on_busy(true),
+        "busy_stop" => ui.on_busy(false),
         _ => {
             println!("Event {}({:?})", method, args);
             RepaintMode::Nothing

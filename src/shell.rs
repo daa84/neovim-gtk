@@ -636,14 +636,18 @@ impl RedrawEvents for Shell {
         RepaintMode::Area(self.model.cur_point())
     }
 
-    fn on_mouse_on(&mut self) -> RepaintMode {
-        self.mouse_enabled = true;
+    fn on_mouse(&mut self, on: bool) -> RepaintMode {
+        self.mouse_enabled = on;
         RepaintMode::Nothing
     }
 
-    fn on_mouse_off(&mut self) -> RepaintMode {
-        self.mouse_enabled = false;
-        RepaintMode::Nothing
+    fn on_busy(&mut self, busy: bool) -> RepaintMode {
+        if busy {
+            self.cursor.busy_on();
+        } else {
+            self.cursor.busy_off();
+        }
+        RepaintMode::Area(self.model.cur_point())
     }
 }
 
