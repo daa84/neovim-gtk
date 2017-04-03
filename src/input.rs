@@ -69,11 +69,7 @@ pub fn convert_key(ev: &EventKey) -> Option<String> {
     }
 
     if let Some(ch) = gdk::keyval_to_unicode(keyval) {
-        Some(if !state.is_empty() {
-            keyval_to_input_string(&ch.to_string(), state)
-        } else {
-            ch.to_string()
-        })
+        Some(keyval_to_input_string(&ch.to_string(), state))
     } else {
         None
     }
