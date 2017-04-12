@@ -1,11 +1,14 @@
 use std::string::String;
+use std::cell::{Ref, RefMut, RefCell};
+use std::rc::Rc;
+use std::sync::Arc;
 
 use cairo;
 use pangocairo as pc;
 use pango;
 use pango::FontDescription;
-use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType, EventScroll,
-          ScrollDirection, EventFocus};
+use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType,
+          EventScroll, ScrollDirection};
 use gdk_sys;
 use glib;
 use gtk::prelude::*;
@@ -13,12 +16,14 @@ use gtk::DrawingArea;
 
 use neovim_lib::{Neovim, NeovimApi, Value};
 
-use settings;
+use settings::{Settings, FontSource};
 use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
-use nvim::{RedrawEvents, GuiApi, RepaintMode};
+use nvim;
+use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport};
 use input::{convert_key, keyval_to_input_string};
-use ui::{UI, SH, SET};
 use cursor::Cursor;
+use ui;
+use ui::UiMutex;
 
 const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
@@ -30,76 +35,47 @@ pub enum NvimMode {
     Other,
 }
 
-pub struct Shell {
+pub struct State {
     pub model: UiModel,
-    pub drawing_area: DrawingArea,
-    nvim: Option<Neovim>,
-    cur_attrs: Option<Attrs>,
     bg_color: Color,
     fg_color: Color,
     sp_color: Color,
+    cur_attrs: Option<Attrs>,
+    pub mode: NvimMode,
+    mouse_enabled: bool,
+    drawing_area: DrawingArea,
+    nvim: Option<Neovim>,
+    font_desc: FontDescription,
+    cursor: Option<Cursor>,
+    settings: Rc<RefCell<Settings>>,
+
     line_height: Option<f64>,
     char_width: Option<f64>,
     request_width: bool,
-    pub mode: NvimMode,
-    mouse_enabled: bool,
-    mouse_pressed: bool,
-    font_desc: FontDescription,
     resize_timer: Option<glib::SourceId>,
-    cursor: Cursor,
 }
 
-impl Shell {
-    pub fn new() -> Shell {
-        Shell {
-            model: UiModel::empty(),
+impl State {
+    pub fn new(settings: Rc<RefCell<Settings>>) -> State {
+        State {
+            model: UiModel::new(24, 80),
             drawing_area: DrawingArea::new(),
             nvim: None,
             cur_attrs: None,
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
             sp_color: COLOR_RED,
-            line_height: None,
-            char_width: None,
-            request_width: true,
             mode: NvimMode::Normal,
             mouse_enabled: true,
-            mouse_pressed: false,
             font_desc: FontDescription::from_string(DEFAULT_FONT_NAME),
+            cursor: None,
+            settings: settings,
+
+            line_height: None,
+            char_width: None,
             resize_timer: None,
-            cursor: Cursor::new(),
+            request_width: true,
         }
-    }
-
-    pub fn init(&mut self) {
-        self.drawing_area.set_size_request(500, 300);
-        self.drawing_area.set_hexpand(true);
-        self.drawing_area.set_vexpand(true);
-        self.drawing_area.set_can_focus(true);
-
-        self.drawing_area
-            .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
-                         gdk_sys::GDK_BUTTON_MOTION_MASK |
-                         gdk_sys::GDK_SCROLL_MASK)
-                .bits() as i32);
-        self.drawing_area.connect_button_press_event(gtk_button_press);
-        self.drawing_area.connect_button_release_event(gtk_button_release);
-        self.drawing_area.connect_motion_notify_event(gtk_motion_notify);
-        self.drawing_area.connect_draw(gtk_draw);
-        self.drawing_area.connect_key_press_event(gtk_key_press);
-        self.drawing_area.connect_scroll_event(gtk_scroll_event);
-        self.drawing_area.connect_focus_in_event(gtk_focus_in);
-        self.drawing_area.connect_focus_out_event(gtk_focus_out);
-    }
-
-    pub fn add_configure_event(&mut self) {
-        self.drawing_area.connect_configure_event(gtk_configure_event);
-
-        self.cursor.start();
-    }
-
-    pub fn set_nvim(&mut self, nvim: Neovim) {
-        self.nvim = Some(nvim);
     }
 
     pub fn nvim(&mut self) -> &mut Neovim {
@@ -110,17 +86,7 @@ impl Shell {
         self.font_desc.clone()
     }
 
-    fn request_width(&mut self) {
-        self.request_width = true;
-    }
-
-    pub fn set_font_desc(&mut self, desc: &str) {
-        self.font_desc = FontDescription::from_string(desc);
-        self.line_height = None;
-        self.char_width = None;
-    }
-
-    pub fn colors<'a>(&'a self, cell: &'a Cell) -> (&'a Color, &'a Color) {
+    fn colors<'a>(&'a self, cell: &'a Cell) -> (&'a Color, &'a Color) {
         let bg = if let Some(ref bg) = cell.attrs.background {
             bg
         } else {
@@ -138,142 +104,323 @@ impl Shell {
             (bg, fg)
         }
     }
+
+    pub fn set_font_desc(&mut self, desc: &str) {
+        self.font_desc = FontDescription::from_string(desc);
+        self.line_height = None;
+        self.char_width = None;
+    }
+
+    fn request_width(&mut self) {
+        self.request_width = true;
+    }
 }
 
-fn gtk_focus_in(_: &DrawingArea, _: &EventFocus) -> Inhibit {
-    SHELL!(shell = {
-        shell.cursor.enter_focus();
-        let point = shell.model.cur_point();
-        shell.on_redraw(&RepaintMode::Area(point));
-    });
+pub struct UiState {
+    mouse_pressed: bool,
+}
+
+impl UiState {
+    pub fn new() -> UiState {
+        UiState { mouse_pressed: false }
+    }
+}
+
+pub struct Shell {
+    state: Arc<UiMutex<State>>,
+    ui_state: Rc<RefCell<UiState>>,
+}
+
+impl Shell {
+    pub fn new(settings: Rc<RefCell<Settings>>) -> Shell {
+        let shell = Shell {
+            state: Arc::new(UiMutex::new(State::new(settings))),
+            ui_state: Rc::new(RefCell::new(UiState::new())),
+        };
+
+        let shell_ref = Arc::downgrade(&shell.state);
+        shell.state.borrow_mut().cursor = Some(Cursor::new(shell_ref));
+
+        shell
+    }
+
+    pub fn init(&mut self, parent: Arc<UiMutex<ui::Components>>) {
+        let state = self.state.borrow_mut();
+        state.drawing_area.set_size_request(500, 300);
+        state.drawing_area.set_hexpand(true);
+        state.drawing_area.set_vexpand(true);
+        state.drawing_area.set_can_focus(true);
+
+        state
+            .drawing_area
+            .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
+                         gdk_sys::GDK_BUTTON_MOTION_MASK |
+                         gdk_sys::GDK_SCROLL_MASK)
+                                .bits() as i32);
+
+        let ref_state = self.state.clone();
+        let ref_ui_state = self.ui_state.clone();
+        state
+            .drawing_area
+            .connect_button_press_event(move |_, ev| {
+                                            gtk_button_press(&mut *ref_state.borrow_mut(),
+                                                             &mut *ref_ui_state.borrow_mut(),
+                                                             ev)
+                                        });
+
+        let ref_ui_state = self.ui_state.clone();
+        state
+            .drawing_area
+            .connect_button_release_event(move |_, _| {
+                                              gtk_button_release(&mut *ref_ui_state.borrow_mut())
+                                          });
+
+
+        let ref_state = self.state.clone();
+        let ref_ui_state = self.ui_state.clone();
+        state
+            .drawing_area
+            .connect_motion_notify_event(move |_, ev| {
+                                             gtk_motion_notify(&mut *ref_state.borrow_mut(),
+                                                               &mut *ref_ui_state.borrow_mut(),
+                                                               ev)
+                                         });
+
+        let ref_state = self.state.clone();
+        state
+            .drawing_area
+            .connect_draw(move |_, ctx| {
+                              gtk_draw(&*parent.borrow(), &mut *ref_state.borrow_mut(), ctx)
+                          });
+
+        let ref_state = self.state.clone();
+        state
+            .drawing_area
+            .connect_key_press_event(move |_, ev| gtk_key_press(&mut *ref_state.borrow_mut(), ev));
+
+        let ref_state = self.state.clone();
+        let ref_ui_state = self.ui_state.clone();
+        state
+            .drawing_area
+            .connect_scroll_event(move |_, ev| {
+                                      gtk_scroll_event(&mut *ref_state.borrow_mut(),
+                                                       &mut *ref_ui_state.borrow_mut(),
+                                                       ev)
+                                  });
+
+        let ref_state = self.state.clone();
+        state
+            .drawing_area
+            .connect_focus_in_event(move |_, _| gtk_focus_in(&mut *ref_state.borrow_mut()));
+
+        let ref_state = self.state.clone();
+        state
+            .drawing_area
+            .connect_focus_out_event(move |_, _| gtk_focus_out(&mut *ref_state.borrow_mut()));
+    }
+
+    pub fn state(&self) -> Ref<State> {
+        self.state.borrow()
+    }
+
+    pub fn drawing_area(&self) -> Ref<DrawingArea> {
+        Ref::map(self.state(), |s| &s.drawing_area)
+    }
+
+    pub fn redraw(&self, mode: &RepaintMode) {
+        self.state.borrow_mut().on_redraw(mode);
+    }
+
+    pub fn set_font_desc(&self, font_name: &str) {
+        self.state.borrow_mut().set_font_desc(font_name);
+    }
+
+    pub fn add_configure_event(&mut self) {
+        let mut state = self.state.borrow_mut();
+
+        let ref_state = self.state.clone();
+        state
+            .drawing_area
+            .connect_configure_event(move |_, ev| gtk_configure_event(&ref_state, ev));
+
+        state.cursor.as_mut().unwrap().start();
+    }
+
+    pub fn init_nvim(&mut self, nvim_bin_path: Option<&String>) {
+        let nvim =
+            nvim::initialize(self.state.clone(), nvim_bin_path).expect("Can't start nvim instance");
+        let mut state = self.state.borrow_mut();
+        state.nvim = Some(nvim);
+        state.request_width();
+    }
+
+    pub fn open_file(&self, path: &str) {
+        let mut nvim = self.nvim();
+        nvim.command(&format!("e {}", path))
+            .report_err(&mut *nvim);
+    }
+
+    pub fn detach_ui(&mut self) {
+        self.nvim().ui_detach().expect("Error in ui_detach");
+    }
+
+    pub fn edit_paste(&self) {
+        let mut state = self.state.borrow_mut();
+        let paste_command = if state.mode == NvimMode::Normal {
+            "\"*p"
+        } else {
+            "<Esc>\"*pa"
+        };
+
+        let mut nvim = state.nvim();
+        nvim.input(paste_command).report_err(nvim);
+    }
+
+    pub fn edit_save_all(&self) {
+        let mut nvim = &mut *self.nvim();
+        nvim.command(":wa").report_err(nvim);
+    }
+
+    pub fn nvim(&self) -> RefMut<Neovim> {
+        let state = self.state.borrow_mut();
+        RefMut::map(state, |s| s.nvim())
+    }
+}
+
+fn gtk_focus_in(state: &mut State) -> Inhibit {
+    state.cursor.as_mut().unwrap().enter_focus();
+    let point = state.model.cur_point();
+    state.on_redraw(&RepaintMode::Area(point));
     Inhibit(false)
 }
 
-fn gtk_focus_out(_: &DrawingArea, _: &EventFocus) -> Inhibit {
-    SHELL!(shell = {
-        shell.cursor.leave_focus();
-        let point = shell.model.cur_point();
-        shell.on_redraw(&RepaintMode::Area(point));
-    });
+fn gtk_focus_out(state: &mut State) -> Inhibit {
+    state.cursor.as_mut().unwrap().leave_focus();
+    let point = state.model.cur_point();
+    state.on_redraw(&RepaintMode::Area(point));
     Inhibit(false)
 }
 
-fn gtk_scroll_event(_: &DrawingArea, ev: &EventScroll) -> Inhibit {
-    SHELL!(shell = {
-        if !shell.mouse_enabled {
-            return;
+fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll) -> Inhibit {
+    if state.mouse_enabled {
+        return Inhibit(false);
+    }
+
+    match ev.as_ref().direction {
+        ScrollDirection::Right => {
+            mouse_input(state,
+                        ui_state,
+                        "ScrollWheelRight",
+                        ev.get_state(),
+                        ev.get_position())
         }
-
-        match ev.as_ref().direction {
-            ScrollDirection::Right => {
-                mouse_input(&mut shell,
-                            "ScrollWheelRight",
-                            ev.get_state(),
-                            ev.get_position())
-            }
-            ScrollDirection::Left => {
-                mouse_input(&mut shell,
-                            "ScrollWheelLeft",
-                            ev.get_state(),
-                            ev.get_position())
-            }
-            ScrollDirection::Up => {
-                mouse_input(&mut shell,
-                            "ScrollWheelUp",
-                            ev.get_state(),
-                            ev.get_position())
-            }
-            ScrollDirection::Down => {
-                mouse_input(&mut shell,
-                            "ScrollWheelDown",
-                            ev.get_state(),
-                            ev.get_position())
-            }
-            _ => (),
+        ScrollDirection::Left => {
+            mouse_input(state,
+                        ui_state,
+                        "ScrollWheelLeft",
+                        ev.get_state(),
+                        ev.get_position())
         }
-    });
+        ScrollDirection::Up => {
+            mouse_input(state,
+                        ui_state,
+                        "ScrollWheelUp",
+                        ev.get_state(),
+                        ev.get_position())
+        }
+        ScrollDirection::Down => {
+            mouse_input(state,
+                        ui_state,
+                        "ScrollWheelDown",
+                        ev.get_state(),
+                        ev.get_position())
+        }
+        _ => (),
+    }
     Inhibit(false)
 }
 
-fn gtk_button_press(_: &DrawingArea, ev: &EventButton) -> Inhibit {
+fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton) -> Inhibit {
     if ev.get_event_type() != EventType::ButtonPress {
         return Inhibit(false);
     }
 
-    SHELL!(shell = {
-        if !shell.mouse_enabled {
-            return;
-        }
-
-        mouse_input(&mut shell, "LeftMouse", ev.get_state(), ev.get_position());
-    });
+    if shell.mouse_enabled {
+        mouse_input(shell,
+                    ui_state,
+                    "LeftMouse",
+                    ev.get_state(),
+                    ev.get_position());
+    }
     Inhibit(false)
 }
 
-fn mouse_input(shell: &mut Shell, input: &str, state: ModifierType, position: (f64, f64)) {
+fn mouse_input(shell: &mut State,
+               ui_state: &mut UiState,
+               input: &str,
+               state: ModifierType,
+               position: (f64, f64)) {
     if let Some(line_height) = shell.line_height {
         if let Some(char_width) = shell.char_width {
-            shell.mouse_pressed = true;
+            ui_state.mouse_pressed = true;
 
             let nvim = shell.nvim();
             let (x, y) = position;
             let col = (x / char_width).trunc() as u64;
             let row = (y / line_height).trunc() as u64;
             let input_str = format!("{}<{},{}>", keyval_to_input_string(input, state), col, row);
-            nvim.input(&input_str).expect("Can't send mouse input event");
+            nvim.input(&input_str)
+                .expect("Can't send mouse input event");
         }
     }
 }
 
-fn gtk_button_release(_: &DrawingArea, _: &EventButton) -> Inhibit {
-    SHELL!(shell = {
-        shell.mouse_pressed = false;
-    });
+fn gtk_button_release(ui_state: &mut UiState) -> Inhibit {
+    ui_state.mouse_pressed = false;
     Inhibit(false)
 }
 
-fn gtk_motion_notify(_: &DrawingArea, ev: &EventMotion) -> Inhibit {
-    SHELL!(shell = {
-        if !shell.mouse_enabled || !shell.mouse_pressed {
-            return;
-        }
-
-        mouse_input(&mut shell, "LeftDrag", ev.get_state(), ev.get_position());
-    });
+fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion) -> Inhibit {
+    if shell.mouse_enabled && ui_state.mouse_pressed {
+        mouse_input(shell,
+                    ui_state,
+                    "LeftDrag",
+                    ev.get_state(),
+                    ev.get_position());
+    }
     Inhibit(false)
 }
 
-fn gtk_key_press(_: &DrawingArea, ev: &EventKey) -> Inhibit {
+fn gtk_key_press(shell: &mut State, ev: &EventKey) -> Inhibit {
     if let Some(input) = convert_key(ev) {
-        SHELL!(shell = {
-            debug!("nvim_input -> {}", input);
-            shell.nvim().input(&input).expect("Error run input command to nvim");
-            shell.cursor.reset_state();
-        });
+        debug!("nvim_input -> {}", input);
+        shell
+            .nvim()
+            .input(&input)
+            .expect("Error run input command to nvim");
+        shell.cursor.as_mut().unwrap().reset_state();
         Inhibit(true)
     } else {
         Inhibit(false)
     }
 }
 
-fn gtk_draw(_: &DrawingArea, ctx: &cairo::Context) -> Inhibit {
-    SHELL!(shell = {
-        if shell.line_height.is_none() {
-            let (width, height) = calc_char_bounds(&shell, ctx);
-            shell.line_height = Some(height as f64);
-            shell.char_width = Some(width as f64);
-        }
+fn gtk_draw(parent: &ui::Components, state: &mut State, ctx: &cairo::Context) -> Inhibit {
+    if state.line_height.is_none() {
+        let (width, height) = calc_char_bounds(state, ctx);
+        state.line_height = Some(height as f64);
+        state.char_width = Some(width as f64);
+    }
 
-        draw(&shell, ctx);
-        request_width(&mut shell);
-    });
+    draw(state, ctx);
+    request_width(parent, state);
 
 
     Inhibit(false)
 }
 
 #[inline]
-fn draw_joined_rect(shell: &Shell,
+fn draw_joined_rect(state: &State,
                     ctx: &cairo::Context,
                     from_col_idx: usize,
                     col_idx: usize,
@@ -283,7 +430,7 @@ fn draw_joined_rect(shell: &Shell,
     let current_point = ctx.get_current_point();
     let rect_width = char_width * (col_idx - from_col_idx) as f64;
 
-    if &shell.bg_color != color {
+    if &state.bg_color != color {
         ctx.set_source_rgb(color.0, color.1, color.2);
         ctx.rectangle(current_point.0, current_point.1, rect_width, line_height);
         ctx.fill();
@@ -292,29 +439,29 @@ fn draw_joined_rect(shell: &Shell,
     ctx.move_to(current_point.0 + rect_width, current_point.1);
 }
 
-fn draw(shell: &Shell, ctx: &cairo::Context) {
-    ctx.set_source_rgb(shell.bg_color.0, shell.bg_color.1, shell.bg_color.2);
+fn draw(state: &State, ctx: &cairo::Context) {
+    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
     ctx.paint();
 
-    let line_height = shell.line_height.unwrap();
-    let char_width = shell.char_width.unwrap();
+    let line_height = state.line_height.unwrap();
+    let char_width = state.char_width.unwrap();
     let clip = ctx.clip_extents();
     let mut model_clip =
         ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
-    shell.model.limit_to_model(&mut model_clip);
+    state.model.limit_to_model(&mut model_clip);
 
     let line_x = model_clip.left as f64 * char_width;
     let mut line_y: f64 = model_clip.top as f64 * line_height;
 
-    let (row, col) = shell.model.get_cursor();
+    let (row, col) = state.model.get_cursor();
     let mut buf = String::with_capacity(4);
 
 
 
     let layout = pc::create_layout(ctx);
-    let mut desc = shell.create_pango_font();
+    let mut desc = state.create_pango_font();
 
-    for (line_idx, line) in shell.model.clip_model(&model_clip) {
+    for (line_idx, line) in state.model.clip_model(&model_clip) {
         ctx.move_to(line_x, line_y);
 
         // first draw background
@@ -323,13 +470,13 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
         let mut from_col_idx = model_clip.left;
         let mut from_bg = None;
         for (col_idx, cell) in line.iter() {
-            let (bg, _) = shell.colors(cell);
+            let (bg, _) = state.colors(cell);
 
             if from_bg.is_none() {
                 from_bg = Some(bg);
                 from_col_idx = col_idx;
             } else if from_bg != Some(bg) {
-                draw_joined_rect(shell,
+                draw_joined_rect(state,
                                  ctx,
                                  from_col_idx,
                                  col_idx,
@@ -340,7 +487,7 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
                 from_col_idx = col_idx;
             }
         }
-        draw_joined_rect(shell,
+        draw_joined_rect(state,
                          ctx,
                          from_col_idx,
                          model_clip.right + 1,
@@ -351,19 +498,25 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
         ctx.move_to(line_x, line_y);
 
         for (col_idx, cell) in line.iter() {
-            let double_width = line.get(col_idx + 1).map(|c| c.attrs.double_width).unwrap_or(false);
+            let double_width = line.get(col_idx + 1)
+                .map(|c| c.attrs.double_width)
+                .unwrap_or(false);
             let current_point = ctx.get_current_point();
 
-            let (bg, fg) = shell.colors(cell);
+            let (bg, fg) = state.colors(cell);
 
             if row == line_idx && col == col_idx {
-                shell.cursor.draw(ctx,
-                                  shell,
-                                  char_width,
-                                  line_height,
-                                  line_y,
-                                  double_width,
-                                  bg);
+                state
+                    .cursor
+                    .as_ref()
+                    .unwrap()
+                    .draw(ctx,
+                          state,
+                          char_width,
+                          line_height,
+                          line_y,
+                          double_width,
+                          bg);
 
                 ctx.move_to(current_point.0, current_point.1);
             }
@@ -400,7 +553,7 @@ fn draw(shell: &Shell, ctx: &cairo::Context) {
                 let sp = if let Some(ref sp) = cell.attrs.special {
                     sp
                 } else {
-                    &shell.sp_color
+                    &state.sp_color
                 };
 
                 ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
@@ -437,7 +590,7 @@ fn update_font_description(desc: &mut FontDescription, attrs: &Attrs) {
     }
 }
 
-fn calc_char_bounds(shell: &Shell, ctx: &cairo::Context) -> (i32, i32) {
+fn calc_char_bounds(shell: &State, ctx: &cairo::Context) -> (i32, i32) {
     let layout = pc::create_layout(ctx);
 
     let desc = shell.create_pango_font();
@@ -447,31 +600,27 @@ fn calc_char_bounds(shell: &Shell, ctx: &cairo::Context) -> (i32, i32) {
     layout.get_pixel_size()
 }
 
-fn request_width(shell: &mut Shell) {
-    if !shell.request_width {
+fn request_width(parent: &ui::Components, state: &mut State) {
+    if !state.request_width {
         return;
     }
-    if shell.resize_timer.is_some() {
+    if state.resize_timer.is_some() {
         return;
     }
 
-    shell.request_width = false;
+    state.request_width = false;
 
-    let width = shell.drawing_area.get_allocated_width();
-    let height = shell.drawing_area.get_allocated_height();
-    let request_height = (shell.model.rows as f64 * shell.line_height.unwrap()) as i32;
-    let request_width = (shell.model.columns as f64 * shell.char_width.unwrap()) as i32;
+    let width = state.drawing_area.get_allocated_width();
+    let height = state.drawing_area.get_allocated_height();
+    let request_height = (state.model.rows as f64 * state.line_height.unwrap()) as i32;
+    let request_width = (state.model.columns as f64 * state.char_width.unwrap()) as i32;
 
     if width != request_width || height != request_height {
-        UI.with(|ui_cell| {
-            let ui = ui_cell.borrow();
-
-            let window = ui.window.as_ref().unwrap();
-            let (win_width, win_height) = window.get_size();
-            let h_border = win_width - width;
-            let v_border = win_height - height;
-            window.resize(request_width + h_border, request_height + v_border);
-        });
+        let window = parent.window();
+        let (win_width, win_height) = window.get_size();
+        let h_border = win_width - width;
+        let v_border = win_height - height;
+        window.resize(request_width + h_border, request_height + v_border);
     }
 }
 
@@ -482,39 +631,41 @@ fn split_color(indexed_color: u64) -> Color {
     Color(r / 255.0, g / 255.0, b / 255.0)
 }
 
-fn gtk_configure_event(_: &DrawingArea, ev: &EventConfigure) -> bool {
-    SHELL!(shell = {
-        let (width, height) = ev.get_size();
+fn gtk_configure_event(state: &Arc<UiMutex<State>>, ev: &EventConfigure) -> bool {
+    let (width, height) = ev.get_size();
 
-        if let Some(timer) = shell.resize_timer {
-            glib::source_remove(timer);
+    let mut state_ref = state.borrow_mut();
+
+    if let Some(timer) = state_ref.resize_timer {
+        glib::source_remove(timer);
+    }
+    if let Some(line_height) = state_ref.line_height {
+        if let Some(char_width) = state_ref.char_width {
+
+            let state = state.clone();
+            state_ref.resize_timer = Some(glib::timeout_add(250, move || {
+                let mut state_ref = state.borrow_mut();
+
+                state_ref.resize_timer = None;
+
+                let rows = (height as f64 / line_height).trunc() as usize;
+                let columns = (width as f64 / char_width).trunc() as usize;
+                if state_ref.model.rows != rows || state_ref.model.columns != columns {
+                    if let Err(err) = state_ref
+                           .nvim()
+                           .ui_try_resize(columns as u64, rows as u64) {
+                        println!("Error trying resize nvim {}", err);
+                    }
+                }
+                state_ref.request_width();
+                Continue(false)
+            }));
         }
-        if let Some(line_height) = shell.line_height {
-            if let Some(char_width) = shell.char_width {
-
-                shell.resize_timer = Some(glib::timeout_add(250, move || {
-                    SHELL!(shell = {
-                        shell.resize_timer = None;
-
-                        let rows = (height as f64 / line_height).trunc() as usize;
-                        let columns = (width as f64 / char_width).trunc() as usize;
-                        if shell.model.rows != rows || shell.model.columns != columns {
-                            if let Err(err) = shell.nvim()
-                                .ui_try_resize(columns as u64, rows as u64) {
-                                println!("Error trying resize nvim {}", err);
-                            }
-                        }
-                        shell.request_width();
-                    });
-                    Continue(false)
-                }));
-            }
-        }
-    });
+    }
     false
 }
 
-impl RedrawEvents for Shell {
+impl RedrawEvents for State {
     fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
         RepaintMode::Area(self.model.set_cursor(row as usize, col as usize))
     }
@@ -643,21 +794,19 @@ impl RedrawEvents for Shell {
 
     fn on_busy(&mut self, busy: bool) -> RepaintMode {
         if busy {
-            self.cursor.busy_on();
+            self.cursor.as_mut().unwrap().busy_on();
         } else {
-            self.cursor.busy_off();
+            self.cursor.as_mut().unwrap().busy_off();
         }
         RepaintMode::Area(self.model.cur_point())
     }
 }
 
-impl GuiApi for Shell {
+impl GuiApi for State {
     fn set_font(&mut self, font_desc: &str) {
         self.set_font_desc(font_desc);
 
-        SET.with(|settings| {
-            let mut settings = settings.borrow_mut();
-            settings.set_font_source(settings::FontSource::Rpc);
-        });
+        let mut settings = self.settings.borrow_mut();
+        settings.set_font_source(FontSource::Rpc);
     }
 }

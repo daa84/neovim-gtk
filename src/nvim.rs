@@ -1,9 +1,11 @@
-use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError};
 use std::io::{Result, Error, ErrorKind};
 use std::result;
-use ui_model::{UiModel, ModelRect};
-use ui::SH;
-use shell::Shell;
+use std::sync::Arc;
+
+use ui::UiMutex;
+use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError};
+use ui_model::ModelRect;
+use shell;
 use glib;
 
 pub trait RedrawEvents {
@@ -63,98 +65,111 @@ macro_rules! try_uint {
     })
 }
 
-pub fn initialize(ui: &mut Shell, nvim_bin_path: Option<&String>) -> Result<()> {
+pub fn initialize(shell: Arc<UiMutex<shell::State>>,
+                  nvim_bin_path: Option<&String>)
+                  -> Result<Neovim> {
     let session = if let Some(path) = nvim_bin_path {
         Session::new_child_path(path)?
     } else {
         Session::new_child()?
     };
 
-    let nvim = Neovim::new(session);
-    ui.set_nvim(nvim);
-    ui.model = UiModel::new(24, 80);
+    let mut nvim = Neovim::new(session);
 
-    let mut nvim = ui.nvim();
+    nvim.session
+        .start_event_loop_handler(NvimHandler::new(shell));
+    nvim.ui_attach(80, 24, UiAttachOptions::new())
+        .map_err(|e| Error::new(ErrorKind::Other, e))?;
+    nvim.command("runtime! ginit.vim")
+        .map_err(|e| Error::new(ErrorKind::Other, e))?;
 
-    nvim.session.start_event_loop_handler(NvimHandler::new());
-    nvim.ui_attach(80, 24, UiAttachOptions::new()).map_err(|e| Error::new(ErrorKind::Other, e))?;
-    nvim.command("runtime! ginit.vim").map_err(|e| Error::new(ErrorKind::Other, e))?;
-
-    Ok(())
+    Ok(nvim)
 }
 
-pub fn open_file(nvim: &mut NeovimApi, file: Option<&String>) {
-    if let Some(file_name) = file {
-        nvim.command(&format!("e {}", file_name)).report_err(nvim);
-    }
+pub struct NvimHandler {
+    shell: Arc<UiMutex<shell::State>>,
 }
-
-pub struct NvimHandler {}
 
 impl NvimHandler {
-    pub fn new() -> NvimHandler {
-        NvimHandler {}
+    pub fn new(shell: Arc<UiMutex<shell::State>>) -> NvimHandler {
+        NvimHandler { shell: shell }
+    }
+
+    fn nvim_cb(&self, method: &str, params: Vec<Value>) {
+        match method {
+            "redraw" => {
+                self.safe_call(move |ui| {
+                    let mut repaint_mode = RepaintMode::Nothing;
+
+                    for ev in &params {
+                        if let Some(ev_args) = ev.as_array() {
+                            if let Some(ev_name) = ev_args[0].as_str() {
+                                for ref local_args in ev_args.iter().skip(1) {
+                                    let args = match *local_args {
+                                        &Value::Array(ref ar) => ar.clone(),
+                                        _ => vec![],
+                                    };
+                                    let call_reapint_mode = call(ui, ev_name, &args)?;
+                                    repaint_mode = repaint_mode.join(&call_reapint_mode);
+                                }
+                            } else {
+                                println!("Unsupported event {:?}", ev_args);
+                            }
+                        } else {
+                            println!("Unsupported event type {:?}", ev);
+                        }
+                    }
+
+                    ui.on_redraw(&repaint_mode);
+                    Ok(())
+                });
+            }
+            "Gui" => {
+                if params.len() > 0 {
+                    if let Some(ev_name) = params[0].as_str().map(String::from) {
+                        let args = params.iter().skip(1).cloned().collect();
+                        self.safe_call(move |ui| {
+                                           call_gui_event(ui, &ev_name, &args)?;
+                                           ui.on_redraw(&RepaintMode::All);
+                                           Ok(())
+                                       });
+                    } else {
+                        println!("Unsupported event {:?}", params);
+                    }
+                } else {
+                    println!("Unsupported event {:?}", params);
+                }
+            }
+            _ => {
+                println!("Notification {}({:?})", method, params);
+            }
+        }
+    }
+
+    fn safe_call<F>(&self, cb: F)
+        where F: Fn(&mut shell::State) -> result::Result<(), String> + 'static + Send
+    {
+        let shell = self.shell.clone();
+        glib::idle_add(move || {
+                           if let Err(msg) = cb(&mut shell.borrow_mut()) {
+                               println!("Error call function: {}", msg);
+                           }
+                           glib::Continue(false)
+                       });
     }
 }
 
 impl Handler for NvimHandler {
     fn handle_notify(&mut self, name: &str, args: &Vec<Value>) {
-        nvim_cb(name, args.clone());
+        self.nvim_cb(name, args.clone());
     }
 }
 
-fn nvim_cb(method: &str, params: Vec<Value>) {
-    match method {
-        "redraw" => {
-            safe_call(move |ui| {
-                let mut repaint_mode = RepaintMode::Nothing;
 
-                for ev in &params {
-                    if let Some(ev_args) = ev.as_array() {
-                        if let Some(ev_name) = ev_args[0].as_str() {
-                            for ref local_args in ev_args.iter().skip(1) {
-                                let args = match *local_args {
-                                    &Value::Array(ref ar) => ar.clone(),
-                                    _ => vec![],
-                                };
-                                let call_reapint_mode = call(ui, ev_name, &args)?;
-                                repaint_mode = repaint_mode.join(&call_reapint_mode);
-                            }
-                        } else {
-                            println!("Unsupported event {:?}", ev_args);
-                        }
-                    } else {
-                        println!("Unsupported event type {:?}", ev);
-                    }
-                }
-
-                ui.on_redraw(&repaint_mode);
-                Ok(())
-            });
-        }
-        "Gui" => {
-            if params.len() > 0 {
-                if let Some(ev_name) = params[0].as_str().map(String::from) {
-                    let args = params.iter().skip(1).cloned().collect();
-                    safe_call(move |ui| {
-                        call_gui_event(ui, &ev_name, &args)?;
-                        ui.on_redraw(&RepaintMode::All);
-                        Ok(())
-                    });
-                } else {
-                    println!("Unsupported event {:?}", params);
-                }
-            } else {
-                println!("Unsupported event {:?}", params);
-            }
-        }
-        _ => {
-            println!("Notification {}({:?})", method, params);
-        }
-    }
-}
-
-fn call_gui_event(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<(), String> {
+fn call_gui_event(ui: &mut shell::State,
+                  method: &str,
+                  args: &Vec<Value>)
+                  -> result::Result<(), String> {
     match method {
         "Font" => ui.set_font(try_str!(args[0])),
         _ => return Err(format!("Unsupported event {}({:?})", method, args)),
@@ -162,55 +177,45 @@ fn call_gui_event(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Re
     Ok(())
 }
 
-fn call(ui: &mut Shell, method: &str, args: &Vec<Value>) -> result::Result<RepaintMode, String> {
+fn call(ui: &mut shell::State,
+        method: &str,
+        args: &Vec<Value>)
+        -> result::Result<RepaintMode, String> {
     Ok(match method {
-        "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
-        "put" => ui.on_put(try_str!(args[0])),
-        "clear" => ui.on_clear(),
-        "resize" => ui.on_resize(try_uint!(args[0]), try_uint!(args[1])),
-        "highlight_set" => {
-            if let Value::Map(ref attrs) = args[0] {
-                ui.on_highlight_set(attrs);
-            } else {
-                panic!("Supports only map value as argument");
-            }
-            RepaintMode::Nothing
+           "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
+           "put" => ui.on_put(try_str!(args[0])),
+           "clear" => ui.on_clear(),
+           "resize" => ui.on_resize(try_uint!(args[0]), try_uint!(args[1])),
+           "highlight_set" => {
+        if let Value::Map(ref attrs) = args[0] {
+            ui.on_highlight_set(attrs);
+        } else {
+            panic!("Supports only map value as argument");
         }
-        "eol_clear" => ui.on_eol_clear(),
-        "set_scroll_region" => {
-            ui.on_set_scroll_region(try_uint!(args[0]),
-                                    try_uint!(args[1]),
-                                    try_uint!(args[2]),
-                                    try_uint!(args[3]));
-            RepaintMode::Nothing
-        }
-        "scroll" => ui.on_scroll(try_int!(args[0])),
-        "update_bg" => ui.on_update_bg(try_int!(args[0])),
-        "update_fg" => ui.on_update_fg(try_int!(args[0])),
-        "update_sp" => ui.on_update_sp(try_int!(args[0])),
-        "mode_change" => ui.on_mode_change(try_str!(args[0])),
-        "mouse_on" => ui.on_mouse(true),
-        "mouse_off" => ui.on_mouse(false),
-        "busy_start" => ui.on_busy(true),
-        "busy_stop" => ui.on_busy(false),
-        _ => {
-            println!("Event {}({:?})", method, args);
-            RepaintMode::Nothing
-        }
-    })
-}
-
-fn safe_call<F>(cb: F)
-    where F: Fn(&mut Shell) -> result::Result<(), String> + 'static + Send
-{
-    glib::idle_add(move || {
-        SHELL!(shell = {
-            if let Err(msg) = cb(&mut shell) {
-                println!("Error call function: {}", msg);
-            }
-        });
-        glib::Continue(false)
-    });
+        RepaintMode::Nothing
+    }
+           "eol_clear" => ui.on_eol_clear(),
+           "set_scroll_region" => {
+        ui.on_set_scroll_region(try_uint!(args[0]),
+                                try_uint!(args[1]),
+                                try_uint!(args[2]),
+                                try_uint!(args[3]));
+        RepaintMode::Nothing
+    }
+           "scroll" => ui.on_scroll(try_int!(args[0])),
+           "update_bg" => ui.on_update_bg(try_int!(args[0])),
+           "update_fg" => ui.on_update_fg(try_int!(args[0])),
+           "update_sp" => ui.on_update_sp(try_int!(args[0])),
+           "mode_change" => ui.on_mode_change(try_str!(args[0])),
+           "mouse_on" => ui.on_mouse(true),
+           "mouse_off" => ui.on_mouse(false),
+           "busy_start" => ui.on_busy(true),
+           "busy_stop" => ui.on_busy(false),
+           _ => {
+        println!("Event {}({:?})", method, args);
+        RepaintMode::Nothing
+    }
+       })
 }
 
 pub trait ErrorReport {

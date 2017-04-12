@@ -9,7 +9,7 @@ extern crate pango;
 extern crate pangocairo;
 extern crate neovim_lib;
 extern crate phf;
-#[macro_use] 
+#[macro_use]
 extern crate log;
 extern crate env_logger;
 
@@ -23,12 +23,10 @@ mod settings;
 mod cursor;
 mod shell_dlg;
 
-use std::thread;
 use std::env;
 use gio::ApplicationExt;
 
-use shell::Shell;
-use ui::SH;
+use ui::Ui;
 
 const BIN_PATH_ARG: &'static str = "--nvim-bin-path";
 
@@ -41,8 +39,10 @@ fn main() {
     app.connect_activate(activate);
 
     let args: Vec<String> = env::args().collect();
-    let mut argv: Vec<&str> =
-        args.iter().filter(|a| !a.starts_with(BIN_PATH_ARG)).map(String::as_str).collect();
+    let mut argv: Vec<&str> = args.iter()
+        .filter(|a| !a.starts_with(BIN_PATH_ARG))
+        .map(String::as_str)
+        .collect();
     if open_arg().is_some() {
         argv.pop();
     }
@@ -50,24 +50,11 @@ fn main() {
 }
 
 fn activate(app: &gtk::Application) {
-    ui::UI.with(|ui_cell| {
-        let mut ui = ui_cell.borrow_mut();
-            if !ui.initialized {
-                ui.init(app);
+    let mut ui = Ui::new();
 
-                let path = nvim_bin_path(std::env::args());
-                SHELL!(shell = {
-                    nvim::initialize(&mut shell, path.as_ref())
-                        .expect("Can't start nvim instance");
-
-                    guard_dispatch_thread(&mut shell);
-                });
-            }
-
-            SHELL!(shell = {
-                nvim::open_file(shell.nvim(), open_arg().as_ref());
-            });
-    });
+    ui.init(app,
+            nvim_bin_path(std::env::args()).as_ref(),
+            open_arg().as_ref());
 }
 
 fn nvim_bin_path<I>(args: I) -> Option<String>
@@ -89,22 +76,11 @@ fn open_arg_impl<I>(args: I) -> Option<String>
     args.skip(1)
         .last()
         .map(|a| if !a.starts_with("-") {
-            Some(a.to_owned())
-        } else {
-            None
-        })
+                 Some(a.to_owned())
+             } else {
+                 None
+             })
         .unwrap_or(None)
-}
-
-fn guard_dispatch_thread(shell: &mut Shell) {
-    let guard = shell.nvim().session.take_dispatch_guard();
-    thread::spawn(move || {
-        guard.join().expect("Can't join dispatch thread");
-        glib::idle_add(move || {
-            ui::UI.with(|ui_cell| { ui_cell.borrow().close_window(); });
-            glib::Continue(false)
-        });
-    });
 }
 
 #[cfg(test)]
@@ -115,8 +91,8 @@ mod tests {
     fn test_bin_path_arg() {
         assert_eq!(Some("/test_path".to_string()),
                    nvim_bin_path(vec!["neovim-gtk", "--nvim-bin-path=/test_path"]
-                       .iter()
-                       .map(|s| s.to_string())));
+                                     .iter()
+                                     .map(|s| s.to_string())));
     }
 
     #[test]
@@ -125,8 +101,8 @@ mod tests {
                    open_arg_impl(vec!["neovim-gtk",
                                       "--nvim-bin-path=/test_path",
                                       "some_file.txt"]
-                       .iter()
-                       .map(|s| s.to_string())));
+                                         .iter()
+                                         .map(|s| s.to_string())));
     }
 
     #[test]

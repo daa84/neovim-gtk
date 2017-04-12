@@ -1,9 +1,10 @@
 use cairo;
 use ui_model::Color;
-use ui::{SH, UiMutex};
-use shell::{Shell, NvimMode};
+use ui::UiMutex;
+use shell;
+use shell::NvimMode;
 use nvim::{RepaintMode, RedrawEvents};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use glib;
 
@@ -43,15 +44,17 @@ enum AnimPhase {
 struct State {
     alpha: Alpha,
     anim_phase: AnimPhase,
+    shell: Weak<UiMutex<shell::State>>,
 
     timer: Option<glib::SourceId>,
 }
 
 impl State {
-    fn new() -> State {
+    fn new(shell: Weak<UiMutex<shell::State>>) -> State {
         State {
             alpha: Alpha(1.0),
             anim_phase: AnimPhase::Shown,
+            shell: shell,
             timer: None,
         }
     }
@@ -71,8 +74,8 @@ pub struct Cursor {
 }
 
 impl Cursor {
-    pub fn new() -> Cursor {
-        Cursor { state: Arc::new(UiMutex::new(State::new())) }
+    pub fn new(shell: Weak<UiMutex<shell::State>>) -> Cursor {
+        Cursor { state: Arc::new(UiMutex::new(State::new(shell))) }
     }
 
     pub fn start(&mut self) {
@@ -85,7 +88,7 @@ impl Cursor {
     pub fn reset_state(&mut self) {
         self.start();
     }
-    
+
     pub fn enter_focus(&mut self) {
         self.start();
     }
@@ -104,7 +107,7 @@ impl Cursor {
 
     pub fn draw(&self,
                 ctx: &cairo::Context,
-                shell: &Shell,
+                shell: &shell::State,
                 char_width: f64,
                 line_height: f64,
                 line_y: f64,
@@ -140,7 +143,6 @@ impl Cursor {
 }
 
 fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
-    let moved_state = state.clone();
     let mut mut_state = state.borrow_mut();
 
     let next_event = match mut_state.anim_phase {
@@ -175,13 +177,14 @@ fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
         AnimPhase::Busy => None,
     };
 
-    SHELL!(&shell = {
-        let point = shell.model.cur_point();
-        shell.on_redraw(&RepaintMode::Area(point));
-    });
+    let shell = mut_state.shell.upgrade().unwrap();
+    let shell = shell.borrow();
+    let point = shell.model.cur_point();
+    shell.on_redraw(&RepaintMode::Area(point));
 
 
     if let Some(timeout) = next_event {
+        let moved_state = state.clone();
         mut_state.timer = Some(glib::timeout_add(timeout, move || anim_step(&moved_state)));
 
         glib::Continue(false)

@@ -81,20 +81,6 @@ pub struct UiModel {
 }
 
 impl UiModel {
-    pub fn empty() -> UiModel {
-        UiModel {
-            columns: 0,
-            rows: 0,
-            cur_row: 0,
-            cur_col: 0,
-            model: vec![],
-            top: 0,
-            bot: 0,
-            left: 0,
-            right: 0,
-        }
-    }
-
     pub fn new(rows: u64, columns: u64) -> UiModel {
         let mut model = Vec::with_capacity(rows as usize);
         for i in 0..rows as usize {
@@ -314,21 +300,13 @@ impl ModelRect {
         } else {
             x1
         };
-        let x2 = if x2 > 0.0 {
-            x2 - 1.0
-        } else {
-            x2
-        };
+        let x2 = if x2 > 0.0 { x2 - 1.0 } else { x2 };
         let y1 = if y1 > 0.0 {
             y1 // - 1.0
         } else {
             y1
         };
-        let y2 = if y2 > 0.0 {
-            y2 - 1.0
-        } else {
-            y2
-        };
+        let y2 = if y2 > 0.0 { y2 - 1.0 } else { y2 };
         let left = (x1 / char_width) as usize;
         let right = (x2 / char_width) as usize;
         let top = (y1 / line_height) as usize;
@@ -359,7 +337,9 @@ impl<'a> Iterator for ClipRowIterator<'a> {
 
     fn next(&mut self) -> Option<(usize, ClipLine<'a>)> {
         self.pos += 1;
-        self.iter.next().map(|line| (self.rect.top + self.pos - 1, ClipLine::new(line, self.rect)))
+        self.iter
+            .next()
+            .map(|line| (self.rect.top + self.pos - 1, ClipLine::new(line, self.rect)))
     }
 }
 
@@ -406,7 +386,9 @@ impl<'a> Iterator for ClipColIterator<'a> {
 
     fn next(&mut self) -> Option<(usize, &'a Cell)> {
         self.pos += 1;
-        self.iter.next().map(|line| (self.rect.left + self.pos - 1, line))
+        self.iter
+            .next()
+            .map(|line| (self.rect.left + self.pos - 1, line))
     }
 }
 
