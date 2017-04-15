@@ -302,7 +302,7 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
 }
 
 fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll) -> Inhibit {
-    if state.mouse_enabled {
+    if !state.mouse_enabled {
         return Inhibit(false);
     }
 
@@ -346,6 +346,8 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
     }
 
     if shell.mouse_enabled {
+        ui_state.mouse_pressed = true;
+
         mouse_input(shell,
                     ui_state,
                     "LeftMouse",
@@ -362,7 +364,6 @@ fn mouse_input(shell: &mut State,
                position: (f64, f64)) {
     if let Some(line_height) = shell.line_height {
         if let Some(char_width) = shell.char_width {
-            ui_state.mouse_pressed = true;
 
             let nvim = shell.nvim();
             let (x, y) = position;
