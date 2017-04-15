@@ -199,14 +199,9 @@ impl Shell {
             .connect_key_press_event(move |_, ev| gtk_key_press(&mut *ref_state.borrow_mut(), ev));
 
         let ref_state = self.state.clone();
-        let ref_ui_state = self.ui_state.clone();
         state
             .drawing_area
-            .connect_scroll_event(move |_, ev| {
-                                      gtk_scroll_event(&mut *ref_state.borrow_mut(),
-                                                       &mut *ref_ui_state.borrow_mut(),
-                                                       ev)
-                                  });
+            .connect_scroll_event(move |_, ev| gtk_scroll_event(&mut *ref_state.borrow_mut(), ev));
 
         let ref_state = self.state.clone();
         state
@@ -301,7 +296,7 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
     Inhibit(false)
 }
 
-fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll) -> Inhibit {
+fn gtk_scroll_event(state: &mut State, ev: &EventScroll) -> Inhibit {
     if !state.mouse_enabled {
         return Inhibit(false);
     }
@@ -309,28 +304,24 @@ fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll)
     match ev.as_ref().direction {
         ScrollDirection::Right => {
             mouse_input(state,
-                        ui_state,
                         "ScrollWheelRight",
                         ev.get_state(),
                         ev.get_position())
         }
         ScrollDirection::Left => {
             mouse_input(state,
-                        ui_state,
                         "ScrollWheelLeft",
                         ev.get_state(),
                         ev.get_position())
         }
         ScrollDirection::Up => {
             mouse_input(state,
-                        ui_state,
                         "ScrollWheelUp",
                         ev.get_state(),
                         ev.get_position())
         }
         ScrollDirection::Down => {
             mouse_input(state,
-                        ui_state,
                         "ScrollWheelDown",
                         ev.get_state(),
                         ev.get_position())
@@ -349,7 +340,6 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
         ui_state.mouse_pressed = true;
 
         mouse_input(shell,
-                    ui_state,
                     "LeftMouse",
                     ev.get_state(),
                     ev.get_position());
@@ -358,7 +348,6 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
 }
 
 fn mouse_input(shell: &mut State,
-               ui_state: &mut UiState,
                input: &str,
                state: ModifierType,
                position: (f64, f64)) {
@@ -384,7 +373,6 @@ fn gtk_button_release(ui_state: &mut UiState) -> Inhibit {
 fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion) -> Inhibit {
     if shell.mouse_enabled && ui_state.mouse_pressed {
         mouse_input(shell,
-                    ui_state,
                     "LeftDrag",
                     ev.get_state(),
                     ev.get_position());
