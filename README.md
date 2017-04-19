@@ -19,7 +19,7 @@ call rpcnotify(1, 'Gui', 'Font', 'DejaVu Sans Mono 12')
 ```
 cargo run -- --nvim-bin-path=E:\Neovim\bin\nvim.exe
 ```
-* enable external popup menu autocompletion menu (this function a bit limited, so disabled by default)
+* enable external autocompletion popup menu (this function limited a bit, so disabled by default)
 ```
 cargo run -- --enable-external-popup
 ```
