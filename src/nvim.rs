@@ -38,6 +38,17 @@ pub trait RedrawEvents {
     fn on_mouse(&mut self, on: bool) -> RepaintMode;
 
     fn on_busy(&mut self, busy: bool) -> RepaintMode;
+
+    fn popupmenu_show(&mut self,
+                      menu: &Vec<Vec<&str>>,
+                      selected: i64,
+                      row: u64,
+                      col: u64)
+                      -> RepaintMode;
+
+    fn popupmenu_hide(&mut self) -> RepaintMode;
+
+    fn popupmenu_select(&mut self, selected: i64) -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -45,28 +56,20 @@ pub trait GuiApi {
 }
 
 macro_rules! try_str {
-    ($exp:expr) => (match $exp.as_str() {
-        Some(val) => val,
-        _ => return Err("Can't convert argument to string".to_owned())
-    })
+    ($exp:expr) => ($exp.as_str().ok_or("Can't convert argument to string".to_owned())?)
 }
 
 macro_rules! try_int {
-    ($expr:expr) => (match $expr.as_i64() {
-        Some(val) => val,
-        _ =>  return Err("Can't convert argument to int".to_owned())
-    })
+    ($expr:expr) => ($expr.as_i64().ok_or("Can't convert argument to int".to_owned())?)
 }
 
 macro_rules! try_uint {
-    ($exp:expr) => (match $exp.as_u64() {
-        Some(val) => val,
-        _ => return Err("Can't convert argument to u64".to_owned())
-    })
+    ($exp:expr) => ($exp.as_u64().ok_or("Can't convert argument to u64".to_owned())?)
 }
 
 pub fn initialize(shell: Arc<UiMutex<shell::State>>,
-                  nvim_bin_path: Option<&String>)
+                  nvim_bin_path: Option<&String>,
+                  external_popup: bool)
                   -> Result<Neovim> {
     let session = if let Some(path) = nvim_bin_path {
         Session::new_child_path(path)?
@@ -78,7 +81,9 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
 
     nvim.session
         .start_event_loop_handler(NvimHandler::new(shell));
-    nvim.ui_attach(80, 24, UiAttachOptions::new())
+    let mut opts = UiAttachOptions::new();
+    opts.set_popupmenu_external(external_popup);
+    nvim.ui_attach(80, 24, opts)
         .map_err(|e| Error::new(ErrorKind::Other, e))?;
     nvim.command("runtime! ginit.vim")
         .map_err(|e| Error::new(ErrorKind::Other, e))?;
@@ -181,41 +186,63 @@ fn call(ui: &mut shell::State,
         method: &str,
         args: &Vec<Value>)
         -> result::Result<RepaintMode, String> {
-    Ok(match method {
-           "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
-           "put" => ui.on_put(try_str!(args[0])),
-           "clear" => ui.on_clear(),
-           "resize" => ui.on_resize(try_uint!(args[0]), try_uint!(args[1])),
-           "highlight_set" => {
-        if let Value::Map(ref attrs) = args[0] {
-            ui.on_highlight_set(attrs);
-        } else {
-            panic!("Supports only map value as argument");
+    let repaint_mode = match method {
+        "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
+        "put" => ui.on_put(try_str!(args[0])),
+        "clear" => ui.on_clear(),
+        "resize" => ui.on_resize(try_uint!(args[0]), try_uint!(args[1])),
+        "highlight_set" => {
+            if let Value::Map(ref attrs) = args[0] {
+                ui.on_highlight_set(attrs);
+            } else {
+                panic!("Supports only map value as argument");
+            }
+            RepaintMode::Nothing
         }
-        RepaintMode::Nothing
-    }
-           "eol_clear" => ui.on_eol_clear(),
-           "set_scroll_region" => {
-        ui.on_set_scroll_region(try_uint!(args[0]),
-                                try_uint!(args[1]),
-                                try_uint!(args[2]),
-                                try_uint!(args[3]));
-        RepaintMode::Nothing
-    }
-           "scroll" => ui.on_scroll(try_int!(args[0])),
-           "update_bg" => ui.on_update_bg(try_int!(args[0])),
-           "update_fg" => ui.on_update_fg(try_int!(args[0])),
-           "update_sp" => ui.on_update_sp(try_int!(args[0])),
-           "mode_change" => ui.on_mode_change(try_str!(args[0])),
-           "mouse_on" => ui.on_mouse(true),
-           "mouse_off" => ui.on_mouse(false),
-           "busy_start" => ui.on_busy(true),
-           "busy_stop" => ui.on_busy(false),
-           _ => {
-        println!("Event {}({:?})", method, args);
-        RepaintMode::Nothing
-    }
-       })
+        "eol_clear" => ui.on_eol_clear(),
+        "set_scroll_region" => {
+            ui.on_set_scroll_region(try_uint!(args[0]),
+                                    try_uint!(args[1]),
+                                    try_uint!(args[2]),
+                                    try_uint!(args[3]));
+            RepaintMode::Nothing
+        }
+        "scroll" => ui.on_scroll(try_int!(args[0])),
+        "update_bg" => ui.on_update_bg(try_int!(args[0])),
+        "update_fg" => ui.on_update_fg(try_int!(args[0])),
+        "update_sp" => ui.on_update_sp(try_int!(args[0])),
+        "mode_change" => ui.on_mode_change(try_str!(args[0])),
+        "mouse_on" => ui.on_mouse(true),
+        "mouse_off" => ui.on_mouse(false),
+        "busy_start" => ui.on_busy(true),
+        "busy_stop" => ui.on_busy(false),
+        "popupmenu_show" => {
+            let mut menu_items = Vec::new();
+
+            let items = args[0].as_array().ok_or("Error get menu list array")?;
+            for item in items {
+                let item_line: result::Result<Vec<_>, &str> = item.as_array()
+                    .ok_or("Error get menu item array")?
+                    .iter()
+                    .map(|col| col.as_str().ok_or("Error get menu column"))
+                    .collect();
+                menu_items.push(item_line?);
+            }
+
+            ui.popupmenu_show(&menu_items,
+                              try_int!(args[1]),
+                              try_uint!(args[2]),
+                              try_uint!(args[3]))
+        }
+        "popupmenu_hide" => ui.popupmenu_hide(),
+        "popupmenu_select" => ui.popupmenu_select(try_int!(args[0])),
+        _ => {
+            println!("Event {}({:?})", method, args);
+            RepaintMode::Nothing
+        }
+    };
+
+    Ok(repaint_mode)
 }
 
 pub trait ErrorReport {

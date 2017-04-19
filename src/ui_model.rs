@@ -135,7 +135,7 @@ impl UiModel {
     }
 
     pub fn cur_point(&self) -> ModelRect {
-        ModelRect::point(self.cur_row, self.cur_col)
+        ModelRect::point(self.cur_col, self.cur_row)
     }
 
     pub fn set_cursor(&mut self, row: usize, col: usize) -> ModelRect {
@@ -166,7 +166,7 @@ impl UiModel {
             self.cur_col -= 1;
         }
 
-        changed_region.join(&ModelRect::point(self.cur_row, self.cur_col));
+        changed_region.join(&ModelRect::point(self.cur_col, self.cur_row));
 
         changed_region
     }
@@ -250,10 +250,10 @@ impl ModelRect {
 
     pub fn point(x: usize, y: usize) -> ModelRect {
         ModelRect {
-            top: x,
-            bot: x,
-            left: y,
-            right: y,
+            top: y,
+            bot: y,
+            left: x,
+            right: x,
         }
     }
 

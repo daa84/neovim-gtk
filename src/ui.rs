@@ -45,13 +45,14 @@ impl Components {
 
 impl Ui {
     pub fn new() -> Ui {
+        let comps = Arc::new(UiMutex::new(Components::new()));
         let settings = Rc::new(RefCell::new(Settings::new()));
-        let shell = Rc::new(RefCell::new(Shell::new(settings.clone())));
+        let shell = Rc::new(RefCell::new(Shell::new(settings.clone(), &comps)));
         settings.borrow_mut().set_shell(Rc::downgrade(&shell));
 
         Ui {
             initialized: false,
-            comps: Arc::new(UiMutex::new(Components::new())),
+            comps: comps,
             shell: shell.clone(),
             settings: settings,
         }
@@ -60,6 +61,7 @@ impl Ui {
     pub fn init(&mut self,
                 app: &gtk::Application,
                 nvim_bin_path: Option<&String>,
+                external_popup: bool,
                 open_path: Option<&String>) {
         if self.initialized {
             return;
@@ -90,7 +92,7 @@ impl Ui {
         paste_btn.connect_clicked(move |_| { shell.borrow_mut().edit_paste(); });
         comps.header_bar.pack_start(&paste_btn);
 
-        self.shell.borrow_mut().init(self.comps.clone());
+        self.shell.borrow_mut().init();
 
         comps.window = Some(ApplicationWindow::new(app));
         let window = comps.window.as_ref().unwrap();
@@ -108,7 +110,7 @@ impl Ui {
         window.connect_delete_event(move |_, _| gtk_delete(&*comps_ref, &*shell_ref));
 
         shell.add_configure_event();
-        shell.init_nvim(nvim_bin_path);
+        shell.init_nvim(nvim_bin_path, external_popup);
 
         if open_path.is_some() {
             shell.open_file(open_path.unwrap());
@@ -118,7 +120,8 @@ impl Ui {
     }
 
     fn guard_dispatch_thread(&self, shell: &mut Shell) {
-        let guard = shell.nvim().session.take_dispatch_guard();
+        let state = shell.state.borrow();
+        let guard = state.nvim().session.take_dispatch_guard();
 
         let comps = self.comps.clone();
         thread::spawn(move || {

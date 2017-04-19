@@ -15,10 +15,13 @@ call rpcnotify(1, 'Gui', 'Font', 'DejaVu Sans Mono 12')
 ```
 
 # Command line
-As this project uses gtk-rs, custom option by GtkApplication not supported yet.
-There is workaround to pass nvim execution path.
+* pass nvim custom execution path (by default used `nvim` command)
 ```
 cargo run -- --nvim-bin-path=E:\Neovim\bin\nvim.exe
+```
+* enable external popup menu autocompletion menu (this function a bit limited, so disabled by default)
+```
+cargo run -- --enable-external-popup
 ```
 
 # Build

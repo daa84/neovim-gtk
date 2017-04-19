@@ -1,7 +1,9 @@
 
+use gtk::prelude::*;
 use gdk;
 use gdk::EventKey;
 use phf;
+use neovim_lib::{Neovim, NeovimApi};
 
 use std::ascii::AsciiExt;
 
@@ -72,5 +74,16 @@ pub fn convert_key(ev: &EventKey) -> Option<String> {
         Some(keyval_to_input_string(&ch.to_string(), state))
     } else {
         None
+    }
+}
+
+pub fn gtk_key_press(nvim: &mut Neovim, ev: &EventKey) -> Inhibit {
+    if let Some(input) = convert_key(ev) {
+        debug!("nvim_input -> {}", input);
+        nvim.input(&input)
+            .expect("Error run input command to nvim");
+        Inhibit(true)
+    } else {
+        Inhibit(false)
     }
 }

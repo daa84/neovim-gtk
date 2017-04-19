@@ -51,7 +51,8 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>,
 
     let res = match dlg.run() {
         SAVE_ID => {
-            let mut nvim = shell.nvim();
+            let state = shell.state.borrow();
+            let mut nvim = state.nvim();
             match nvim.command("wa") {
                 Err(ref err) => {
                     println!("Error: {}", err);
@@ -71,7 +72,8 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>,
 }
 
 fn get_changed_buffers(shell: &Shell) -> Result<Vec<String>, CallError> {
-    let mut nvim = shell.nvim();
+    let state = shell.state.borrow();
+    let mut nvim = state.nvim();
     let buffers = nvim.get_buffers().unwrap();
 
     Ok(buffers

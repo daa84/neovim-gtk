@@ -1,14 +1,14 @@
-use std::string::String;
 use std::cell::{Ref, RefMut, RefCell};
 use std::rc::Rc;
+use std::sync;
 use std::sync::Arc;
 
 use cairo;
 use pangocairo as pc;
 use pango;
 use pango::FontDescription;
-use gdk::{ModifierType, EventKey, EventConfigure, EventButton, EventMotion, EventType,
-          EventScroll, ScrollDirection};
+use gdk::{ModifierType, EventConfigure, EventButton, EventMotion, EventType, EventScroll,
+          ScrollDirection};
 use gdk_sys;
 use glib;
 use gtk::prelude::*;
@@ -20,10 +20,12 @@ use settings::{Settings, FontSource};
 use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim;
 use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport};
-use input::{convert_key, keyval_to_input_string};
+use input;
+use input::keyval_to_input_string;
 use cursor::Cursor;
 use ui;
 use ui::UiMutex;
+use popup_menu::PopupMenu;
 
 const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
@@ -44,19 +46,22 @@ pub struct State {
     pub mode: NvimMode,
     mouse_enabled: bool,
     drawing_area: DrawingArea,
-    nvim: Option<Neovim>,
+    nvim: Option<Rc<RefCell<Neovim>>>,
     font_desc: FontDescription,
     cursor: Option<Cursor>,
+    popup_menu: Option<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
 
     line_height: Option<f64>,
     char_width: Option<f64>,
     request_width: bool,
     resize_timer: Option<glib::SourceId>,
+
+    parent: sync::Weak<UiMutex<ui::Components>>,
 }
 
 impl State {
-    pub fn new(settings: Rc<RefCell<Settings>>) -> State {
+    pub fn new(settings: Rc<RefCell<Settings>>, parent: &Arc<UiMutex<ui::Components>>) -> State {
         State {
             model: UiModel::new(24, 80),
             drawing_area: DrawingArea::new(),
@@ -69,17 +74,20 @@ impl State {
             mouse_enabled: true,
             font_desc: FontDescription::from_string(DEFAULT_FONT_NAME),
             cursor: None,
+            popup_menu: None,
             settings: settings,
 
             line_height: None,
             char_width: None,
             resize_timer: None,
             request_width: true,
+
+            parent: Arc::downgrade(parent),
         }
     }
 
-    pub fn nvim(&mut self) -> &mut Neovim {
-        self.nvim.as_mut().unwrap()
+    pub fn nvim(&self) -> RefMut<Neovim> {
+        self.nvim.as_ref().unwrap().borrow_mut()
     }
 
     fn create_pango_font(&self) -> FontDescription {
@@ -114,6 +122,13 @@ impl State {
     fn request_width(&mut self) {
         self.request_width = true;
     }
+
+    fn close_popup_menu(&self) {
+        if self.popup_menu.is_some() {
+            let mut nvim = self.nvim();
+            nvim.input("<Esc>").report_err(&mut *nvim);
+        }
+    }
 }
 
 pub struct UiState {
@@ -127,14 +142,14 @@ impl UiState {
 }
 
 pub struct Shell {
-    state: Arc<UiMutex<State>>,
+    pub state: Arc<UiMutex<State>>,
     ui_state: Rc<RefCell<UiState>>,
 }
 
 impl Shell {
-    pub fn new(settings: Rc<RefCell<Settings>>) -> Shell {
+    pub fn new(settings: Rc<RefCell<Settings>>, parent: &Arc<UiMutex<ui::Components>>) -> Shell {
         let shell = Shell {
-            state: Arc::new(UiMutex::new(State::new(settings))),
+            state: Arc::new(UiMutex::new(State::new(settings, parent))),
             ui_state: Rc::new(RefCell::new(UiState::new())),
         };
 
@@ -144,7 +159,7 @@ impl Shell {
         shell
     }
 
-    pub fn init(&mut self, parent: Arc<UiMutex<ui::Components>>) {
+    pub fn init(&mut self) {
         let state = self.state.borrow_mut();
         state.drawing_area.set_size_request(500, 300);
         state.drawing_area.set_hexpand(true);
@@ -190,13 +205,21 @@ impl Shell {
         state
             .drawing_area
             .connect_draw(move |_, ctx| {
-                              gtk_draw(&*parent.borrow(), &mut *ref_state.borrow_mut(), ctx)
+                              let mut state = ref_state.borrow_mut();
+                              let ref_parent = sync::Weak::upgrade(&state.parent).unwrap();
+                              let parent = ref_parent.borrow();
+                              gtk_draw(&*parent, &mut *state, ctx)
                           });
 
         let ref_state = self.state.clone();
         state
             .drawing_area
-            .connect_key_press_event(move |_, ev| gtk_key_press(&mut *ref_state.borrow_mut(), ev));
+            .connect_key_press_event(move |_, ev| {
+                                         let mut shell = ref_state.borrow_mut();
+                                         shell.cursor.as_mut().unwrap().reset_state();
+                                         let mut nvim = shell.nvim();
+                                         input::gtk_key_press(&mut *nvim, ev)
+                                     });
 
         let ref_state = self.state.clone();
         state
@@ -222,10 +245,12 @@ impl Shell {
         Ref::map(self.state(), |s| &s.drawing_area)
     }
 
+    #[cfg(unix)]
     pub fn redraw(&self, mode: &RepaintMode) {
         self.state.borrow_mut().on_redraw(mode);
     }
 
+    #[cfg(unix)]
     pub fn set_font_desc(&self, font_name: &str) {
         self.state.borrow_mut().set_font_desc(font_name);
     }
@@ -241,26 +266,28 @@ impl Shell {
         state.cursor.as_mut().unwrap().start();
     }
 
-    pub fn init_nvim(&mut self, nvim_bin_path: Option<&String>) {
+    pub fn init_nvim(&mut self, nvim_bin_path: Option<&String>, external_popup: bool) {
         let nvim =
-            nvim::initialize(self.state.clone(), nvim_bin_path).expect("Can't start nvim instance");
+            nvim::initialize(self.state.clone(), nvim_bin_path, external_popup).expect("Can't start nvim instance");
         let mut state = self.state.borrow_mut();
-        state.nvim = Some(nvim);
+        state.nvim = Some(Rc::new(RefCell::new(nvim)));
         state.request_width();
     }
 
     pub fn open_file(&self, path: &str) {
-        let mut nvim = self.nvim();
+        let state = self.state.borrow();
+        let mut nvim = state.nvim();
         nvim.command(&format!("e {}", path))
             .report_err(&mut *nvim);
     }
 
     pub fn detach_ui(&mut self) {
-        self.nvim().ui_detach().expect("Error in ui_detach");
+        let state = self.state.borrow();
+        state.nvim().ui_detach().expect("Error in ui_detach");
     }
 
     pub fn edit_paste(&self) {
-        let mut state = self.state.borrow_mut();
+        let state = self.state.borrow();
         let paste_command = if state.mode == NvimMode::Normal {
             "\"*p"
         } else {
@@ -268,17 +295,13 @@ impl Shell {
         };
 
         let mut nvim = state.nvim();
-        nvim.input(paste_command).report_err(nvim);
+        nvim.input(paste_command).report_err(&mut *nvim);
     }
 
     pub fn edit_save_all(&self) {
-        let mut nvim = &mut *self.nvim();
+        let state = self.state.borrow();
+        let mut nvim = &mut *state.nvim();
         nvim.command(":wa").report_err(nvim);
-    }
-
-    pub fn nvim(&self) -> RefMut<Neovim> {
-        let state = self.state.borrow_mut();
-        RefMut::map(state, |s| s.nvim())
     }
 }
 
@@ -293,6 +316,8 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
     state.cursor.as_mut().unwrap().leave_focus();
     let point = state.model.cur_point();
     state.on_redraw(&RepaintMode::Area(point));
+
+    state.close_popup_menu();
     Inhibit(false)
 }
 
@@ -300,6 +325,8 @@ fn gtk_scroll_event(state: &mut State, ev: &EventScroll) -> Inhibit {
     if !state.mouse_enabled {
         return Inhibit(false);
     }
+
+    state.close_popup_menu();
 
     match ev.as_ref().direction {
         ScrollDirection::Right => {
@@ -354,7 +381,7 @@ fn mouse_input(shell: &mut State,
     if let Some(line_height) = shell.line_height {
         if let Some(char_width) = shell.char_width {
 
-            let nvim = shell.nvim();
+            let mut nvim = shell.nvim();
             let (x, y) = position;
             let col = (x / char_width).trunc() as u64;
             let row = (y / line_height).trunc() as u64;
@@ -378,20 +405,6 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
                     ev.get_position());
     }
     Inhibit(false)
-}
-
-fn gtk_key_press(shell: &mut State, ev: &EventKey) -> Inhibit {
-    if let Some(input) = convert_key(ev) {
-        debug!("nvim_input -> {}", input);
-        shell
-            .nvim()
-            .input(&input)
-            .expect("Error run input command to nvim");
-        shell.cursor.as_mut().unwrap().reset_state();
-        Inhibit(true)
-    } else {
-        Inhibit(false)
-    }
 }
 
 fn gtk_draw(parent: &ui::Components, state: &mut State, ctx: &cairo::Context) -> Inhibit {
@@ -788,6 +801,63 @@ impl RedrawEvents for State {
             self.cursor.as_mut().unwrap().busy_off();
         }
         RepaintMode::Area(self.model.cur_point())
+    }
+
+    fn popupmenu_show(&mut self,
+                      menu: &Vec<Vec<&str>>,
+                      selected: i64,
+                      row: u64,
+                      col: u64)
+                      -> RepaintMode {
+        match (&self.line_height, &self.char_width) {
+            (&Some(line_height), &Some(char_width)) => {
+                let parent = sync::Weak::upgrade(&self.parent).unwrap();
+                let comps = parent.borrow();
+                let window = comps.window();
+                let screen = window.get_screen().unwrap();
+                let height = screen.get_height();
+
+                let point = ModelRect::point((col + 1) as usize, (row + 1) as usize);
+                let (x, y, ..) = point.to_area(line_height, char_width);
+                let translated = self.drawing_area.translate_coordinates(window, x, y);
+                let (x, y) = if let Some((x, y)) = translated {
+                    (x, y)
+                } else {
+                    (x, y)
+                };
+
+                let (win_x, win_y) = window.get_position();
+                let (abs_x, mut abs_y) = (win_x + x, win_y + y);
+
+                let grow_up = abs_y > height / 2;
+
+                if grow_up {
+                    abs_y -= line_height as i32;
+                }
+
+                self.popup_menu = Some(PopupMenu::new(self.nvim.as_ref().unwrap().clone(),
+                                                      &self.font_desc,
+                                                      menu,
+                                                      selected,
+                                                      abs_x,
+                                                      abs_y,
+                                                      grow_up));
+                self.popup_menu.as_ref().unwrap().show();
+            }
+            _ => (),
+        };
+
+        RepaintMode::Nothing
+    }
+
+    fn popupmenu_hide(&mut self) -> RepaintMode {
+        self.popup_menu.take().unwrap().hide();
+        RepaintMode::Nothing
+    }
+
+    fn popupmenu_select(&mut self, selected: i64) -> RepaintMode {
+        self.popup_menu.as_mut().unwrap().select(selected);
+        RepaintMode::Nothing
     }
 }
 
