@@ -1,5 +1,5 @@
-# neovim-gtk
-GTK ui for neovim written in rust using gtk-rs bindings. 
+# neovim-gtk [![Build status](https://ci.appveyor.com/api/projects/status/l58o28e13f829llx?svg=true)](https://ci.appveyor.com/project/daa84/neovim-gtk)
+GTK ui for neovim written in rust using gtk-rs bindings.
 
 # Screenshot
 ![Main Window](/screenshots/neovimgtk-screen.png?raw=true)
