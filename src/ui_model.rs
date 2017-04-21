@@ -230,7 +230,40 @@ impl UiModel {
     }
 }
 
-#[derive(Clone)]
+pub struct ModelRectVec {
+    list: Vec<ModelRect>,
+}
+
+impl ModelRectVec {
+    pub fn new(first: ModelRect) -> ModelRectVec {
+        ModelRectVec { list: vec![first] }
+    }
+
+    fn find_neighbor(&self, neighbor: &ModelRect) -> Option<usize> {
+        for (i, rect) in self.list.iter().enumerate() {
+            if (rect.top == neighbor.top - 1 || rect.bot == neighbor.bot + 1) &&
+               neighbor.in_horizontal(rect) {
+                return Some(i);
+            } else if (rect.left == neighbor.left - 1 || rect.right == neighbor.right + 1) &&
+                      neighbor.in_vertical(rect) {
+                return Some(i);
+            } else if rect == neighbor {
+                return Some(i);
+            }
+        }
+
+        None
+    }
+
+    pub fn join(&mut self, other: ModelRect) {
+        match self.find_neighbor(&other) {
+            Some(i) => self.list.get_mut(i).unwrap().join(&other),
+            None => self.list.push(other),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
 pub struct ModelRect {
     pub top: usize,
     pub bot: usize,
@@ -255,6 +288,18 @@ impl ModelRect {
             left: x,
             right: x,
         }
+    }
+
+    #[inline]
+    fn in_horizontal(&self, other: &ModelRect) -> bool {
+        other.left >= self.left && other.left <= self.right ||
+        other.right >= self.left && other.right >= self.right
+    }
+
+    #[inline]
+    fn in_vertical(&self, other: &ModelRect) -> bool {
+        other.top >= self.top && other.top <= self.bot ||
+        other.bot >= self.top && other.bot <= self.bot
     }
 
     pub fn join(&mut self, rect: &ModelRect) {
@@ -395,6 +440,20 @@ impl<'a> Iterator for ClipColIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_model_vec_join() {
+        let mut list = ModelRectVec::new(ModelRect::point(5, 5));
+
+        let neighbor = ModelRect::point(6, 5);
+        let not_neighbor = ModelRect::point(6, 6);
+
+        list.join(neighbor);
+        assert_eq!(1, list.list.len());
+
+        list.join(not_neighbor);
+        assert_eq!(2, list.list.len());
+    }
 
     #[test]
     fn test_iterator_border() {
