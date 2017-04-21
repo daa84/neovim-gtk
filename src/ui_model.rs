@@ -446,10 +446,16 @@ mod tests {
         let mut list = ModelRectVec::new(ModelRect::point(5, 5));
 
         let neighbor = ModelRect::point(6, 5);
-        let not_neighbor = ModelRect::point(6, 6);
 
         list.join(neighbor);
         assert_eq!(1, list.list.len());
+    }
+
+    #[test]
+    fn test_model_vec_no_join() {
+        let mut list = ModelRectVec::new(ModelRect::point(5, 5));
+
+        let not_neighbor = ModelRect::point(6, 6);
 
         list.join(not_neighbor);
         assert_eq!(2, list.list.len());
