@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn test_external_menu() {
         assert_eq!(true,
-                   nvim_bin_path(vec!["neovim-gtk", "--enable-external-popup"]
+                   external_popup(vec!["neovim-gtk", "--enable-external-popup"]
                                      .iter()
                                      .map(|s| s.to_string())));
     }
