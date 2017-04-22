@@ -145,7 +145,6 @@ impl State {
             _ => self.drawing_area.queue_draw(),
         }
     }
-
 }
 
 pub struct UiState {
@@ -347,28 +346,16 @@ fn gtk_scroll_event(state: &mut State, ev: &EventScroll) -> Inhibit {
 
     match ev.as_ref().direction {
         ScrollDirection::Right => {
-            mouse_input(state,
-                        "ScrollWheelRight",
-                        ev.get_state(),
-                        ev.get_position())
+            mouse_input(state, "ScrollWheelRight", ev.get_state(), ev.get_position())
         }
         ScrollDirection::Left => {
-            mouse_input(state,
-                        "ScrollWheelLeft",
-                        ev.get_state(),
-                        ev.get_position())
+            mouse_input(state, "ScrollWheelLeft", ev.get_state(), ev.get_position())
         }
         ScrollDirection::Up => {
-            mouse_input(state,
-                        "ScrollWheelUp",
-                        ev.get_state(),
-                        ev.get_position())
+            mouse_input(state, "ScrollWheelUp", ev.get_state(), ev.get_position())
         }
         ScrollDirection::Down => {
-            mouse_input(state,
-                        "ScrollWheelDown",
-                        ev.get_state(),
-                        ev.get_position())
+            mouse_input(state, "ScrollWheelDown", ev.get_state(), ev.get_position())
         }
         _ => (),
     }
@@ -383,18 +370,12 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
     if shell.mouse_enabled {
         ui_state.mouse_pressed = true;
 
-        mouse_input(shell,
-                    "LeftMouse",
-                    ev.get_state(),
-                    ev.get_position());
+        mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position());
     }
     Inhibit(false)
 }
 
-fn mouse_input(shell: &mut State,
-               input: &str,
-               state: ModifierType,
-               position: (f64, f64)) {
+fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f64, f64)) {
     if let Some(line_height) = shell.line_height {
         if let Some(char_width) = shell.char_width {
 
@@ -416,10 +397,7 @@ fn gtk_button_release(ui_state: &mut UiState) -> Inhibit {
 
 fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion) -> Inhibit {
     if shell.mouse_enabled && ui_state.mouse_pressed {
-        mouse_input(shell,
-                    "LeftDrag",
-                    ev.get_state(),
-                    ev.get_position());
+        mouse_input(shell, "LeftDrag", ev.get_state(), ev.get_position());
     }
     Inhibit(false)
 }
@@ -459,7 +437,11 @@ fn draw_joined_rect(state: &State,
 }
 
 #[inline]
-fn get_model_clip(state: &State, line_height: f64, char_width: f64, clip: (f64, f64, f64, f64)) -> ModelRect {
+fn get_model_clip(state: &State,
+                  line_height: f64,
+                  char_width: f64,
+                  clip: (f64, f64, f64, f64))
+                  -> ModelRect {
     let mut model_clip =
         ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
     // in some cases symbols from previous row affect next row
@@ -472,7 +454,11 @@ fn get_model_clip(state: &State, line_height: f64, char_width: f64, clip: (f64, 
 }
 
 #[inline]
-fn draw_backgound(state: &State, ctx: &cairo::Context, line_height: f64, char_width: f64, model_clip: &ModelRect) {
+fn draw_backgound(state: &State,
+                  ctx: &cairo::Context,
+                  line_height: f64,
+                  char_width: f64,
+                  model_clip: &ModelRect) {
     let line_x = model_clip.left as f64 * char_width;
     let mut line_y: f64 = model_clip.top as f64 * line_height;
 
@@ -515,109 +501,116 @@ fn draw_backgound(state: &State, ctx: &cairo::Context, line_height: f64, char_wi
 }
 
 fn draw(state: &State, ctx: &cairo::Context) {
-    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
-    ctx.paint();
+    let layout = pc::create_layout(ctx);
+    let mut desc = state.create_pango_font();
+    let mut buf = String::with_capacity(4);
+
+    let (row, col) = state.model.get_cursor();
 
     let line_height = state.line_height.unwrap();
     let char_width = state.char_width.unwrap();
 
-    let model_clip = get_model_clip(state, line_height, char_width, ctx.clip_extents());
+    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
+    ctx.paint();
 
-    let line_x = model_clip.left as f64 * char_width;
-    let mut line_y: f64 = model_clip.top as f64 * line_height;
+    let clip_rects = &ctx.copy_clip_rectangle_list().rectangles;
+    for clip_idx in 0..clip_rects.len() {
+        let clip = clip_rects.get(clip_idx).unwrap();
 
-    let (row, col) = state.model.get_cursor();
-    let mut buf = String::with_capacity(4);
+        let model_clip = get_model_clip(state,
+                                        line_height,
+                                        char_width,
+                                        (clip.x, clip.y, clip.x + clip.width, clip.y + clip.height));
 
+        let line_x = model_clip.left as f64 * char_width;
+        let mut line_y: f64 = model_clip.top as f64 * line_height;
 
-    let layout = pc::create_layout(ctx);
-    let mut desc = state.create_pango_font();
+        draw_backgound(state, ctx, line_height, char_width, &model_clip);
 
-    draw_backgound(state, ctx, line_height, char_width, &model_clip);
+        for (line_idx, line) in state.model.clip_model(&model_clip) {
 
-    for (line_idx, line) in state.model.clip_model(&model_clip) {
+            ctx.move_to(line_x, line_y);
 
-        ctx.move_to(line_x, line_y);
+            for (col_idx, cell) in line.iter() {
+                let double_width = line.get(col_idx + 1)
+                    .map(|c| c.attrs.double_width)
+                    .unwrap_or(false);
+                let current_point = ctx.get_current_point();
 
-        for (col_idx, cell) in line.iter() {
-            let double_width = line.get(col_idx + 1)
-                .map(|c| c.attrs.double_width)
-                .unwrap_or(false);
-            let current_point = ctx.get_current_point();
+                let (bg, fg) = state.colors(cell);
 
-            let (bg, fg) = state.colors(cell);
+                if row == line_idx && col == col_idx {
+                    state
+                        .cursor
+                        .as_ref()
+                        .unwrap()
+                        .draw(ctx,
+                              state,
+                              char_width,
+                              line_height,
+                              line_y,
+                              double_width,
+                              bg);
 
-            if row == line_idx && col == col_idx {
-                state
-                    .cursor
-                    .as_ref()
-                    .unwrap()
-                    .draw(ctx,
-                          state,
-                          char_width,
-                          line_height,
-                          line_y,
-                          double_width,
-                          bg);
-
-                ctx.move_to(current_point.0, current_point.1);
-            }
-
-
-            if !cell.ch.is_whitespace() {
-                update_font_description(&mut desc, &cell.attrs);
-
-                layout.set_font_description(Some(&desc));
-                buf.clear();
-                buf.push(cell.ch);
-                layout.set_text(&buf, -1);
-
-                // correct layout for double_width chars
-                if double_width {
-                    let (dw_width, dw_height) = layout.get_pixel_size();
-                    let x_offset = (char_width * 2.0 - dw_width as f64) / 2.0;
-                    let y_offset = (line_height - dw_height as f64) / 2.0;
-                    ctx.rel_move_to(x_offset, y_offset);
+                    ctx.move_to(current_point.0, current_point.1);
                 }
 
-                ctx.set_source_rgb(fg.0, fg.1, fg.2);
-                pc::update_layout(ctx, &layout);
-                pc::show_layout(ctx, &layout);
-            }
 
-            if cell.attrs.underline || cell.attrs.undercurl {
-                // [TODO]: Current gtk-rs bindings does not provide fontmetrics access
-                // so it is not possible to find right position for underline or undercurl position
-                // > update_font_description(&mut desc, &cell.attrs);
-                // > layout.get_context().unwrap().get_metrics();
-                let top_offset = line_height * 0.9;
+                if !cell.ch.is_whitespace() {
+                    update_font_description(&mut desc, &cell.attrs);
 
-                let sp = if let Some(ref sp) = cell.attrs.special {
-                    sp
-                } else {
-                    &state.sp_color
-                };
+                    layout.set_font_description(Some(&desc));
+                    buf.clear();
+                    buf.push(cell.ch);
+                    layout.set_text(&buf, -1);
 
-                ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
-                if cell.attrs.undercurl {
-                    ctx.set_dash(&[4.0, 2.0], 0.0);
-                    ctx.set_line_width(2.0);
-                    ctx.move_to(current_point.0, line_y + top_offset);
-                    ctx.line_to(current_point.0 + char_width, line_y + top_offset);
-                    ctx.stroke();
-                    ctx.set_dash(&[], 0.0);
-                } else if cell.attrs.underline {
-                    ctx.set_line_width(1.0);
-                    ctx.move_to(current_point.0, line_y + top_offset);
-                    ctx.line_to(current_point.0 + char_width, line_y + top_offset);
-                    ctx.stroke();
+                    // correct layout for double_width chars
+                    if double_width {
+                        let (dw_width, dw_height) = layout.get_pixel_size();
+                        let x_offset = (char_width * 2.0 - dw_width as f64) / 2.0;
+                        let y_offset = (line_height - dw_height as f64) / 2.0;
+                        ctx.rel_move_to(x_offset, y_offset);
+                    }
+
+                    ctx.set_source_rgb(fg.0, fg.1, fg.2);
+                    pc::update_layout(ctx, &layout);
+                    pc::show_layout(ctx, &layout);
                 }
+
+                if cell.attrs.underline || cell.attrs.undercurl {
+                    // [TODO]: Current gtk-rs bindings does not provide fontmetrics access
+                    // so it is not possible to find right position for underline or undercurl position
+                    // > update_font_description(&mut desc, &cell.attrs);
+                    // > layout.get_context().unwrap().get_metrics();
+                    let top_offset = line_height * 0.9;
+
+                    let sp = if let Some(ref sp) = cell.attrs.special {
+                        sp
+                    } else {
+                        &state.sp_color
+                    };
+
+                    ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
+                    if cell.attrs.undercurl {
+                        ctx.set_dash(&[4.0, 2.0], 0.0);
+                        ctx.set_line_width(2.0);
+                        ctx.move_to(current_point.0, line_y + top_offset);
+                        ctx.line_to(current_point.0 + char_width, line_y + top_offset);
+                        ctx.stroke();
+                        ctx.set_dash(&[], 0.0);
+                    } else if cell.attrs.underline {
+                        ctx.set_line_width(1.0);
+                        ctx.move_to(current_point.0, line_y + top_offset);
+                        ctx.line_to(current_point.0 + char_width, line_y + top_offset);
+                        ctx.stroke();
+                    }
+                }
+
+                ctx.move_to(current_point.0 + char_width, current_point.1);
             }
 
-            ctx.move_to(current_point.0 + char_width, current_point.1);
+            line_y += line_height;
         }
-
-        line_y += line_height;
     }
 }
 
