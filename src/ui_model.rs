@@ -218,7 +218,7 @@ impl UiModel {
         let (cur_row, cur_col, columns) = (self.cur_row, self.cur_col, self.columns);
         self.clear_region(cur_row, cur_row, cur_col, columns - 1);
 
-        ModelRect::new(cur_row, cur_col, cur_col, columns - 1)
+        ModelRect::new(cur_row, cur_row, cur_col, columns - 1)
     }
 
     fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize) {
@@ -275,6 +275,9 @@ pub struct ModelRect {
 
 impl ModelRect {
     pub fn new(top: usize, bot: usize, left: usize, right: usize) -> ModelRect {
+        debug_assert!(top <= bot);
+        debug_assert!(left <= right);
+
         ModelRect {
             top: top,
             bot: bot,
@@ -337,6 +340,9 @@ impl ModelRect {
         } else {
             rect.right
         };
+
+        debug_assert!(self.top <= self.bot);
+        debug_assert!(self.left <= self.right);
     }
 
     pub fn to_area(&self, line_height: f64, char_width: f64) -> (i32, i32, i32, i32) {
@@ -562,12 +568,12 @@ mod tests {
     fn test_eol_clear_area() {
         let mut model = UiModel::new(10, 20);
 
-        model.set_cursor(1, 1);
+        model.set_cursor(1, 2);
 
         let rect = model.eol_clear();
 
         assert_eq!(1, rect.top);
-        assert_eq!(1, rect.left);
+        assert_eq!(2, rect.left);
         assert_eq!(1, rect.bot);
         assert_eq!(19, rect.right);
     }
