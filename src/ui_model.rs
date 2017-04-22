@@ -263,7 +263,7 @@ impl ModelRectVec {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct ModelRect {
     pub top: usize,
     pub bot: usize,
@@ -300,6 +300,17 @@ impl ModelRect {
     fn in_vertical(&self, other: &ModelRect) -> bool {
         other.top >= self.top && other.top <= self.bot ||
         other.bot >= self.top && other.bot <= self.bot
+    }
+
+    pub fn extend(&mut self, top: usize, bot: usize, left: usize, right: usize) {
+        if self.top > 0 {
+            self.top -= top;
+        }
+        if self.left > 0 { 
+            self.left -= left;
+        }
+        self.bot += bot;
+        self.right += right;
     }
 
     pub fn join(&mut self, rect: &ModelRect) {

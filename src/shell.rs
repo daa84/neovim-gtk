@@ -441,29 +441,25 @@ fn draw_joined_rect(state: &State,
     ctx.move_to(current_point.0 + rect_width, current_point.1);
 }
 
-fn draw(state: &State, ctx: &cairo::Context) {
-    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
-    ctx.paint();
-
-    let line_height = state.line_height.unwrap();
-    let char_width = state.char_width.unwrap();
-    let clip = ctx.clip_extents();
+#[inline]
+fn get_model_clip(state: &State, line_height: f64, char_width: f64, clip: (f64, f64, f64, f64)) -> ModelRect {
     let mut model_clip =
         ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
+    // in some cases symbols from previous row affect next row
+    // for example underscore symbol or 'g'
+    // see deference between logical rect and ink rect
+    model_clip.extend(1, 0, 0, 0);
     state.model.limit_to_model(&mut model_clip);
 
+    model_clip
+}
+
+#[inline]
+fn draw_backgound(state: &State, ctx: &cairo::Context, line_height: f64, char_width: f64, model_clip: &ModelRect) {
     let line_x = model_clip.left as f64 * char_width;
     let mut line_y: f64 = model_clip.top as f64 * line_height;
 
-    let (row, col) = state.model.get_cursor();
-    let mut buf = String::with_capacity(4);
-
-
-
-    let layout = pc::create_layout(ctx);
-    let mut desc = state.create_pango_font();
-
-    for (line_idx, line) in state.model.clip_model(&model_clip) {
+    for (_, line) in state.model.clip_model(model_clip) {
         ctx.move_to(line_x, line_y);
 
         // first draw background
@@ -496,6 +492,33 @@ fn draw(state: &State, ctx: &cairo::Context) {
                          char_width,
                          line_height,
                          from_bg.take().unwrap());
+
+        line_y += line_height;
+    }
+}
+
+fn draw(state: &State, ctx: &cairo::Context) {
+    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
+    ctx.paint();
+
+    let line_height = state.line_height.unwrap();
+    let char_width = state.char_width.unwrap();
+
+    let model_clip = get_model_clip(state, line_height, char_width, ctx.clip_extents());
+
+    let line_x = model_clip.left as f64 * char_width;
+    let mut line_y: f64 = model_clip.top as f64 * line_height;
+
+    let (row, col) = state.model.get_cursor();
+    let mut buf = String::with_capacity(4);
+
+
+    let layout = pc::create_layout(ctx);
+    let mut desc = state.create_pango_font();
+
+    draw_backgound(state, ctx, line_height, char_width, &model_clip);
+
+    for (line_idx, line) in state.model.clip_model(&model_clip) {
 
         ctx.move_to(line_x, line_y);
 
@@ -696,6 +719,10 @@ impl RedrawEvents for State {
             &RepaintMode::Area(ref rect) => {
                 match (&self.line_height, &self.char_width) {
                     (&Some(line_height), &Some(char_width)) => {
+                        let mut rect = rect.clone();
+                        // this need to repain also line under curren line
+                        // in case underscore or 'g' symbol is go here
+                        rect.extend(0, 1, 0, 0);
                         let (x, y, width, height) = rect.to_area(line_height, char_width);
                         self.drawing_area.queue_draw_area(x, y, width, height);
                     }
