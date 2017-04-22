@@ -115,7 +115,7 @@ impl NvimHandler {
                                         _ => vec![],
                                     };
                                     let call_reapint_mode = call(ui, ev_name, &args)?;
-                                    repaint_mode = repaint_mode.join(&call_reapint_mode);
+                                    repaint_mode = repaint_mode.join(call_reapint_mode);
                                 }
                             } else {
                                 println!("Unsupported event {:?}", ev_args);
@@ -267,33 +267,29 @@ pub enum RepaintMode {
 }
 
 impl RepaintMode {
-    // [TODO]: Remove clones - 2017-04-22 09:46
-    pub fn join(&self, mode: &RepaintMode) -> RepaintMode {
+    pub fn join(self, mode: RepaintMode) -> RepaintMode {
         match (self, mode) {
-            (&RepaintMode::Nothing, m) => m.clone(),
-            (m, &RepaintMode::Nothing) => m.clone(),
-            (&RepaintMode::All, _) => RepaintMode::All,
-            (_, &RepaintMode::All) => RepaintMode::All,
-            (&RepaintMode::Area(ref mr1), &RepaintMode::Area(ref mr2)) => {
-                let mut vec = ModelRectVec::new(mr1.clone());
-                vec.join(mr2);
+            (RepaintMode::Nothing, m) => m,
+            (m, RepaintMode::Nothing) => m,
+            (RepaintMode::All, _) => RepaintMode::All,
+            (_, RepaintMode::All) => RepaintMode::All,
+            (RepaintMode::Area(mr1), RepaintMode::Area(mr2)) => {
+                let mut vec = ModelRectVec::new(mr1);
+                vec.join(&mr2);
                 RepaintMode::AreaList(vec)
             }
-            (&RepaintMode::AreaList(ref target), &RepaintMode::AreaList(ref source)) => {
-                let mut list = target.clone();
+            (RepaintMode::AreaList(mut target), RepaintMode::AreaList(source)) => {
                 for s in &source.list {
-                    list.join(&s);
+                    target.join(&s);
                 }
+                RepaintMode::AreaList(target)
+            }
+            (RepaintMode::AreaList(mut list), RepaintMode::Area(l2)) => {
+                list.join(&l2);
                 RepaintMode::AreaList(list)
             }
-            (&RepaintMode::AreaList(ref l1), &RepaintMode::Area(ref l2)) => {
-                let mut list = l1.clone();
-                list.join(l2);
-                RepaintMode::AreaList(list)
-            }
-            (&RepaintMode::Area(ref l1), &RepaintMode::AreaList(ref l2)) => {
-                let mut list = l2.clone();
-                list.join(l1);
+            (RepaintMode::Area(l1), RepaintMode::AreaList(mut list)) => {
+                list.join(&l1);
                 RepaintMode::AreaList(list)
             }
         }
