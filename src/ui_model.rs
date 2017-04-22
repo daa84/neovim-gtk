@@ -230,7 +230,7 @@ impl UiModel {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ModelRect {
     pub top: usize,
     pub bot: usize,
@@ -255,6 +255,17 @@ impl ModelRect {
             left: x,
             right: x,
         }
+    }
+
+    pub fn extend(&mut self, top: usize, bot: usize, left: usize, right: usize) {
+        if self.top > 0 {
+            self.top -= top;
+        }
+        if self.left > 0 { 
+            self.left -= left;
+        }
+        self.bot += bot;
+        self.right += right;
     }
 
     pub fn join(&mut self, rect: &ModelRect) {

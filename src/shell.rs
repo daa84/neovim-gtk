@@ -441,16 +441,27 @@ fn draw_joined_rect(state: &State,
     ctx.move_to(current_point.0 + rect_width, current_point.1);
 }
 
+#[inline]
+fn get_model_clip(state: &State, line_height: f64, char_width: f64, clip: (f64, f64, f64, f64)) -> ModelRect {
+    let mut model_clip =
+        ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
+    // in some cases symbols from previous row affect next row
+    // for example underscore symbol or 'g'
+    // see deference between logical rect and ink rect
+    model_clip.extend(1, 0, 0, 0);
+    state.model.limit_to_model(&mut model_clip);
+
+    model_clip
+}
+
 fn draw(state: &State, ctx: &cairo::Context) {
     ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
     ctx.paint();
 
     let line_height = state.line_height.unwrap();
     let char_width = state.char_width.unwrap();
-    let clip = ctx.clip_extents();
-    let mut model_clip =
-        ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
-    state.model.limit_to_model(&mut model_clip);
+
+    let model_clip = get_model_clip(state, line_height, char_width, ctx.clip_extents());
 
     let line_x = model_clip.left as f64 * char_width;
     let mut line_y: f64 = model_clip.top as f64 * line_height;
