@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use ui::UiMutex;
 use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError};
-use ui_model::ModelRect;
+use ui_model::{ModelRect, ModelRectVec};
 use shell;
 use glib;
 
@@ -262,6 +262,7 @@ impl<T> ErrorReport for result::Result<T, CallError> {
 pub enum RepaintMode {
     Nothing,
     All,
+    AreaList(ModelRectVec),
     Area(ModelRect),
 }
 
@@ -273,9 +274,22 @@ impl RepaintMode {
             (&RepaintMode::All, _) => RepaintMode::All,
             (_, &RepaintMode::All) => RepaintMode::All,
             (&RepaintMode::Area(ref mr1), &RepaintMode::Area(ref mr2)) => {
-                let mut area = mr1.clone();
-                area.join(mr2);
-                RepaintMode::Area(area)
+                let mut vec = ModelRectVec::new(mr1.clone());
+                vec.join(mr2);
+                RepaintMode::AreaList(vec)
+            }
+            (&RepaintMode::AreaList(_), &RepaintMode::AreaList(_)) => {
+                panic!("Not implmeneted");
+            }
+            (&RepaintMode::AreaList(ref l1), &RepaintMode::Area(ref l2)) => {
+                let mut list = l1.clone();
+                list.join(l2);
+                RepaintMode::AreaList(list)
+            }
+            (&RepaintMode::Area(ref l1), &RepaintMode::AreaList(ref l2)) => {
+                let mut list = l2.clone();
+                list.join(l1);
+                RepaintMode::AreaList(list)
             }
         }
     }

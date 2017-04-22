@@ -129,6 +129,23 @@ impl State {
             nvim.input("<Esc>").report_err(&mut *nvim);
         }
     }
+
+    fn queue_draw_area<M: AsRef<ModelRect>>(&self, rect_list: &Vec<M>) {
+        match (&self.line_height, &self.char_width) {
+            (&Some(line_height), &Some(char_width)) => {
+                for rect in rect_list {
+                    let mut rect = rect.as_ref().clone();
+                    // this need to repain also line under curren line
+                    // in case underscore or 'g' symbol is go here
+                    rect.extend(0, 1, 0, 0);
+                    let (x, y, width, height) = rect.to_area(line_height, char_width);
+                    self.drawing_area.queue_draw_area(x, y, width, height);
+                }
+            }
+            _ => self.drawing_area.queue_draw(),
+        }
+    }
+
 }
 
 pub struct UiState {
@@ -716,19 +733,8 @@ impl RedrawEvents for State {
     fn on_redraw(&self, mode: &RepaintMode) {
         match mode {
             &RepaintMode::All => self.drawing_area.queue_draw(),
-            &RepaintMode::Area(ref rect) => {
-                match (&self.line_height, &self.char_width) {
-                    (&Some(line_height), &Some(char_width)) => {
-                        let mut rect = rect.clone();
-                        // this need to repain also line under curren line
-                        // in case underscore or 'g' symbol is go here
-                        rect.extend(0, 1, 0, 0);
-                        let (x, y, width, height) = rect.to_area(line_height, char_width);
-                        self.drawing_area.queue_draw_area(x, y, width, height);
-                    }
-                    _ => self.drawing_area.queue_draw(),
-                }
-            }
+            &RepaintMode::Area(ref rect) => self.queue_draw_area(&vec![rect]),
+            &RepaintMode::AreaList(ref list) => self.queue_draw_area(&list.list),
             &RepaintMode::Nothing => (),
         }
     }

@@ -230,8 +230,9 @@ impl UiModel {
     }
 }
 
+#[derive(Clone)]
 pub struct ModelRectVec {
-    list: Vec<ModelRect>,
+    pub list: Vec<ModelRect>,
 }
 
 impl ModelRectVec {
@@ -241,10 +242,11 @@ impl ModelRectVec {
 
     fn find_neighbor(&self, neighbor: &ModelRect) -> Option<usize> {
         for (i, rect) in self.list.iter().enumerate() {
-            if (rect.top == neighbor.top - 1 || rect.bot == neighbor.bot + 1) &&
-               neighbor.in_horizontal(rect) {
+            if (neighbor.top > 0 && rect.top == neighbor.top - 1 ||
+                rect.bot == neighbor.bot + 1) && neighbor.in_horizontal(rect) {
                 return Some(i);
-            } else if (rect.left == neighbor.left - 1 || rect.right == neighbor.right + 1) &&
+            } else if (neighbor.left > 0 && rect.left == neighbor.left - 1 ||
+                       rect.right == neighbor.right + 1) &&
                       neighbor.in_vertical(rect) {
                 return Some(i);
             } else if rect == neighbor {
@@ -255,10 +257,10 @@ impl ModelRectVec {
         None
     }
 
-    pub fn join(&mut self, other: ModelRect) {
-        match self.find_neighbor(&other) {
-            Some(i) => self.list.get_mut(i).unwrap().join(&other),
-            None => self.list.push(other),
+    pub fn join(&mut self, other: &ModelRect) {
+        match self.find_neighbor(other) {
+            Some(i) => self.list.get_mut(i).unwrap().join(other),
+            None => self.list.push(other.clone()),
         }
     }
 }
@@ -306,7 +308,7 @@ impl ModelRect {
         if self.top > 0 {
             self.top -= top;
         }
-        if self.left > 0 { 
+        if self.left > 0 {
             self.left -= left;
         }
         self.bot += bot;
@@ -369,6 +371,12 @@ impl ModelRect {
         let bot = (y2 / line_height) as usize;
 
         ModelRect::new(top, bot, left, right)
+    }
+}
+
+impl AsRef<ModelRect> for ModelRect {
+    fn as_ref(&self) -> &ModelRect {
+        self
     }
 }
 
@@ -453,12 +461,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_vec_join_top() {
+        let mut list = ModelRectVec::new(ModelRect::point(0, 0));
+
+        let neighbor = ModelRect::point(1, 0);
+
+        list.join(&neighbor);
+        assert_eq!(1, list.list.len());
+    }
+
+    #[test]
     fn test_model_vec_join() {
         let mut list = ModelRectVec::new(ModelRect::point(5, 5));
 
         let neighbor = ModelRect::point(6, 5);
 
-        list.join(neighbor);
+        list.join(&neighbor);
         assert_eq!(1, list.list.len());
     }
 
@@ -468,7 +486,7 @@ mod tests {
 
         let not_neighbor = ModelRect::point(6, 6);
 
-        list.join(not_neighbor);
+        list.join(&not_neighbor);
         assert_eq!(2, list.list.len());
     }
 
