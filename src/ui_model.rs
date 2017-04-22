@@ -138,8 +138,8 @@ impl UiModel {
         ModelRect::point(self.cur_col, self.cur_row)
     }
 
-    pub fn set_cursor(&mut self, row: usize, col: usize) -> ModelRect {
-        let mut changed_region = self.cur_point();
+    pub fn set_cursor(&mut self, row: usize, col: usize) -> ModelRectVec {
+        let mut changed_region = ModelRectVec::new(self.cur_point());
 
         self.cur_row = row;
         self.cur_col = col;
@@ -230,7 +230,7 @@ impl UiModel {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ModelRectVec {
     pub list: Vec<ModelRect>,
 }
@@ -249,7 +249,9 @@ impl ModelRectVec {
                        rect.right == neighbor.right + 1) &&
                       neighbor.in_vertical(rect) {
                 return Some(i);
-            } else if rect == neighbor {
+            } else if rect.in_horizontal(neighbor) && rect.in_vertical(neighbor) {
+                return Some(i);
+            } else if rect.contains(neighbor) {
                 return Some(i);
             }
         }
@@ -305,6 +307,13 @@ impl ModelRect {
     fn in_vertical(&self, other: &ModelRect) -> bool {
         other.top >= self.top && other.top <= self.bot ||
         other.bot >= self.top && other.bot <= self.bot
+    }
+
+    fn contains(&self, other: &ModelRect) -> bool {
+        self.top <= other.top &&
+        self.bot >= other.bot &&
+        self.left <= other.left &&
+        self.right >= other.right
     }
 
     pub fn extend(&mut self, top: usize, bot: usize, left: usize, right: usize) {
@@ -467,10 +476,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_vec_join_inside() {
+         let mut list = ModelRectVec::new(ModelRect::new(0, 23, 0, 69));
+
+        let inside = ModelRect::new(23, 23, 68, 69);
+
+        list.join(&inside);
+        assert_eq!(1, list.list.len());
+    }
+
+    #[test]
     fn test_vec_join_top() {
         let mut list = ModelRectVec::new(ModelRect::point(0, 0));
 
         let neighbor = ModelRect::point(1, 0);
+
+        list.join(&neighbor);
+        assert_eq!(1, list.list.len());
+    }
+
+    #[test]
+    fn test_model_vec_join_right() {
+        let mut list = ModelRectVec::new(ModelRect::new(23, 23, 69, 69));
+
+        let neighbor = ModelRect::new(23, 23, 69, 70);
+
+        list.join(&neighbor);
+        assert_eq!(1, list.list.len());
+    }
+
+    #[test]
+    fn test_model_vec_join_right2() {
+        let mut list = ModelRectVec::new(ModelRect::new(0, 1, 0, 9));
+
+        let neighbor = ModelRect::new(1, 1, 9, 10);
 
         list.join(&neighbor);
         assert_eq!(1, list.list.len());
@@ -558,10 +597,18 @@ mod tests {
 
         let rect = model.set_cursor(5, 5);
 
-        assert_eq!(1, rect.top);
-        assert_eq!(1, rect.left);
-        assert_eq!(5, rect.bot);
-        assert_eq!(5, rect.right);
+        assert_eq!(2, rect.list.len());
+
+        assert_eq!(1, rect.list[0].top);
+        assert_eq!(1, rect.list[0].left);
+        assert_eq!(1, rect.list[0].bot);
+        assert_eq!(1, rect.list[0].right);
+
+
+        assert_eq!(5, rect.list[1].top);
+        assert_eq!(5, rect.list[1].left);
+        assert_eq!(5, rect.list[1].bot);
+        assert_eq!(5, rect.list[1].right);
     }
 
     #[test]

@@ -258,7 +258,7 @@ impl<T> ErrorReport for result::Result<T, CallError> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum RepaintMode {
     Nothing,
     All,
@@ -267,6 +267,7 @@ pub enum RepaintMode {
 }
 
 impl RepaintMode {
+    // [TODO]: Remove clones - 2017-04-22 09:46
     pub fn join(&self, mode: &RepaintMode) -> RepaintMode {
         match (self, mode) {
             (&RepaintMode::Nothing, m) => m.clone(),
@@ -278,8 +279,12 @@ impl RepaintMode {
                 vec.join(mr2);
                 RepaintMode::AreaList(vec)
             }
-            (&RepaintMode::AreaList(_), &RepaintMode::AreaList(_)) => {
-                panic!("Not implmeneted");
+            (&RepaintMode::AreaList(ref target), &RepaintMode::AreaList(ref source)) => {
+                let mut list = target.clone();
+                for s in &source.list {
+                    list.join(&s);
+                }
+                RepaintMode::AreaList(list)
             }
             (&RepaintMode::AreaList(ref l1), &RepaintMode::Area(ref l2)) => {
                 let mut list = l1.clone();

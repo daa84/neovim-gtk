@@ -702,7 +702,7 @@ fn gtk_configure_event(state: &Arc<UiMutex<State>>, ev: &EventConfigure) -> bool
 
 impl RedrawEvents for State {
     fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
-        RepaintMode::Area(self.model.set_cursor(row as usize, col as usize))
+        RepaintMode::AreaList(self.model.set_cursor(row as usize, col as usize))
     }
 
     fn on_put(&mut self, text: &str) -> RepaintMode {
