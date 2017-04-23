@@ -15,6 +15,18 @@ fn main() {
 
     write!(&mut file, "static KEYVAL_MAP: phf::Map<&'static str, &'static str> = ").unwrap();
     phf_codegen::Map::new()
+        .entry("F1", "\"F1\"")
+        .entry("F2", "\"F2\"")
+        .entry("F3", "\"F3\"")
+        .entry("F4", "\"F4\"")
+        .entry("F5", "\"F5\"")
+        .entry("F6", "\"F6\"")
+        .entry("F7", "\"F7\"")
+        .entry("F8", "\"F8\"")
+        .entry("F9", "\"F9\"")
+        .entry("F10", "\"F10\"")
+        .entry("F11", "\"F11\"")
+        .entry("F12", "\"F12\"")
         .entry("Left", "\"Left\"")
         .entry("Right", "\"Right\"")
         .entry("Up", "\"Up\"")
