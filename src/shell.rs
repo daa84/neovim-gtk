@@ -137,7 +137,7 @@ impl State {
                     let mut rect = rect.as_ref().clone();
                     // this need to repain also line under curren line
                     // in case underscore or 'g' symbol is go here
-                    rect.extend(0, 1, 0, 0);
+                    rect.extend(0, 1, 0, 1);
                     let (x, y, width, height) = rect.to_area(line_height, char_width);
                     self.drawing_area.queue_draw_area(x, y, width, height);
                 }
@@ -446,8 +446,9 @@ fn get_model_clip(state: &State,
         ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
     // in some cases symbols from previous row affect next row
     // for example underscore symbol or 'g'
+    // also for italic text it is possible that symbol can affect next one
     // see deference between logical rect and ink rect
-    model_clip.extend(1, 0, 0, 0);
+    model_clip.extend(1, 0, 1, 0);
     state.model.limit_to_model(&mut model_clip);
 
     model_clip
