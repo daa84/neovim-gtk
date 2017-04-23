@@ -310,9 +310,7 @@ impl ModelRect {
     }
 
     fn contains(&self, other: &ModelRect) -> bool {
-        self.top <= other.top &&
-        self.bot >= other.bot &&
-        self.left <= other.left &&
+        self.top <= other.top && self.bot >= other.bot && self.left <= other.left &&
         self.right >= other.right
     }
 
@@ -435,6 +433,13 @@ impl<'a> ClipLine<'a> {
         }
     }
 
+    #[inline]
+    pub fn is_double_width(&self, col_idx: usize) -> bool {
+        self.get(col_idx + 1)
+            .map(|c| c.attrs.double_width)
+            .unwrap_or(false)
+    }
+
     pub fn get(&self, idx: usize) -> Option<&Cell> {
         self.line.get(idx)
     }
@@ -477,7 +482,7 @@ mod tests {
 
     #[test]
     fn test_vec_join_inside() {
-         let mut list = ModelRectVec::new(ModelRect::new(0, 23, 0, 69));
+        let mut list = ModelRectVec::new(ModelRect::new(0, 23, 0, 69));
 
         let inside = ModelRect::new(23, 23, 68, 69);
 

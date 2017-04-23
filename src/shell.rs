@@ -533,9 +533,7 @@ fn draw(state: &State, ctx: &cairo::Context) {
             ctx.move_to(line_x, line_y);
 
             for (col_idx, cell) in line.iter() {
-                let double_width = line.get(col_idx + 1)
-                    .map(|c| c.attrs.double_width)
-                    .unwrap_or(false);
+                let double_width = line.is_double_width(col_idx);
                 let current_point = ctx.get_current_point();
 
                 let (bg, fg) = state.colors(cell);
