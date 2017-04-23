@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn test_mode() {
         let mode = RepaintMode::Area(ModelRect::point(1, 1));
-        mode.join(&RepaintMode::Nothing);
+        let mode = mode.join(RepaintMode::Nothing);
 
         match mode {
             RepaintMode::Area(ref rect) => {
