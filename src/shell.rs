@@ -137,6 +137,7 @@ impl State {
                     let mut rect = rect.as_ref().clone();
                     // this need to repain also line under curren line
                     // in case underscore or 'g' symbol is go here
+                    // right one for italic symbol
                     rect.extend(0, 1, 0, 1);
                     let (x, y, width, height) = rect.to_area(line_height, char_width);
                     self.drawing_area.queue_draw_area(x, y, width, height);
@@ -417,26 +418,6 @@ fn gtk_draw(parent: &ui::Components, state: &mut State, ctx: &cairo::Context) ->
 }
 
 #[inline]
-fn draw_joined_rect(state: &State,
-                    ctx: &cairo::Context,
-                    from_col_idx: usize,
-                    col_idx: usize,
-                    char_width: f64,
-                    line_height: f64,
-                    color: &Color) {
-    let current_point = ctx.get_current_point();
-    let rect_width = char_width * (col_idx - from_col_idx) as f64;
-
-    if &state.bg_color != color {
-        ctx.set_source_rgb(color.0, color.1, color.2);
-        ctx.rectangle(current_point.0, current_point.1, rect_width, line_height);
-        ctx.fill();
-    }
-
-    ctx.move_to(current_point.0 + rect_width, current_point.1);
-}
-
-#[inline]
 fn get_model_clip(state: &State,
                   line_height: f64,
                   char_width: f64,
@@ -456,6 +437,7 @@ fn get_model_clip(state: &State,
 
 #[inline]
 fn draw_backgound(state: &State,
+                  draw_bitmap: &ModelBitamp,
                   ctx: &cairo::Context,
                   line_height: f64,
                   char_width: f64,
@@ -463,40 +445,25 @@ fn draw_backgound(state: &State,
     let line_x = model_clip.left as f64 * char_width;
     let mut line_y: f64 = model_clip.top as f64 * line_height;
 
-    for (_, line) in state.model.clip_model(model_clip) {
+    for (line_idx, line) in state.model.clip_model(model_clip) {
         ctx.move_to(line_x, line_y);
 
-        // first draw background
-        // here we join same bg color for given line
-        // this gives less drawing primitives
-        let mut from_col_idx = model_clip.left;
-        let mut from_bg = None;
         for (col_idx, cell) in line.iter() {
-            let (bg, _) = state.colors(cell);
+            let current_point = ctx.get_current_point();
 
-            if from_bg.is_none() {
-                from_bg = Some(bg);
-                from_col_idx = col_idx;
-            } else if from_bg != Some(bg) {
-                draw_joined_rect(state,
-                                 ctx,
-                                 from_col_idx,
-                                 col_idx,
-                                 char_width,
-                                 line_height,
-                                 from_bg.take().unwrap());
-                from_bg = Some(bg);
-                from_col_idx = col_idx;
+            if !draw_bitmap.get(col_idx, line_idx) {
+                let (bg, _) = state.colors(cell);
+                
+                if &state.bg_color != bg {
+                    ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                    ctx.rectangle(current_point.0, current_point.1, char_width, line_height);
+                    ctx.fill();
+                }
+
             }
-        }
-        draw_joined_rect(state,
-                         ctx,
-                         from_col_idx,
-                         model_clip.right + 1,
-                         char_width,
-                         line_height,
-                         from_bg.take().unwrap());
 
+            ctx.move_to(current_point.0 + char_width, current_point.1);
+        }
         line_y += line_height;
     }
 }
@@ -510,6 +477,7 @@ fn draw(state: &State, ctx: &cairo::Context) {
 
     let line_height = state.line_height.unwrap();
     let char_width = state.char_width.unwrap();
+    let mut draw_bitmap = ModelBitamp::new(state.model.columns, state.model.rows);
 
     ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
     ctx.paint();
@@ -526,82 +494,85 @@ fn draw(state: &State, ctx: &cairo::Context) {
         let line_x = model_clip.left as f64 * char_width;
         let mut line_y: f64 = model_clip.top as f64 * line_height;
 
-        draw_backgound(state, ctx, line_height, char_width, &model_clip);
+        draw_backgound(state, &draw_bitmap, ctx, line_height, char_width, &model_clip);
 
         for (line_idx, line) in state.model.clip_model(&model_clip) {
 
             ctx.move_to(line_x, line_y);
 
             for (col_idx, cell) in line.iter() {
-                let double_width = line.is_double_width(col_idx);
                 let current_point = ctx.get_current_point();
 
-                let (bg, fg) = state.colors(cell);
+                if !draw_bitmap.get(col_idx, line_idx) {
+                    let double_width = line.is_double_width(col_idx);
 
-                if row == line_idx && col == col_idx {
-                    state
-                        .cursor
-                        .as_ref()
-                        .unwrap()
-                        .draw(ctx,
-                              state,
-                              char_width,
-                              line_height,
-                              line_y,
-                              double_width,
-                              bg);
+                    let (bg, fg) = state.colors(cell);
 
-                    ctx.move_to(current_point.0, current_point.1);
-                }
+                    if row == line_idx && col == col_idx {
+                        state
+                            .cursor
+                            .as_ref()
+                            .unwrap()
+                            .draw(ctx,
+                                  state,
+                                  char_width,
+                                  line_height,
+                                  line_y,
+                                  double_width,
+                                  bg);
 
-
-                if !cell.ch.is_whitespace() {
-                    update_font_description(&mut desc, &cell.attrs);
-
-                    layout.set_font_description(Some(&desc));
-                    buf.clear();
-                    buf.push(cell.ch);
-                    layout.set_text(&buf, -1);
-
-                    // correct layout for double_width chars
-                    if double_width {
-                        let (dw_width, dw_height) = layout.get_pixel_size();
-                        let x_offset = (char_width * 2.0 - dw_width as f64) / 2.0;
-                        let y_offset = (line_height - dw_height as f64) / 2.0;
-                        ctx.rel_move_to(x_offset, y_offset);
+                        ctx.move_to(current_point.0, current_point.1);
                     }
 
-                    ctx.set_source_rgb(fg.0, fg.1, fg.2);
-                    pc::update_layout(ctx, &layout);
-                    pc::show_layout(ctx, &layout);
-                }
 
-                if cell.attrs.underline || cell.attrs.undercurl {
-                    // [TODO]: Current gtk-rs bindings does not provide fontmetrics access
-                    // so it is not possible to find right position for underline or undercurl position
-                    // > update_font_description(&mut desc, &cell.attrs);
-                    // > layout.get_context().unwrap().get_metrics();
-                    let top_offset = line_height * 0.9;
+                    if !cell.ch.is_whitespace() {
+                        update_font_description(&mut desc, &cell.attrs);
 
-                    let sp = if let Some(ref sp) = cell.attrs.special {
-                        sp
-                    } else {
-                        &state.sp_color
-                    };
+                        layout.set_font_description(Some(&desc));
+                        buf.clear();
+                        buf.push(cell.ch);
+                        layout.set_text(&buf, -1);
 
-                    ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
-                    if cell.attrs.undercurl {
-                        ctx.set_dash(&[4.0, 2.0], 0.0);
-                        ctx.set_line_width(2.0);
-                        ctx.move_to(current_point.0, line_y + top_offset);
-                        ctx.line_to(current_point.0 + char_width, line_y + top_offset);
-                        ctx.stroke();
-                        ctx.set_dash(&[], 0.0);
-                    } else if cell.attrs.underline {
-                        ctx.set_line_width(1.0);
-                        ctx.move_to(current_point.0, line_y + top_offset);
-                        ctx.line_to(current_point.0 + char_width, line_y + top_offset);
-                        ctx.stroke();
+                        // correct layout for double_width chars
+                        if double_width {
+                            let (dw_width, dw_height) = layout.get_pixel_size();
+                            let x_offset = (char_width * 2.0 - dw_width as f64) / 2.0;
+                            let y_offset = (line_height - dw_height as f64) / 2.0;
+                            ctx.rel_move_to(x_offset, y_offset);
+                        }
+
+                        ctx.set_source_rgb(fg.0, fg.1, fg.2);
+                        pc::update_layout(ctx, &layout);
+                        pc::show_layout(ctx, &layout);
+                    }
+
+                    if cell.attrs.underline || cell.attrs.undercurl {
+                        // [TODO]: Current gtk-rs bindings does not provide fontmetrics access
+                        // so it is not possible to find right position for underline or undercurl position
+                        // > update_font_description(&mut desc, &cell.attrs);
+                        // > layout.get_context().unwrap().get_metrics();
+                        let top_offset = line_height * 0.9;
+
+                        let sp = if let Some(ref sp) = cell.attrs.special {
+                            sp
+                        } else {
+                            &state.sp_color
+                        };
+
+                        ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
+                        if cell.attrs.undercurl {
+                            ctx.set_dash(&[4.0, 2.0], 0.0);
+                            ctx.set_line_width(2.0);
+                            ctx.move_to(current_point.0, line_y + top_offset);
+                            ctx.line_to(current_point.0 + char_width, line_y + top_offset);
+                            ctx.stroke();
+                            ctx.set_dash(&[], 0.0);
+                        } else if cell.attrs.underline {
+                            ctx.set_line_width(1.0);
+                            ctx.move_to(current_point.0, line_y + top_offset);
+                            ctx.line_to(current_point.0 + char_width, line_y + top_offset);
+                            ctx.stroke();
+                        }
                     }
                 }
 
@@ -610,6 +581,8 @@ fn draw(state: &State, ctx: &cairo::Context) {
 
             line_y += line_height;
         }
+
+        draw_bitmap.fill_from_model(&model_clip);
     }
 }
 
@@ -894,3 +867,54 @@ impl GuiApi for State {
         settings.set_font_source(FontSource::Rpc);
     }
 }
+
+pub struct ModelBitamp {
+    words_for_cols: usize,
+    model: Vec<u64>,
+}
+
+impl ModelBitamp {
+    pub fn new(cols: usize, rows: usize) -> ModelBitamp {
+        let words_for_cols = cols / 64 + 1;
+
+        ModelBitamp { 
+            words_for_cols: words_for_cols,
+            model: vec![0; rows * words_for_cols],
+        }
+    }
+
+    fn fill_from_model(&mut self, rect: &ModelRect) {
+        for row in rect.top..rect.bot + 1 {
+            let row_pos = self.words_for_cols * row;
+            for col in rect.left..rect.right + 1 {
+                let col_pos = col / 64;
+                let col_offset = col % 64;
+                self.model[row_pos + col_pos] |= 1 << col_offset;
+            }
+        }
+    }
+
+    #[inline]
+    fn get(&self, col: usize, row: usize) -> bool {
+        let row_pos = self.words_for_cols * row;
+        let col_pos = col / 64;
+        let col_offset = col % 64;
+        self.model[row_pos + col_pos] & (1 << col_offset) != 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bitmap() {
+        let mut bitmap = ModelBitamp::new(80, 24);
+        bitmap.fill_from_model(&ModelRect::new(22, 22, 63, 68));
+
+        assert_eq!(true, bitmap.get(63, 22));
+        assert_eq!(true, bitmap.get(68, 22));
+        assert_eq!(false, bitmap.get(62, 22));
+    }
+}
+
