@@ -72,7 +72,13 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
                   external_popup: bool)
                   -> Result<Neovim> {
     let session = if let Some(path) = nvim_bin_path {
-        Session::new_child_path(path)?
+        match Session::new_child_path(path) {
+            Err(e) => {
+                println!("Error execute {}", path);
+                return Err(From::from(e));
+            }
+            Ok(s) => s,
+        }
     } else {
         Session::new_child()?
     };
