@@ -6,9 +6,11 @@ test:
 run:
 	RUST_BACKTRACE=1 cargo run
 
-install:
+install: install-resources
 	mkdir -p $(PREFIX)/bin/
 	cp target/release/nvim-gtk $(PREFIX)/bin/
+
+install-resources:
 	mkdir -p $(PREFIX)/share/applications/
 	cp desktop/nvim-gtk.desktop $(PREFIX)/share/applications/
 	mkdir -p $(PREFIX)/share/icons/hicolor/128x128/apps/
