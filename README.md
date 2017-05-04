@@ -23,6 +23,18 @@ cargo run -- --nvim-bin-path=E:\Neovim\bin\nvim.exe
 ```
 cargo run -- --enable-external-popup
 ```
+# Install
+## Ubuntu snap package
+This package also includes neovim, so neovim not needed and if present in system - not used. Install command:
+```
+sudo snap install nvim-gtk --channel=candidate
+```
+There is some limitation for package: only `/home` directory available for editing and '~' is mapped to snap home directory.
+Config files must be placed in `~/snap/nvim-gtk/common/config/nvim/[g]init.vim` directory
+
+Run command: `nvim-gtk <file_name>` or from dash: `NeovimGtk`.
+
+To run neovim provided by snap package execute: `nvim-gtk.neovim`.
 
 # Build
 ## Linux
