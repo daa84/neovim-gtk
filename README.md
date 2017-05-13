@@ -3,6 +3,7 @@ GTK ui for neovim written in rust using gtk-rs bindings.
 
 # Screenshot
 ![Main Window](/screenshots/neovimgtk-screen.png?raw=true)
+For more screenshots and description of basic usage see [wiki](https://github.com/daa84/neovim-gtk/wiki/GUI)
 
 # Font settings
 By default gnome settings are used:
@@ -25,6 +26,8 @@ cargo run -- --enable-external-popup
 ```
 # Install
 ## Ubuntu snap package
+Not usable for now due to some limitation!
+
 This package also includes neovim, so neovim not needed and if present in system - not used. Install command:
 ```
 sudo snap install nvim-gtk --channel=candidate
