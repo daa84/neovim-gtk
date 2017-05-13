@@ -42,7 +42,12 @@ const ENABLE_EXTERNAL_POPUP: &'static str = "--enable-external-popup";
 fn main() {
     env_logger::init().expect("Can't initialize env_logger");
 
-    let app = gtk::Application::new(Some("org.daa.NeovimGtk"), gio::ApplicationFlags::empty())
+    let app = if cfg!(debug_assertions) {
+            gtk::Application::new(Some("org.daa.NeovimGtkDebug"),
+                                  gio::ApplicationFlags::empty())
+        } else {
+            gtk::Application::new(Some("org.daa.NeovimGtk"), gio::ApplicationFlags::empty())
+        }
         .expect("Failed to initialize GTK application");
 
     app.connect_activate(activate);
@@ -111,8 +116,8 @@ mod tests {
     fn test_external_menu() {
         assert_eq!(true,
                    external_popup(vec!["neovim-gtk", "--enable-external-popup"]
-                                     .iter()
-                                     .map(|s| s.to_string())));
+                                      .iter()
+                                      .map(|s| s.to_string())));
     }
 
     #[test]
