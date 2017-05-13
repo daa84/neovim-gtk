@@ -7,8 +7,7 @@ use cairo;
 use pangocairo as pc;
 use pango;
 use pango::FontDescription;
-use gdk::{ModifierType, EventConfigure, EventButton, EventMotion, EventType, EventScroll,
-          ScrollDirection};
+use gdk::{ModifierType, EventConfigure, EventButton, EventMotion, EventType, EventScroll};
 use gdk_sys;
 use glib;
 use gtk::prelude::*;
@@ -117,6 +116,18 @@ impl State {
         self.font_desc = FontDescription::from_string(desc);
         self.line_height = None;
         self.char_width = None;
+    }
+
+    pub fn open_file(&self, path: &str) {
+        let mut nvim = self.nvim();
+        nvim.command(&format!("e {}", path))
+            .report_err(&mut *nvim);
+    }
+
+    pub fn cd(&self, path: &str) {
+        let mut nvim = self.nvim();
+        nvim.command(&format!("cd {}", path))
+            .report_err(&mut *nvim);
     }
 
     fn request_width(&mut self) {
@@ -292,10 +303,11 @@ impl Shell {
     }
 
     pub fn open_file(&self, path: &str) {
-        let state = self.state.borrow();
-        let mut nvim = state.nvim();
-        nvim.command(&format!("e {}", path))
-            .report_err(&mut *nvim);
+        self.state.borrow().open_file(path);
+    }
+
+    pub fn cd(&self, path: &str) {
+        self.state.borrow().cd(path);
     }
 
     pub fn detach_ui(&mut self) {
@@ -346,16 +358,16 @@ fn gtk_scroll_event(state: &mut State, ev: &EventScroll) -> Inhibit {
     state.close_popup_menu();
 
     match ev.as_ref().direction {
-        ScrollDirection::Right => {
+        gdk_sys::GdkScrollDirection::Right => {
             mouse_input(state, "ScrollWheelRight", ev.get_state(), ev.get_position())
         }
-        ScrollDirection::Left => {
+        gdk_sys::GdkScrollDirection::Left => {
             mouse_input(state, "ScrollWheelLeft", ev.get_state(), ev.get_position())
         }
-        ScrollDirection::Up => {
+        gdk_sys::GdkScrollDirection::Up => {
             mouse_input(state, "ScrollWheelUp", ev.get_state(), ev.get_position())
         }
-        ScrollDirection::Down => {
+        gdk_sys::GdkScrollDirection::Down => {
             mouse_input(state, "ScrollWheelDown", ev.get_state(), ev.get_position())
         }
         _ => (),

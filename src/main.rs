@@ -12,6 +12,12 @@ extern crate phf;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
+extern crate htmlescape;
+
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+extern crate toml;
 
 mod ui_model;
 #[macro_use]
@@ -23,6 +29,7 @@ mod settings;
 mod cursor;
 mod shell_dlg;
 mod popup_menu;
+mod project;
 
 use std::env;
 use gio::ApplicationExt;

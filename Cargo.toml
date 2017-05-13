@@ -1,6 +1,6 @@
 [package]
 name = "nvim-gtk"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["daa84 <daa84@inbox.ru>"]
 build = "build.rs"
 
@@ -17,6 +17,11 @@ phf = "0.7"
 gio = "0.1"
 log = "0.3"
 env_logger = "0.4"
+htmlescape = "0.3"
+
+serde = "1.0"
+serde_derive = "1.0"
+toml = "0.4"
 
 #[dependencies.neovim-lib]
 #git = "https://github.com/daa84/neovim-lib"
@@ -26,9 +31,9 @@ phf_codegen = "0.7"
 
 [dependencies.gtk]
 version = "0.1"
-features = ["v3_10"]
+features = ["v3_22"]
 
 [dependencies.gtk-sys]
 version = "0.3"
-features = ["v3_10"]
+features = ["v3_22"]
 
