@@ -452,10 +452,14 @@ pub struct Entry {
 }
 
 impl Entry {
-    fn new_project(name: &str, path: &str) -> Entry {
+    fn new_project(name: &str, uri: &str) -> Entry {
+        let path = Path::new(uri);
+
         Entry {
-            uri: path.to_owned(),
-            path: format!("<small>{}</small>", encode_minimal(path)),
+            uri: uri.to_owned(),
+            path: path.parent()
+                .map(|s| format!("<small>{}</small>", encode_minimal(&s.to_string_lossy())))
+                .unwrap_or("".to_owned()),
             file_name: format!("<big>{}</big>", encode_minimal(name)),
             name: name.to_owned(),
             pixbuf: BOOKMARKED_PIXBUF,
