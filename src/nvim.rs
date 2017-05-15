@@ -1,4 +1,5 @@
 use std::io::{Result, Error, ErrorKind};
+use std::process::{Stdio, Command};
 use std::result;
 use std::sync::Arc;
 
@@ -71,16 +72,26 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
                   nvim_bin_path: Option<&String>,
                   external_popup: bool)
                   -> Result<Neovim> {
-    let session = if let Some(path) = nvim_bin_path {
-        match Session::new_child_path(path) {
-            Err(e) => {
-                println!("Error execute {}", path);
-                return Err(From::from(e));
-            }
-            Ok(s) => s,
-        }
+    let mut cmd = if let Some(path) = nvim_bin_path {
+        Command::new(path)
     } else {
-        Session::new_child()?
+        Command::new("nvim")
+    };
+
+    cmd.arg("--embed")
+        .arg("--headless")
+        .arg("--cmd")
+        .arg("set termguicolors")
+        .stderr(Stdio::inherit());
+
+    let session = Session::new_child_cmd(&mut cmd);
+
+    let session = match session {
+        Err(e) => {
+            println!("Error execute: {:?}", cmd);
+            return Err(From::from(e));
+        }
+        Ok(s) => s,
     };
 
     let mut nvim = Neovim::new(session);
