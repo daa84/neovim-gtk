@@ -873,6 +873,7 @@ impl RedrawEvents for State {
 impl GuiApi for State {
     fn set_font(&mut self, font_desc: &str) {
         self.set_font_desc(font_desc);
+        self.request_resize();
 
         let mut settings = self.settings.borrow_mut();
         settings.set_font_source(FontSource::Rpc);
