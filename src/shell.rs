@@ -53,7 +53,7 @@ pub struct State {
 
     line_height: Option<f64>,
     char_width: Option<f64>,
-    request_width: bool,
+    request_resize: bool,
     resize_timer: Option<glib::SourceId>,
 
     parent: sync::Weak<UiMutex<ui::Components>>,
@@ -79,7 +79,7 @@ impl State {
             line_height: None,
             char_width: None,
             resize_timer: None,
-            request_width: true,
+            request_resize: false,
 
             parent: Arc::downgrade(parent),
         }
@@ -130,8 +130,8 @@ impl State {
             .report_err(&mut *nvim);
     }
 
-    fn request_width(&mut self) {
-        self.request_width = true;
+    fn request_resize(&mut self) {
+        self.request_resize = true;
     }
 
     fn close_popup_menu(&self) {
@@ -299,7 +299,6 @@ impl Shell {
             nvim::initialize(self.state.clone(), nvim_bin_path, external_popup).expect("Can't start nvim instance");
         let mut state = self.state.borrow_mut();
         state.nvim = Some(Rc::new(RefCell::new(nvim)));
-        state.request_width();
     }
 
     pub fn open_file(&self, path: &str) {
@@ -423,7 +422,7 @@ fn gtk_draw(parent: &ui::Components, state: &mut State, ctx: &cairo::Context) ->
     }
 
     draw(state, ctx);
-    request_width(parent, state);
+    request_window_resize(parent, state);
 
 
     Inhibit(false)
@@ -619,15 +618,15 @@ fn calc_char_bounds(shell: &State, ctx: &cairo::Context) -> (i32, i32) {
     layout.get_pixel_size()
 }
 
-fn request_width(parent: &ui::Components, state: &mut State) {
-    if !state.request_width {
+fn request_window_resize(parent: &ui::Components, state: &mut State) {
+    if !state.request_resize {
         return;
     }
     if state.resize_timer.is_some() {
         return;
     }
 
-    state.request_width = false;
+    state.request_resize = false;
 
     let width = state.drawing_area.get_allocated_width();
     let height = state.drawing_area.get_allocated_height();
@@ -676,7 +675,6 @@ fn gtk_configure_event(state: &Arc<UiMutex<State>>, ev: &EventConfigure) -> bool
                         println!("Error trying resize nvim {}", err);
                     }
                 }
-                state_ref.request_width();
                 Continue(false)
             }));
         }
@@ -704,6 +702,7 @@ impl RedrawEvents for State {
 
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         self.model = UiModel::new(rows, columns);
+        self.request_resize();
         RepaintMode::All
     }
 
