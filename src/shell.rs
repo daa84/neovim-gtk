@@ -345,7 +345,6 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
     let point = state.model.cur_point();
     state.on_redraw(&RepaintMode::Area(point));
 
-    state.close_popup_menu();
     Inhibit(false)
 }
 
@@ -820,37 +819,19 @@ impl RedrawEvents for State {
                       -> RepaintMode {
         match (&self.line_height, &self.char_width) {
             (&Some(line_height), &Some(char_width)) => {
-                let parent = sync::Weak::upgrade(&self.parent).unwrap();
-                let comps = parent.borrow();
-                let window = comps.window();
-                let screen = window.get_screen().unwrap();
-                let height = screen.get_height();
+                let point = ModelRect::point(col as usize, row as usize);
+                let (x, y, width, height) = point.to_area(line_height, char_width);
 
-                let point = ModelRect::point((col + 1) as usize, (row + 1) as usize);
-                let (x, y, ..) = point.to_area(line_height, char_width);
-                let translated = self.drawing_area.translate_coordinates(window, x, y);
-                let (x, y) = if let Some((x, y)) = translated {
-                    (x, y)
-                } else {
-                    (x, y)
-                };
-
-                let (win_x, win_y) = window.get_position();
-                let (abs_x, mut abs_y) = (win_x + x, win_y + y);
-
-                let grow_up = abs_y > height / 2;
-
-                if grow_up {
-                    abs_y -= line_height as i32;
-                }
-
-                self.popup_menu = Some(PopupMenu::new(self.nvim.as_ref().unwrap().clone(),
+                self.popup_menu = Some(PopupMenu::new(
+                        &self.drawing_area,
+                        self.nvim.as_ref().unwrap().clone(),
                                                       &self.font_desc,
                                                       menu,
                                                       selected,
-                                                      abs_x,
-                                                      abs_y,
-                                                      grow_up));
+                                                      x,
+                                                      y,
+                                                      width,
+                                                      height));
                 self.popup_menu.as_ref().unwrap().show();
             }
             _ => (),

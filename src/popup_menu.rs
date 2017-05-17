@@ -1,9 +1,8 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use gtk;
 use gtk::prelude::*;
-use gtk::{Window, WindowType, TreeView, TreeViewColumn, TreePath, CellRendererText, ListStore,
-          Type, ScrolledWindow, PolicyType};
 use glib;
 use pango::FontDescription;
 use gdk::{EventButton, EventType};
@@ -17,45 +16,51 @@ use input;
 const MIN_CONTENT_HEIGHT: i32 = 250;
 
 pub struct PopupMenu {
-    menu: Window,
-    list: TreeView,
+    popover: gtk::Popover,
+    tree: gtk::TreeView,
 }
 
 impl PopupMenu {
-    pub fn new(nvim: Rc<RefCell<Neovim>>,
+    pub fn new(drawing: &gtk::DrawingArea,
+               nvim: Rc<RefCell<Neovim>>,
                font_desc: &FontDescription,
-               menu: &Vec<Vec<&str>>,
+               menu_items: &Vec<Vec<&str>>,
                selected: i64,
                x: i32,
                y: i32,
-               grow_up: bool)
+               width: i32,
+               height: i32)
                -> PopupMenu {
-        let win = Window::new(WindowType::Popup);
+        let popover = gtk::Popover::new(Some(drawing));
+        popover.set_modal(false);
 
-        let tree = create_list(menu, font_desc);
+        let tree = create_list(menu_items, font_desc);
         tree.set_can_focus(false);
 
         let nvim_ref = nvim.clone();
-        tree.connect_button_press_event(move |tree, ev| tree_button_press(tree, ev, &mut *nvim_ref.borrow_mut()));
+        tree.connect_button_press_event(move |tree, ev| {
+                                            tree_button_press(tree, ev, &mut *nvim_ref.borrow_mut())
+                                        });
 
-        let scroll = ScrolledWindow::new(None, None);
-        scroll.set_policy(PolicyType::Never, PolicyType::Automatic);
+        let scroll = gtk::ScrolledWindow::new(None, None);
+        scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
         scroll.set_min_content_height(MIN_CONTENT_HEIGHT);
 
         scroll.add(&tree);
-        win.add(&scroll);
-        if grow_up {
-            win.move_(x, y - MIN_CONTENT_HEIGHT);
-        } else {
-            win.move_(x, y);
-        }
+        scroll.show_all();
+        popover.add(&scroll);
+        popover.set_pointing_to(&gtk::Rectangle {
+                                     x,
+                                     y,
+                                     width,
+                                     height,
+                                 });
 
-        win.connect_key_press_event(move |_, ev| input::gtk_key_press(&mut *nvim.borrow_mut(), ev));
+        popover.connect_key_press_event(move |_, ev| {
+                                            input::gtk_key_press(&mut *nvim.borrow_mut(), ev)
+                                        });
 
-        let popup = PopupMenu {
-            menu: win,
-            list: tree,
-        };
+        let popup = PopupMenu { popover, tree };
 
         popup.select(selected);
 
@@ -63,28 +68,34 @@ impl PopupMenu {
     }
 
     pub fn show(&self) {
-        self.menu.show_all();
+        let popover = self.popover.clone();
+        gtk::idle_add(move || {
+                          popover.popup();
+                          Continue(false)
+                      });
     }
 
     pub fn hide(self) {
-        self.menu.destroy();
+        gtk::idle_add(move || {
+                          self.popover.destroy();
+                          Continue(false)
+                      });
     }
 
     pub fn select(&self, selected: i64) {
         if selected >= 0 {
-            let selected_path = TreePath::new_from_string(&format!("{}", selected));
-            self.list
-                .get_selection()
-                .select_path(&selected_path);
-            self.list.scroll_to_cell(Some(&selected_path), None, false, 0.0, 0.0);
+            let selected_path = gtk::TreePath::new_from_string(&format!("{}", selected));
+            self.tree.get_selection().select_path(&selected_path);
+            self.tree
+                .scroll_to_cell(Some(&selected_path), None, false, 0.0, 0.0);
         } else {
-            self.list.get_selection().unselect_all();
+            self.tree.get_selection().unselect_all();
         }
     }
 }
 
-fn create_list(menu: &Vec<Vec<&str>>, font_desc: &FontDescription) -> TreeView {
-    let tree = TreeView::new();
+fn create_list(menu: &Vec<Vec<&str>>, font_desc: &FontDescription) -> gtk::TreeView {
+    let tree = gtk::TreeView::new();
 
     if menu.is_empty() {
         return tree;
@@ -96,7 +107,7 @@ fn create_list(menu: &Vec<Vec<&str>>, font_desc: &FontDescription) -> TreeView {
         append_column(&tree, i as i32, &font_str);
     }
 
-    let list_store = ListStore::new(&vec![Type::String; columns]);
+    let list_store = gtk::ListStore::new(&vec![gtk::Type::String; columns]);
     let all_column_ids: Vec<u32> = (0..columns).map(|i| i as u32).collect();
 
     for line in menu {
@@ -110,17 +121,17 @@ fn create_list(menu: &Vec<Vec<&str>>, font_desc: &FontDescription) -> TreeView {
     tree
 }
 
-fn append_column(tree: &TreeView, id: i32, font_str: &str) {
-    let renderer = CellRendererText::new();
+fn append_column(tree: &gtk::TreeView, id: i32, font_str: &str) {
+    let renderer = gtk::CellRendererText::new();
     renderer.set_property_font(Some(font_str));
 
-    let column = TreeViewColumn::new();
+    let column = gtk::TreeViewColumn::new();
     column.pack_start(&renderer, true);
     column.add_attribute(&renderer, "text", id);
     tree.append_column(&column);
 }
 
-fn tree_button_press(tree: &TreeView, ev: &EventButton, nvim: &mut Neovim) -> Inhibit {
+fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) -> Inhibit {
     if ev.get_event_type() != EventType::ButtonPress {
         return Inhibit(false);
     }
@@ -128,11 +139,7 @@ fn tree_button_press(tree: &TreeView, ev: &EventButton, nvim: &mut Neovim) -> In
     let (paths, ..) = tree.get_selection().get_selected_rows();
     let selected_idx = if !paths.is_empty() {
         let ids = paths[0].get_indices();
-        if !ids.is_empty() {
-            ids[0]
-        } else {
-            -1
-        }
+        if !ids.is_empty() { ids[0] } else { -1 }
     } else {
         -1
     };
