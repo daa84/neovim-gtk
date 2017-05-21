@@ -25,6 +25,16 @@ cargo run -- --nvim-bin-path=E:\Neovim\bin\nvim.exe
 cargo run -- --enable-external-popup
 ```
 # Install
+## From sources
+By default to `/usr/local`:
+```
+make install
+```
+Or to some custom path:
+```
+make PREFIX=/some/custom/path install
+```
+
 ## Ubuntu snap package
 Not usable for now due to some limitation!
 
