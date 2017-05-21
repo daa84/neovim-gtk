@@ -68,18 +68,11 @@ impl PopupMenu {
     }
 
     pub fn show(&self) {
-        let popover = self.popover.clone();
-        gtk::idle_add(move || {
-                          popover.popup();
-                          Continue(false)
-                      });
+        self.popover.popup();
     }
 
     pub fn hide(self) {
-        gtk::idle_add(move || {
-                          self.popover.destroy();
-                          Continue(false)
-                      });
+        self.popover.destroy();
     }
 
     pub fn select(&self, selected: i64) {
