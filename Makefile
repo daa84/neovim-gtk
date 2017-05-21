@@ -7,8 +7,7 @@ run:
 	RUST_BACKTRACE=1 cargo run
 
 install: install-resources
-	mkdir -p $(PREFIX)/bin/
-	cp target/release/nvim-gtk $(PREFIX)/bin/
+	cargo install --root $(PREFIX)
 
 install-resources:
 	mkdir -p $(PREFIX)/share/applications/
