@@ -74,7 +74,7 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>,
 fn get_changed_buffers(shell: &Shell) -> Result<Vec<String>, CallError> {
     let state = shell.state.borrow();
     let mut nvim = state.nvim();
-    let buffers = nvim.get_buffers().unwrap();
+    let buffers = nvim.list_bufs().unwrap();
 
     Ok(buffers
        .iter()

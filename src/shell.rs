@@ -4,7 +4,7 @@ use std::sync;
 use std::sync::Arc;
 
 use cairo;
-use pangocairo as pc;
+use pangocairo::CairoContextExt;
 use pango;
 use pango::FontDescription;
 use gdk::{ModifierType, EventConfigure, EventButton, EventMotion, EventType, EventScroll};
@@ -479,7 +479,7 @@ fn draw_backgound(state: &State,
 }
 
 fn draw(state: &State, ctx: &cairo::Context) {
-    let layout = pc::create_layout(ctx);
+    let layout = ctx.create_pango_layout();
     let mut desc = state.create_pango_font();
     let mut buf = String::with_capacity(4);
 
@@ -552,8 +552,8 @@ fn draw(state: &State, ctx: &cairo::Context) {
                         }
 
                         ctx.set_source_rgb(fg.0, fg.1, fg.2);
-                        pc::update_layout(ctx, &layout);
-                        pc::show_layout(ctx, &layout);
+                        ctx.update_pango_layout(&layout);
+                        ctx.show_pango_layout(&layout);
                     }
 
                     if cell.attrs.underline || cell.attrs.undercurl {
@@ -608,7 +608,7 @@ fn update_font_description(desc: &mut FontDescription, attrs: &Attrs) {
 }
 
 fn calc_char_bounds(shell: &State, ctx: &cairo::Context) -> (i32, i32) {
-    let layout = pc::create_layout(ctx);
+    let layout = ctx.create_pango_layout();
 
     let desc = shell.create_pango_font();
     layout.set_font_description(Some(&desc));
@@ -854,6 +854,7 @@ impl RedrawEvents for State {
 impl GuiApi for State {
     fn set_font(&mut self, font_desc: &str) {
         self.set_font_desc(font_desc);
+        self.request_resize();
 
         let mut settings = self.settings.borrow_mut();
         settings.set_font_source(FontSource::Rpc);
