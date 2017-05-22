@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{RefCell, Cell};
 
 use gtk;
 use gtk::prelude::*;
@@ -15,13 +15,14 @@ use input;
 
 const MIN_CONTENT_HEIGHT: i32 = 250;
 
-pub struct PopupMenu {
-    popover: gtk::Popover,
+struct State {
+    nvim: Rc<RefCell<Neovim>>,
     tree: gtk::TreeView,
+    renderer: gtk::CellRendererText,
 }
 
-impl PopupMenu {
-    pub fn new(drawing: &gtk::DrawingArea,
+impl State {
+    pub fn new(popover: &gtk::Popover,
                nvim: Rc<RefCell<Neovim>>,
                font_desc: &FontDescription,
                menu_items: &Vec<Vec<&str>>,
@@ -30,10 +31,7 @@ impl PopupMenu {
                y: i32,
                width: i32,
                height: i32)
-               -> PopupMenu {
-        let popover = gtk::Popover::new(Some(drawing));
-        popover.set_modal(false);
-
+               -> Self {
         let tree = create_list(menu_items, font_desc);
         tree.set_can_focus(false);
 
@@ -50,32 +48,25 @@ impl PopupMenu {
         scroll.show_all();
         popover.add(&scroll);
         popover.set_pointing_to(&gtk::Rectangle {
-                                     x,
-                                     y,
-                                     width,
-                                     height,
-                                 });
+                                    x,
+                                    y,
+                                    width,
+                                    height,
+                                });
 
-        popover.connect_key_press_event(move |_, ev| {
-                                            input::gtk_key_press(&mut *nvim.borrow_mut(), ev)
-                                        });
 
-        let popup = PopupMenu { popover, tree };
+        let state = State {
+            nvim,
+            tree,
+            renderer: gtk::CellRendererText::new(),
+        };
 
-        popup.select(selected);
+        state.select(selected);
 
-        popup
+        state
     }
 
-    pub fn show(&self) {
-        self.popover.popup();
-    }
-
-    pub fn hide(self) {
-        self.popover.destroy();
-    }
-
-    pub fn select(&self, selected: i64) {
+    fn select(&self, selected: i64) {
         if selected >= 0 {
             let selected_path = gtk::TreePath::new_from_string(&format!("{}", selected));
             self.tree.get_selection().select_path(&selected_path);
@@ -84,6 +75,63 @@ impl PopupMenu {
         } else {
             self.tree.get_selection().unselect_all();
         }
+    }
+}
+
+pub struct PopupMenu {
+    popover: gtk::Popover,
+    state: Rc<Cell<Option<State>>>,
+}
+
+impl PopupMenu {
+    pub fn new(drawing: &gtk::DrawingArea) -> PopupMenu {
+        let state = Rc::new(Cell::new(None));
+        let popover = gtk::Popover::new(Some(drawing));
+        popover.set_modal(false);
+
+
+        let state_ref = state.clone();
+        popover.connect_key_press_event(move |_, ev| {
+            let mut state: &mut State = state_ref.get_mut().as_mut().unwrap();
+            input::gtk_key_press(&mut *state.nvim.borrow_mut(), ev)
+        });
+
+        let popup = PopupMenu { popover, state };
+
+
+        popup
+    }
+
+    pub fn show(&self,
+                nvim: Rc<RefCell<Neovim>>,
+                font_desc: &FontDescription,
+                menu_items: &Vec<Vec<&str>>,
+                selected: i64,
+                x: i32,
+                y: i32,
+                width: i32,
+                height: i32) {
+        self.state
+            .replace(Some(State::new(&self.popover,
+                                     nvim,
+                                     font_desc,
+                                     menu_items,
+                                     selected,
+                                     x,
+                                     y,
+                                     width,
+                                     height)));
+        self.popover.popup();
+    }
+
+    pub fn hide(self) {
+        self.popover.popdown();
+        let tree = self.state.get_mut().take().unwrap().tree;
+        self.popover.remove(&tree);
+        tree.destroy();
+    }
+
+    pub fn select(&self, selected: i64) {
     }
 }
 

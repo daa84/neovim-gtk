@@ -48,7 +48,7 @@ pub struct State {
     nvim: Option<Rc<RefCell<Neovim>>>,
     font_desc: FontDescription,
     cursor: Option<Cursor>,
-    popup_menu: Option<PopupMenu>,
+    popup_menu: PopupMenu,
     settings: Rc<RefCell<Settings>>,
 
     line_height: Option<f64>,
@@ -61,9 +61,12 @@ pub struct State {
 
 impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, parent: &Arc<UiMutex<ui::Components>>) -> State {
+        let drawing_area = DrawingArea::new();
+        let popup_menu = PopupMenu::new(&drawing_area);
+
         State {
             model: UiModel::new(24, 80),
-            drawing_area: DrawingArea::new(),
+            drawing_area,
             nvim: None,
             cur_attrs: None,
             bg_color: COLOR_BLACK,
@@ -73,7 +76,7 @@ impl State {
             mouse_enabled: true,
             font_desc: FontDescription::from_string(DEFAULT_FONT_NAME),
             cursor: None,
-            popup_menu: None,
+            popup_menu,
             settings: settings,
 
             line_height: None,
@@ -822,17 +825,14 @@ impl RedrawEvents for State {
                 let point = ModelRect::point(col as usize, row as usize);
                 let (x, y, width, height) = point.to_area(line_height, char_width);
 
-                self.popup_menu = Some(PopupMenu::new(
-                        &self.drawing_area,
-                        self.nvim.as_ref().unwrap().clone(),
+                self.popup_menu.show(self.nvim.as_ref().unwrap().clone(),
                                                       &self.font_desc,
                                                       menu,
                                                       selected,
                                                       x,
                                                       y,
                                                       width,
-                                                      height));
-                self.popup_menu.as_ref().unwrap().show();
+                                                      height);
             }
             _ => (),
         };
@@ -841,12 +841,12 @@ impl RedrawEvents for State {
     }
 
     fn popupmenu_hide(&mut self) -> RepaintMode {
-        self.popup_menu.take().unwrap().hide();
+        self.popup_menu.hide();
         RepaintMode::Nothing
     }
 
     fn popupmenu_select(&mut self, selected: i64) -> RepaintMode {
-        self.popup_menu.as_mut().unwrap().select(selected);
+        self.popup_menu.select(selected);
         RepaintMode::Nothing
     }
 }
