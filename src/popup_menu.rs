@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::cell::{RefCell, Cell};
+use std::cell::RefCell;
 
 use gtk;
 use gtk::prelude::*;
@@ -16,54 +16,74 @@ use input;
 const MIN_CONTENT_HEIGHT: i32 = 250;
 
 struct State {
-    nvim: Rc<RefCell<Neovim>>,
-    tree: gtk::TreeView,
+    nvim: Option<Rc<RefCell<Neovim>>>,
     renderer: gtk::CellRendererText,
+    tree: gtk::TreeView,
 }
 
 impl State {
-    pub fn new(popover: &gtk::Popover,
-               nvim: Rc<RefCell<Neovim>>,
-               font_desc: &FontDescription,
-               menu_items: &Vec<Vec<&str>>,
-               selected: i64,
-               x: i32,
-               y: i32,
-               width: i32,
-               height: i32)
-               -> Self {
-        let tree = create_list(menu_items, font_desc);
-        tree.set_can_focus(false);
-
-        let nvim_ref = nvim.clone();
-        tree.connect_button_press_event(move |tree, ev| {
-                                            tree_button_press(tree, ev, &mut *nvim_ref.borrow_mut())
-                                        });
-
-        let scroll = gtk::ScrolledWindow::new(None, None);
-        scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        scroll.set_min_content_height(MIN_CONTENT_HEIGHT);
-
-        scroll.add(&tree);
-        scroll.show_all();
-        popover.add(&scroll);
-        popover.set_pointing_to(&gtk::Rectangle {
-                                    x,
-                                    y,
-                                    width,
-                                    height,
-                                });
-
-
-        let state = State {
-            nvim,
-            tree,
+    pub fn new() -> Self {
+        State {
+            nvim: None,
             renderer: gtk::CellRendererText::new(),
-        };
+            tree: gtk::TreeView::new(),
+        }
+    }
 
-        state.select(selected);
+    fn before_show(&mut self,
+                   nvim: &Rc<RefCell<Neovim>>,
+                   font_desc: &FontDescription,
+                   menu_items: &Vec<Vec<&str>>,
+                   selected: i64) {
+        if self.nvim.is_none() {
+            self.nvim = Some(nvim.clone());
+        }
 
-        state
+        self.update_tree(menu_items, font_desc);
+        self.select(selected);
+    }
+
+    fn update_tree(&self, menu: &Vec<Vec<&str>>, font_desc: &FontDescription) {
+        if menu.is_empty() {
+            return;
+        }
+
+        self.renderer
+            .set_property_font(Some(&font_desc.to_string()));
+
+        let col_count = menu.get(0).unwrap().len();
+        let columns = self.tree.get_columns();
+
+        if columns.len() != col_count {
+            for col in columns {
+                self.tree.remove_column(&col);
+            }
+
+            for i in 0..col_count {
+                self.append_column(i as i32);
+            }
+        }
+
+        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; col_count]);
+        let all_column_ids: Vec<u32> = (0..col_count).map(|i| i as u32).collect();
+
+        for line in menu {
+            let line_array: Vec<&glib::ToValue> =
+                line.iter().map(|v| v as &glib::ToValue).collect();
+            list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
+        }
+
+        self.tree.set_model(Some(&list_store));
+        self.tree.set_headers_visible(false);
+    }
+
+    fn append_column(&self, id: i32) {
+        let renderer = &self.renderer;
+
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(renderer, true);
+        column.add_attribute(renderer, "text", id);
+        self.tree.append_column(&column);
     }
 
     fn select(&self, selected: i64) {
@@ -80,30 +100,56 @@ impl State {
 
 pub struct PopupMenu {
     popover: gtk::Popover,
-    state: Rc<Cell<Option<State>>>,
+    open: bool,
+
+    state: Rc<RefCell<State>>,
 }
 
 impl PopupMenu {
     pub fn new(drawing: &gtk::DrawingArea) -> PopupMenu {
-        let state = Rc::new(Cell::new(None));
+        let state = State::new();
         let popover = gtk::Popover::new(Some(drawing));
         popover.set_modal(false);
 
+        state.tree.set_headers_visible(false);
+        state.tree.set_can_focus(false);
 
+
+        let scroll = gtk::ScrolledWindow::new(None, None);
+        scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+        scroll.set_min_content_height(MIN_CONTENT_HEIGHT);
+
+        scroll.add(&state.tree);
+        scroll.show_all();
+        popover.add(&scroll);
+
+        let state = Rc::new(RefCell::new(state));
+        let state_ref = state.clone();
+        state.borrow().tree.connect_button_press_event(move |tree, ev| {
+                                            let state = state_ref.borrow();
+                                            let mut nvim = state.nvim.as_ref().unwrap().borrow_mut();
+                                            tree_button_press(tree, ev, &mut *nvim)
+                                        });
         let state_ref = state.clone();
         popover.connect_key_press_event(move |_, ev| {
-            let mut state: &mut State = state_ref.get_mut().as_mut().unwrap();
-            input::gtk_key_press(&mut *state.nvim.borrow_mut(), ev)
-        });
+                                            let state = state_ref.borrow();
+                                            let mut nvim = state.nvim.as_ref().unwrap().borrow_mut();
+                                            input::gtk_key_press(&mut *nvim, ev)
+                                        });
 
-        let popup = PopupMenu { popover, state };
-
-
-        popup
+        PopupMenu {
+            popover,
+            state,
+            open: false,
+        }
     }
 
-    pub fn show(&self,
-                nvim: Rc<RefCell<Neovim>>,
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    pub fn show(&mut self,
+                nvim: &Rc<RefCell<Neovim>>,
                 font_desc: &FontDescription,
                 menu_items: &Vec<Vec<&str>>,
                 selected: i64,
@@ -111,66 +157,32 @@ impl PopupMenu {
                 y: i32,
                 width: i32,
                 height: i32) {
+
+        self.open = true;
+
+        self.popover
+            .set_pointing_to(&gtk::Rectangle {
+                                 x,
+                                 y,
+                                 width,
+                                 height,
+                             });
         self.state
-            .replace(Some(State::new(&self.popover,
-                                     nvim,
-                                     font_desc,
-                                     menu_items,
-                                     selected,
-                                     x,
-                                     y,
-                                     width,
-                                     height)));
+            .borrow_mut()
+            .before_show(&nvim, font_desc, menu_items, selected);
         self.popover.popup();
     }
 
-    pub fn hide(self) {
+    pub fn hide(&mut self) {
+        self.open = false;
         self.popover.popdown();
-        let tree = self.state.get_mut().take().unwrap().tree;
-        self.popover.remove(&tree);
-        tree.destroy();
     }
 
     pub fn select(&self, selected: i64) {
+        self.state.borrow().select(selected);
     }
 }
 
-fn create_list(menu: &Vec<Vec<&str>>, font_desc: &FontDescription) -> gtk::TreeView {
-    let tree = gtk::TreeView::new();
-
-    if menu.is_empty() {
-        return tree;
-    }
-    let columns = menu.get(0).unwrap().len();
-
-    let font_str = font_desc.to_string();
-    for i in 0..columns {
-        append_column(&tree, i as i32, &font_str);
-    }
-
-    let list_store = gtk::ListStore::new(&vec![gtk::Type::String; columns]);
-    let all_column_ids: Vec<u32> = (0..columns).map(|i| i as u32).collect();
-
-    for line in menu {
-        let line_array: Vec<&glib::ToValue> = line.iter().map(|v| v as &glib::ToValue).collect();
-        list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
-    }
-
-    tree.set_model(Some(&list_store));
-    tree.set_headers_visible(false);
-
-    tree
-}
-
-fn append_column(tree: &gtk::TreeView, id: i32, font_str: &str) {
-    let renderer = gtk::CellRendererText::new();
-    renderer.set_property_font(Some(font_str));
-
-    let column = gtk::TreeViewColumn::new();
-    column.pack_start(&renderer, true);
-    column.add_attribute(&renderer, "text", id);
-    tree.append_column(&column);
-}
 
 fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) -> Inhibit {
     if ev.get_event_type() != EventType::ButtonPress {

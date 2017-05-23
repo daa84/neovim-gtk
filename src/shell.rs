@@ -138,7 +138,7 @@ impl State {
     }
 
     fn close_popup_menu(&self) {
-        if self.popup_menu.is_some() {
+        if self.popup_menu.is_open() {
             let mut nvim = self.nvim();
             nvim.input("<Esc>").report_err(&mut *nvim);
         }
@@ -825,7 +825,7 @@ impl RedrawEvents for State {
                 let point = ModelRect::point(col as usize, row as usize);
                 let (x, y, width, height) = point.to_area(line_height, char_width);
 
-                self.popup_menu.show(self.nvim.as_ref().unwrap().clone(),
+                self.popup_menu.show(self.nvim.as_ref().unwrap(),
                                                       &self.font_desc,
                                                       menu,
                                                       selected,
