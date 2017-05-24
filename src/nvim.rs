@@ -1,4 +1,5 @@
 use std::io::{Result, Error, ErrorKind};
+use std::env;
 use std::process::{Stdio, Command};
 use std::result;
 use std::sync::Arc;
@@ -82,7 +83,20 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
         .arg("--headless")
         .arg("--cmd")
         .arg("set termguicolors")
+        .arg("--cmd")
+        .arg("let g:GtkGuiLoaded = 1")
         .stderr(Stdio::inherit());
+
+    if let Ok(runtime_path) = env::var("NVIM_GTK_RUNTIME_PATH") {
+        cmd.arg("--cmd")
+            .arg(format!("let &rtp.=',{}'", runtime_path));
+    }
+    else if let Some(prefix) = option_env!("PREFIX") {
+        cmd.arg("--cmd")
+            .arg(format!("let &rtp.=',{}/share/nvim-gtk/runtime'", prefix));
+    } else {
+        cmd.arg("--cmd").arg("let &rtp.=',runtime'");
+    }
 
     let session = Session::new_child_cmd(&mut cmd);
 

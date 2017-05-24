@@ -5,15 +5,12 @@ GTK ui for neovim written in rust using gtk-rs bindings.
 ![Main Window](/screenshots/neovimgtk-screen.png?raw=true)
 For more screenshots and description of basic usage see [wiki](https://github.com/daa84/neovim-gtk/wiki/GUI)
 
-# Font settings
-By default gnome settings are used:
-```bash
-gsettings get org.gnome.desktop.interface monospace-font-name
-```
-To setup font add next line to *ginit.vim*
+# Configuration
+To setup font add next line to `ginit.vim`
 ```vim
 call rpcnotify(1, 'Gui', 'Font', 'DejaVu Sans Mono 12')
 ```
+for more details see [wiki](https://github.com/daa84/neovim-gtk/wiki/Configuration)
 
 # Command line
 * pass nvim custom execution path (by default used `nvim` command)
@@ -25,6 +22,16 @@ cargo run -- --nvim-bin-path=E:\Neovim\bin\nvim.exe
 cargo run -- --enable-external-popup
 ```
 # Install
+## From sources
+By default to `/usr/local`:
+```
+make install
+```
+Or to some custom path:
+```
+make PREFIX=/some/custom/path install
+```
+
 ## Ubuntu snap package
 Not usable for now due to some limitation!
 
