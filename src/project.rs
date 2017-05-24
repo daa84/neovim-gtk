@@ -335,8 +335,16 @@ fn on_treeview_allocate(projects: Rc<RefCell<Projects>>) {
 
     idle_add(move || {
                  let prj = projects.borrow();
-                 prj.scroll.set_min_content_height(treeview_height);
-                 prj.scroll.set_max_content_height(treeview_height);
+
+                 // strange solution to make gtk assertions happy
+                 let previous_height = prj.scroll.get_max_content_height();
+                 if previous_height < treeview_height {
+                     prj.scroll.set_max_content_height(treeview_height);
+                     prj.scroll.set_min_content_height(treeview_height);
+                 } else if previous_height > treeview_height {
+                     prj.scroll.set_min_content_height(treeview_height);
+                     prj.scroll.set_max_content_height(treeview_height);
+                 }
                  Continue(false)
              });
 }

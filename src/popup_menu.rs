@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::cmp::min;
 
 use gtk;
 use gtk::prelude::*;
@@ -13,12 +14,13 @@ use nvim::ErrorReport;
 
 use input;
 
-const MIN_CONTENT_HEIGHT: i32 = 250;
+const MAX_VISIBLE_ROWS: i32 = 10;
 
 struct State {
     nvim: Option<Rc<RefCell<Neovim>>>,
     renderer: gtk::CellRendererText,
     tree: gtk::TreeView,
+    scroll: gtk::ScrolledWindow,
 }
 
 impl State {
@@ -27,6 +29,7 @@ impl State {
             nvim: None,
             renderer: gtk::CellRendererText::new(),
             tree: gtk::TreeView::new(),
+            scroll: gtk::ScrolledWindow::new(None, None),
         }
     }
 
@@ -74,7 +77,6 @@ impl State {
         }
 
         self.tree.set_model(Some(&list_store));
-        self.tree.set_headers_visible(false);
     }
 
     fn append_column(&self, id: i32) {
@@ -96,6 +98,17 @@ impl State {
             self.tree.get_selection().unselect_all();
         }
     }
+
+    fn calc_treeview_height(&self) -> i32 {
+        let (_, natural_size) = self.renderer.get_preferred_height(&self.tree);
+        let (_, ypad) = self.renderer.get_padding();
+
+        let row_height = natural_size + ypad;
+
+        let actual_count = self.tree.get_model().unwrap().iter_n_children(None);
+
+        row_height * min(actual_count, MAX_VISIBLE_ROWS) as i32
+    }
 }
 
 pub struct PopupMenu {
@@ -115,13 +128,11 @@ impl PopupMenu {
         state.tree.set_can_focus(false);
 
 
-        let scroll = gtk::ScrolledWindow::new(None, None);
-        scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        scroll.set_min_content_height(MIN_CONTENT_HEIGHT);
+        state.scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 
-        scroll.add(&state.tree);
-        scroll.show_all();
-        popover.add(&scroll);
+        state.scroll.add(&state.tree);
+        state.scroll.show_all();
+        popover.add(&state.scroll);
 
         let state = Rc::new(RefCell::new(state));
         let state_ref = state.clone();
@@ -130,6 +141,10 @@ impl PopupMenu {
                                             let mut nvim = state.nvim.as_ref().unwrap().borrow_mut();
                                             tree_button_press(tree, ev, &mut *nvim)
                                         });
+
+        let state_ref = state.clone();
+        state.borrow().tree.connect_size_allocate(move |_, _| on_treeview_allocate(state_ref.clone()));
+
         let state_ref = state.clone();
         popover.connect_key_press_event(move |_, ev| {
                                             let state = state_ref.borrow();
@@ -229,3 +244,24 @@ fn find_scroll_count(selected_idx: i32, target_idx: i32) -> i32 {
         selected_idx - target_idx
     }
 }
+
+
+fn on_treeview_allocate(state: Rc<RefCell<State>>) {
+    let treeview_height = state.borrow().calc_treeview_height();
+
+    idle_add(move || {
+                 let state = state.borrow();
+
+                 // strange solution to make gtk assertions happy
+                 let previous_height = state.scroll.get_max_content_height();
+                 if previous_height < treeview_height {
+                     state.scroll.set_max_content_height(treeview_height);
+                     state.scroll.set_min_content_height(treeview_height);
+                 } else if previous_height > treeview_height {
+                     state.scroll.set_min_content_height(treeview_height);
+                     state.scroll.set_max_content_height(treeview_height);
+                 }
+                 Continue(false)
+             });
+}
+
