@@ -5,13 +5,12 @@ use std::cmp::min;
 use gtk;
 use gtk::prelude::*;
 use glib;
-use pango::FontDescription;
 use gdk::{EventButton, EventType};
 
 use neovim_lib::{Neovim, NeovimApi};
 
 use nvim::ErrorReport;
-
+use shell;
 use input;
 
 const MAX_VISIBLE_ROWS: i32 = 10;
@@ -34,25 +33,26 @@ impl State {
     }
 
     fn before_show(&mut self,
-                   nvim: &Rc<RefCell<Neovim>>,
-                   font_desc: &FontDescription,
+                   shell: &shell::State,
                    menu_items: &Vec<Vec<&str>>,
                    selected: i64) {
         if self.nvim.is_none() {
-            self.nvim = Some(nvim.clone());
+            self.nvim = Some(shell.nvim_clone());
         }
 
-        self.update_tree(menu_items, font_desc);
+        self.update_tree(menu_items, shell);
         self.select(selected);
     }
 
-    fn update_tree(&self, menu: &Vec<Vec<&str>>, font_desc: &FontDescription) {
+    fn update_tree(&self, menu: &Vec<Vec<&str>>, shell: &shell::State) {
         if menu.is_empty() {
             return;
         }
 
         self.renderer
-            .set_property_font(Some(&font_desc.to_string()));
+            .set_property_font(Some(&shell.get_font_desc().to_string()));
+        self.renderer.set_property_foreground_rgba(Some(&shell.get_foreground().into()));
+        self.renderer.set_property_background_rgba(Some(&shell.get_background().into()));
 
         let col_count = menu.get(0).unwrap().len();
         let columns = self.tree.get_columns();
@@ -164,8 +164,7 @@ impl PopupMenu {
     }
 
     pub fn show(&mut self,
-                nvim: &Rc<RefCell<Neovim>>,
-                font_desc: &FontDescription,
+                shell: &shell::State,
                 menu_items: &Vec<Vec<&str>>,
                 selected: i64,
                 x: i32,
@@ -184,13 +183,16 @@ impl PopupMenu {
                              });
         self.state
             .borrow_mut()
-            .before_show(&nvim, font_desc, menu_items, selected);
-        self.popover.popup();
+            .before_show(shell, menu_items, selected);
+        self.popover.popup()
     }
 
     pub fn hide(&mut self) {
         self.open = false;
-        self.popover.popdown();
+        // popdown() in case of fast hide/show
+        // situation does not work and just close popup window
+        // so hide() is important here
+        self.popover.hide();
     }
 
     pub fn select(&self, selected: i64) {

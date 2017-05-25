@@ -48,7 +48,7 @@ pub struct State {
     nvim: Option<Rc<RefCell<Neovim>>>,
     font_desc: FontDescription,
     cursor: Option<Cursor>,
-    popup_menu: PopupMenu,
+    popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
 
     line_height: Option<f64>,
@@ -62,7 +62,7 @@ pub struct State {
 impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, parent: &Arc<UiMutex<ui::Components>>) -> State {
         let drawing_area = DrawingArea::new();
-        let popup_menu = PopupMenu::new(&drawing_area);
+        let popup_menu = RefCell::new(PopupMenu::new(&drawing_area));
 
         State {
             model: UiModel::new(24, 80),
@@ -88,8 +88,20 @@ impl State {
         }
     }
 
+    pub fn get_foreground(&self) -> &Color {
+        &self.fg_color
+    }
+
+    pub fn get_background(&self) -> &Color {
+        &self.bg_color
+    }
+
     pub fn nvim(&self) -> RefMut<Neovim> {
         self.nvim.as_ref().unwrap().borrow_mut()
+    }
+
+    pub fn nvim_clone(&self) -> Rc<RefCell<Neovim>> {
+        self.nvim.as_ref().unwrap().clone()
     }
 
     fn create_pango_font(&self) -> FontDescription {
@@ -115,6 +127,10 @@ impl State {
         }
     }
 
+    pub fn get_font_desc(&self) -> &FontDescription {
+        &self.font_desc
+    }
+
     pub fn set_font_desc(&mut self, desc: &str) {
         self.font_desc = FontDescription::from_string(desc);
         self.line_height = None;
@@ -138,7 +154,7 @@ impl State {
     }
 
     fn close_popup_menu(&self) {
-        if self.popup_menu.is_open() {
+        if self.popup_menu.borrow().is_open() {
             let mut nvim = self.nvim();
             nvim.input("<Esc>").report_err(&mut *nvim);
         }
@@ -825,8 +841,7 @@ impl RedrawEvents for State {
                 let point = ModelRect::point(col as usize, row as usize);
                 let (x, y, width, height) = point.to_area(line_height, char_width);
 
-                self.popup_menu.show(self.nvim.as_ref().unwrap(),
-                                                      &self.font_desc,
+                self.popup_menu.borrow_mut().show(&self,
                                                       menu,
                                                       selected,
                                                       x,
@@ -841,12 +856,12 @@ impl RedrawEvents for State {
     }
 
     fn popupmenu_hide(&mut self) -> RepaintMode {
-        self.popup_menu.hide();
+        self.popup_menu.borrow_mut().hide();
         RepaintMode::Nothing
     }
 
     fn popupmenu_select(&mut self, selected: i64) -> RepaintMode {
-        self.popup_menu.select(selected);
+        self.popup_menu.borrow().select(selected);
         RepaintMode::Nothing
     }
 }
