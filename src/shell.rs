@@ -313,9 +313,9 @@ impl Shell {
         state.cursor.as_mut().unwrap().start();
     }
 
-    pub fn init_nvim(&mut self, nvim_bin_path: Option<&String>, external_popup: bool) {
+    pub fn init_nvim(&mut self, nvim_bin_path: Option<&String>) {
         let nvim =
-            nvim::initialize(self.state.clone(), nvim_bin_path, external_popup).expect("Can't start nvim instance");
+            nvim::initialize(self.state.clone(), nvim_bin_path).expect("Can't start nvim instance");
         let mut state = self.state.borrow_mut();
         state.nvim = Some(Rc::new(RefCell::new(nvim)));
     }

@@ -37,7 +37,6 @@ use gio::ApplicationExt;
 use ui::Ui;
 
 const BIN_PATH_ARG: &'static str = "--nvim-bin-path";
-const ENABLE_EXTERNAL_POPUP: &'static str = "--enable-external-popup";
 
 fn main() {
     env_logger::init().expect("Can't initialize env_logger");
@@ -55,7 +54,6 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let mut argv: Vec<&str> = args.iter()
         .filter(|a| !a.starts_with(BIN_PATH_ARG))
-        .filter(|a| !a.starts_with(ENABLE_EXTERNAL_POPUP))
         .map(String::as_str)
         .collect();
     if open_arg().is_some() {
@@ -69,7 +67,6 @@ fn activate(app: &gtk::Application) {
 
     ui.init(app,
             nvim_bin_path(std::env::args()).as_ref(),
-            external_popup(std::env::args()),
             open_arg().as_ref());
 }
 
@@ -80,15 +77,6 @@ fn nvim_bin_path<I>(args: I) -> Option<String>
         .map(|p| p.split('=').nth(1).map(str::to_owned))
         .nth(0)
         .unwrap_or(None)
-}
-
-fn external_popup<I>(args: I) -> bool
-    where I: Iterator<Item = String>
-{
-    args.filter(|a| a.starts_with(ENABLE_EXTERNAL_POPUP))
-        .map(|_| true)
-        .nth(0)
-        .unwrap_or(false)
 }
 
 fn open_arg() -> Option<String> {
@@ -111,14 +99,6 @@ fn open_arg_impl<I>(args: I) -> Option<String>
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_external_menu() {
-        assert_eq!(true,
-                   external_popup(vec!["neovim-gtk", "--enable-external-popup"]
-                                      .iter()
-                                      .map(|s| s.to_string())));
-    }
 
     #[test]
     fn test_bin_path_arg() {

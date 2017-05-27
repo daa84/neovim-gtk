@@ -5,7 +5,7 @@ use std::result;
 use std::sync::Arc;
 
 use ui::UiMutex;
-use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError};
+use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError, UiOption};
 use ui_model::{ModelRect, ModelRectVec};
 use shell;
 use glib;
@@ -70,8 +70,7 @@ macro_rules! try_uint {
 }
 
 pub fn initialize(shell: Arc<UiMutex<shell::State>>,
-                  nvim_bin_path: Option<&String>,
-                  external_popup: bool)
+                  nvim_bin_path: Option<&String>)
                   -> Result<Neovim> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
@@ -90,8 +89,7 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
     if let Ok(runtime_path) = env::var("NVIM_GTK_RUNTIME_PATH") {
         cmd.arg("--cmd")
             .arg(format!("let &rtp.=',{}'", runtime_path));
-    }
-    else if let Some(prefix) = option_env!("PREFIX") {
+    } else if let Some(prefix) = option_env!("PREFIX") {
         cmd.arg("--cmd")
             .arg(format!("let &rtp.=',{}/share/nvim-gtk/runtime'", prefix));
     } else {
@@ -113,7 +111,7 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
     nvim.session
         .start_event_loop_handler(NvimHandler::new(shell));
     let mut opts = UiAttachOptions::new();
-    opts.set_popupmenu_external(external_popup);
+    opts.set_popupmenu_external(false);
     nvim.ui_attach(80, 24, opts)
         .map_err(|e| Error::new(ErrorKind::Other, e))?;
     nvim.command("runtime! ginit.vim")
@@ -208,6 +206,16 @@ fn call_gui_event(ui: &mut shell::State,
                   -> result::Result<(), String> {
     match method {
         "Font" => ui.set_font(try_str!(args[0])),
+        "Option" => {
+            match try_str!(args[0]) {
+                "Popupmenu" => {
+                    ui.nvim()
+                        .set_option(UiOption::ExtPopupmenu(try_uint!(args[1]) == 1))
+                        .map_err(|e| e.to_string())?
+                }
+                opt => error!("Unknown option {}", opt),
+            }
+        }
         _ => return Err(format!("Unsupported event {}({:?})", method, args)),
     }
     Ok(())

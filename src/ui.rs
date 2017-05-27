@@ -71,7 +71,6 @@ impl Ui {
     pub fn init(&mut self,
                 app: &gtk::Application,
                 nvim_bin_path: Option<&String>,
-                external_popup: bool,
                 open_path: Option<&String>) {
         if self.initialized {
             return;
@@ -125,7 +124,7 @@ impl Ui {
         window.connect_delete_event(move |_, _| gtk_delete(&*comps_ref, &*shell_ref));
 
         shell.add_configure_event();
-        shell.init_nvim(nvim_bin_path, external_popup);
+        shell.init_nvim(nvim_bin_path);
 
         if open_path.is_some() {
             shell.open_file(open_path.unwrap());
