@@ -30,6 +30,7 @@ mod cursor;
 mod shell_dlg;
 mod popup_menu;
 mod project;
+mod tabline;
 
 use std::env;
 use gio::ApplicationExt;

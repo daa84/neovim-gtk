@@ -4,8 +4,10 @@ use std::process::{Stdio, Command};
 use std::result;
 use std::sync::Arc;
 
-use ui::UiMutex;
 use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError, UiOption};
+use neovim_lib::neovim_api::Tabpage;
+
+use ui::UiMutex;
 use ui_model::{ModelRect, ModelRectVec};
 use shell;
 use glib;
@@ -51,6 +53,8 @@ pub trait RedrawEvents {
     fn popupmenu_hide(&mut self) -> RepaintMode;
 
     fn popupmenu_select(&mut self, selected: i64) -> RepaintMode;
+
+    fn tabline_update(&mut self, selected: Tabpage, tabs: Vec<(Tabpage, Option<&str>)>) -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -112,6 +116,7 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
         .start_event_loop_handler(NvimHandler::new(shell));
     let mut opts = UiAttachOptions::new();
     opts.set_popupmenu_external(false);
+    opts.set_tabline_external(true);
     nvim.ui_attach(80, 24, opts)
         .map_err(|e| Error::new(ErrorKind::Other, e))?;
     nvim.command("runtime! ginit.vim")
@@ -275,6 +280,28 @@ fn call(ui: &mut shell::State,
         }
         "popupmenu_hide" => ui.popupmenu_hide(),
         "popupmenu_select" => ui.popupmenu_select(try_int!(args[0])),
+        "tabline_update" => {
+            let tabs_in = args[1].as_array().ok_or("Error get tabline list")?;
+
+            let mut tabs_out = Vec::new();
+            for tab in tabs_in {
+                let tab_attrs = tab.as_map().ok_or("Error get map for tab")?;
+
+                let mut tab_attr = None;
+                let mut name_attr = None;
+
+                for attr in tab_attrs {
+                    let key = attr.0.as_str().ok_or("Error get key value")?;
+                    if key == "tab" {
+                        tab_attr = Some(Tabpage::new(attr.1.clone()));
+                    } else if key == "name" {
+                        name_attr = attr.1.as_str();
+                    }
+                }
+                tabs_out.push((tab_attr.unwrap(), name_attr));
+            }
+            ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
+        },
         _ => {
             println!("Event {}({:?})", method, args);
             RepaintMode::Nothing

@@ -1,7 +1,8 @@
-use std::cell::{Ref, RefMut, RefCell};
+use std::cell::{RefMut, RefCell};
 use std::rc::Rc;
 use std::sync;
 use std::sync::Arc;
+use std::ops::Deref;
 
 use cairo;
 use pangocairo::CairoContextExt;
@@ -10,10 +11,11 @@ use pango::FontDescription;
 use gdk::{ModifierType, EventConfigure, EventButton, EventMotion, EventType, EventScroll};
 use gdk_sys;
 use glib;
+use gtk;
 use gtk::prelude::*;
-use gtk::DrawingArea;
 
 use neovim_lib::{Neovim, NeovimApi, Value};
+use neovim_lib::neovim_api::Tabpage;
 
 use settings::{Settings, FontSource};
 use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
@@ -25,6 +27,7 @@ use cursor::Cursor;
 use ui;
 use ui::UiMutex;
 use popup_menu::PopupMenu;
+use tabline::Tabline;
 
 const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
 
@@ -44,12 +47,14 @@ pub struct State {
     cur_attrs: Option<Attrs>,
     pub mode: NvimMode,
     mouse_enabled: bool,
-    drawing_area: DrawingArea,
     nvim: Option<Rc<RefCell<Neovim>>>,
     font_desc: FontDescription,
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
+
+    drawing_area: gtk::DrawingArea,
+    tabs: Tabline,
 
     line_height: Option<f64>,
     char_width: Option<f64>,
@@ -61,12 +66,11 @@ pub struct State {
 
 impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, parent: &Arc<UiMutex<ui::Components>>) -> State {
-        let drawing_area = DrawingArea::new();
+        let drawing_area = gtk::DrawingArea::new();
         let popup_menu = RefCell::new(PopupMenu::new(&drawing_area));
 
         State {
             model: UiModel::new(24, 80),
-            drawing_area,
             nvim: None,
             cur_attrs: None,
             bg_color: COLOR_BLACK,
@@ -78,6 +82,9 @@ impl State {
             cursor: None,
             popup_menu,
             settings: settings,
+
+            drawing_area,
+            tabs: Tabline::new(),
 
             line_height: None,
             char_width: None,
@@ -191,6 +198,8 @@ impl UiState {
 pub struct Shell {
     pub state: Arc<UiMutex<State>>,
     ui_state: Rc<RefCell<UiState>>,
+
+    widget: gtk::Box,
 }
 
 impl Shell {
@@ -198,6 +207,8 @@ impl Shell {
         let shell = Shell {
             state: Arc::new(UiMutex::new(State::new(settings, parent))),
             ui_state: Rc::new(RefCell::new(UiState::new())),
+
+            widget: gtk::Box::new(gtk::Orientation::Vertical, 0),
         };
 
         let shell_ref = Arc::downgrade(&shell.state);
@@ -212,6 +223,9 @@ impl Shell {
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
         state.drawing_area.set_can_focus(true);
+
+        self.widget.pack_start(&*state.tabs, false, true, 0);
+        self.widget.pack_start(&state.drawing_area, true, true, 0);
 
         state
             .drawing_area
@@ -284,14 +298,6 @@ impl Shell {
             .connect_focus_out_event(move |_, _| gtk_focus_out(&mut *ref_state.borrow_mut()));
     }
 
-    pub fn state(&self) -> Ref<State> {
-        self.state.borrow()
-    }
-
-    pub fn drawing_area(&self) -> Ref<DrawingArea> {
-        Ref::map(self.state(), |s| &s.drawing_area)
-    }
-
     #[cfg(unix)]
     pub fn redraw(&self, mode: &RepaintMode) {
         self.state.borrow_mut().on_redraw(mode);
@@ -318,6 +324,10 @@ impl Shell {
             nvim::initialize(self.state.clone(), nvim_bin_path).expect("Can't start nvim instance");
         let mut state = self.state.borrow_mut();
         state.nvim = Some(Rc::new(RefCell::new(nvim)));
+    }
+
+    pub fn grab_focus(&self) {
+        self.state.borrow().drawing_area.grab_focus();
     }
 
     pub fn open_file(&self, path: &str) {
@@ -349,6 +359,14 @@ impl Shell {
         let state = self.state.borrow();
         let mut nvim = &mut *state.nvim();
         nvim.command(":wa").report_err(nvim);
+    }
+}
+
+impl Deref for Shell {
+    type Target = gtk::Box;
+    
+    fn deref(&self) -> &gtk::Box {
+        &self.widget
     }
 }
 
@@ -862,6 +880,13 @@ impl RedrawEvents for State {
 
     fn popupmenu_select(&mut self, selected: i64) -> RepaintMode {
         self.popup_menu.borrow().select(selected);
+        RepaintMode::Nothing
+    }
+
+
+    fn tabline_update(&mut self, selected: Tabpage, tabs: Vec<(Tabpage, Option<&str>)>) -> RepaintMode {
+        self.tabs.update_tabs(&selected, &tabs);
+
         RepaintMode::Nothing
     }
 }

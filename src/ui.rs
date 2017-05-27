@@ -114,7 +114,7 @@ impl Ui {
         window.set_titlebar(Some(&comps.header_bar));
 
         let mut shell = self.shell.borrow_mut();
-        window.add(&*shell.drawing_area());
+        window.add(&**shell);
 
         window.show_all();
         window.set_title("Neovim-gtk");
@@ -125,6 +125,7 @@ impl Ui {
 
         shell.add_configure_event();
         shell.init_nvim(nvim_bin_path);
+        shell.grab_focus();
 
         if open_path.is_some() {
             shell.open_file(open_path.unwrap());
