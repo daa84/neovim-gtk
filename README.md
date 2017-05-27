@@ -17,10 +17,6 @@ for more details see [wiki](https://github.com/daa84/neovim-gtk/wiki/Configurati
 ```
 cargo run -- --nvim-bin-path=E:\Neovim\bin\nvim.exe
 ```
-* enable external autocompletion popup menu (this function limited a bit, so disabled by default)
-```
-cargo run -- --enable-external-popup
-```
 # Install
 ## From sources
 By default to `/usr/local`:
