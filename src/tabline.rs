@@ -5,6 +5,8 @@ use std::cell::RefCell;
 use gtk;
 use gtk::prelude::*;
 
+use glib::signal;
+
 use neovim_lib::{Neovim, NeovimApi};
 use neovim_lib::neovim_api::Tabpage;
 
@@ -12,27 +14,32 @@ use nvim::ErrorReport;
 
 struct State {
     data: Vec<Tabpage>,
+    selected: Option<Tabpage>,
     nvim: Option<Rc<RefCell<Neovim>>>,
 }
 
 impl State {
     pub fn new() -> Self {
-        State { 
+        State {
             data: Vec::new(),
+            selected: None,
             nvim: None,
         }
     }
 
-    fn change_current_page(&self, idx: i32) -> bool {
-        let mut nvim = self.nvim.as_ref().unwrap().borrow_mut();
-        nvim.set_current_tabpage(&self.data[idx as usize]).report_err(&mut *nvim);
-        true
+    fn switch_page(&self, idx: u32) {
+        let target = &self.data[idx as usize];
+        if Some(target) != self.selected.as_ref() {
+            let mut nvim = self.nvim.as_ref().unwrap().borrow_mut();
+            nvim.set_current_tabpage(&target).report_err(&mut *nvim);
+        }
     }
 }
 
 pub struct Tabline {
     tabs: gtk::Notebook,
     state: Rc<RefCell<State>>,
+    switch_handler_id: u64,
 }
 
 impl Tabline {
@@ -48,15 +55,35 @@ impl Tabline {
         let state = Rc::new(RefCell::new(State::new()));
 
         let state_ref = state.clone();
-        tabs.connect_change_current_page(move |_, idx| state_ref.borrow().change_current_page(idx));
+        let switch_handler_id =
+            tabs.connect_switch_page(move |_, _, idx| state_ref.borrow().switch_page(idx));
 
-        Tabline {  
+        Tabline {
             tabs,
             state,
+            switch_handler_id,
         }
     }
 
-    pub fn update_tabs(&self, nvim: &Rc<RefCell<Neovim>>, selected: &Tabpage, tabs: &Vec<(Tabpage, Option<&str>)>) {
+    fn update_state(&self,
+                    nvim: &Rc<RefCell<Neovim>>,
+                    selected: &Tabpage,
+                    tabs: &Vec<(Tabpage, Option<&str>)>) {
+        let mut state = self.state.borrow_mut();
+
+        if state.nvim.is_none() {
+            state.nvim = Some(nvim.clone());
+        }
+
+        state.selected = Some(selected.clone());
+
+        state.data = tabs.iter().map(|item| item.0.clone()).collect();
+    }
+
+    pub fn update_tabs(&self,
+                       nvim: &Rc<RefCell<Neovim>>,
+                       selected: &Tabpage,
+                       tabs: &Vec<(Tabpage, Option<&str>)>) {
         if tabs.len() <= 1 {
             self.tabs.hide();
             return;
@@ -64,37 +91,35 @@ impl Tabline {
             self.tabs.show();
         }
 
-        let mut state = self.state.borrow_mut();
+        self.update_state(nvim, selected, tabs);
 
-        if state.nvim.is_none() {
-            state.nvim = Some(nvim.clone());
-        }
+
+        signal::signal_handler_block(&self.tabs, self.switch_handler_id);
 
         let count = self.tabs.get_n_pages() as usize;
         if count < tabs.len() {
             for _ in count..tabs.len() {
                 let empty = gtk::Box::new(gtk::Orientation::Vertical, 0);
                 empty.show_all();
-                self.tabs.append_page(&empty, Some(&gtk::Label::new("AA")));
+                self.tabs.append_page(&empty, Some(&gtk::Label::new(None)));
             }
-        }
-        else if count > tabs.len() {
+        } else if count > tabs.len() {
             for _ in tabs.len()..count {
                 self.tabs.remove_page(None);
             }
         }
 
-        state.data.clear();
-
         for (idx, tab) in tabs.iter().enumerate() {
             let tab_child = self.tabs.get_nth_page(Some(idx as u32));
-            self.tabs.set_tab_label_text(&tab_child.unwrap(), &tab.1.unwrap_or("??"));
-            state.data.push(tab.0.clone());
+            self.tabs
+                .set_tab_label_text(&tab_child.unwrap(), &tab.1.unwrap_or("??"));
 
             if *selected == tab.0 {
                 self.tabs.set_current_page(Some(idx as u32));
             }
         }
+
+        signal::signal_handler_unblock(&self.tabs, self.switch_handler_id);
     }
 }
 

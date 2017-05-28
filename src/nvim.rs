@@ -54,7 +54,10 @@ pub trait RedrawEvents {
 
     fn popupmenu_select(&mut self, selected: i64) -> RepaintMode;
 
-    fn tabline_update(&mut self, selected: Tabpage, tabs: Vec<(Tabpage, Option<&str>)>) -> RepaintMode;
+    fn tabline_update(&mut self,
+                      selected: Tabpage,
+                      tabs: Vec<(Tabpage, Option<&str>)>)
+                      -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -218,6 +221,11 @@ fn call_gui_event(ui: &mut shell::State,
                         .set_option(UiOption::ExtPopupmenu(try_uint!(args[1]) == 1))
                         .map_err(|e| e.to_string())?
                 }
+                "Tabline" => {
+                    ui.nvim()
+                        .set_option(UiOption::ExtTabline(try_uint!(args[1]) == 1))
+                        .map_err(|e| e.to_string())?
+                }
                 opt => error!("Unknown option {}", opt),
             }
         }
@@ -301,7 +309,7 @@ fn call(ui: &mut shell::State,
                 tabs_out.push((tab_attr.unwrap(), name_attr));
             }
             ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
-        },
+        }
         _ => {
             println!("Event {}({:?})", method, args);
             RepaintMode::Nothing
