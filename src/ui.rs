@@ -150,16 +150,12 @@ impl Ui {
 
     fn create_main_menu(&self, app: &gtk::Application) {
         let menu = Menu::new();
-        let help = Menu::new();
 
         let about = MenuItem::new("About", None);
         about.set_detailed_action("app.HelpAbout");
-        help.append_item(&about);
+        menu.append_item(&about);
 
-
-        menu.append_item(&MenuItem::new_submenu("Help", &help));
-
-        app.set_menubar(Some(&menu));
+        app.set_app_menu(Some(&menu));
 
 
         let about_action = SimpleAction::new("HelpAbout", None);
