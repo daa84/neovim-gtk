@@ -32,6 +32,8 @@ mod popup_menu;
 mod project;
 mod tabline;
 
+use gtk::prelude::*;
+
 use std::env;
 use gio::ApplicationExt;
 

@@ -7,7 +7,8 @@ use std::ops::Deref;
 use cairo;
 use pangocairo::CairoContextExt;
 use pango;
-use pango::FontDescription;
+use pango::{LayoutExt, FontDescription};
+use gdk;
 use gdk::{ModifierType, EventConfigure, EventButton, EventMotion, EventType, EventScroll};
 use gdk_sys;
 use glib;
@@ -55,6 +56,7 @@ pub struct State {
 
     drawing_area: gtk::DrawingArea,
     tabs: Tabline,
+    im_context: gtk::IMMulticontext,
 
     line_height: Option<f64>,
     char_width: Option<f64>,
@@ -85,6 +87,7 @@ impl State {
 
             drawing_area,
             tabs: Tabline::new(),
+            im_context: gtk::IMMulticontext::new(),
 
             line_height: None,
             char_width: None,
@@ -146,14 +149,12 @@ impl State {
 
     pub fn open_file(&self, path: &str) {
         let mut nvim = self.nvim();
-        nvim.command(&format!("e {}", path))
-            .report_err(&mut *nvim);
+        nvim.command(&format!("e {}", path)).report_err(&mut *nvim);
     }
 
     pub fn cd(&self, path: &str) {
         let mut nvim = self.nvim();
-        nvim.command(&format!("cd {}", path))
-            .report_err(&mut *nvim);
+        nvim.command(&format!("cd {}", path)).report_err(&mut *nvim);
     }
 
     fn request_resize(&mut self) {
@@ -181,6 +182,12 @@ impl State {
                 }
             }
             _ => self.drawing_area.queue_draw(),
+        }
+    }
+
+    fn im_commit(&self, ch: &str) {
+        if let Some(ref nvim) = self.nvim {
+            input::im_input(&mut *nvim.borrow_mut(), ch);
         }
     }
 }
@@ -223,6 +230,8 @@ impl Shell {
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
         state.drawing_area.set_can_focus(true);
+
+        state.im_context.set_use_preedit(false);
 
         self.widget.pack_start(&*state.tabs, false, true, 0);
         self.widget.pack_start(&state.drawing_area, true, true, 0);
@@ -276,11 +285,32 @@ impl Shell {
         state
             .drawing_area
             .connect_key_press_event(move |_, ev| {
-                                         let mut shell = ref_state.borrow_mut();
-                                         shell.cursor.as_mut().unwrap().reset_state();
-                                         let mut nvim = shell.nvim();
-                                         input::gtk_key_press(&mut *nvim, ev)
-                                     });
+                let mut shell = ref_state.borrow_mut();
+                shell.cursor.as_mut().unwrap().reset_state();
+                // TODO: improve
+                // GtkIMContext will eat a Shift-Space and not tell us about shift.
+                // Also don't let IME eat any GDK_KEY_KP_ events
+                if !ev.get_state().contains(gdk::SHIFT_MASK) &&
+                   ev.get_keyval() < gdk_sys::GDK_KEY_KP_Space as u32 &&
+                   ev.get_keyval() > gdk_sys::GDK_KEY_KP_Divide as u32 &&
+                   shell.im_context.filter_keypress(ev) {
+                       println!("Filter");
+                    Inhibit(true)
+                } else {
+                    if let Some(ref nvim) = shell.nvim {
+                        input::gtk_key_press(&mut *nvim.borrow_mut(), ev)
+                    } else {
+                        Inhibit(false)
+                    }
+                }
+            });
+        let ref_state = self.state.clone();
+        state
+            .drawing_area
+            .connect_key_release_event(move |_, ev| {
+                ref_state.borrow().im_context.filter_keypress(ev);
+                Inhibit(false)
+            });
 
         let ref_state = self.state.clone();
         state
@@ -296,6 +326,22 @@ impl Shell {
         state
             .drawing_area
             .connect_focus_out_event(move |_, _| gtk_focus_out(&mut *ref_state.borrow_mut()));
+
+        let ref_state = self.state.clone();
+        state
+            .drawing_area
+            .connect_realize(move |w| {
+                                 ref_state
+                                     .borrow()
+                                     .im_context
+                                     .set_client_window(w.get_window().as_ref())
+                             });
+
+        let ref_state = self.state.clone();
+        state
+            .im_context
+            .connect_commit(move |_, ch| ref_state.borrow().im_commit(ch));
+
     }
 
     #[cfg(unix)]
@@ -320,8 +366,8 @@ impl Shell {
     }
 
     pub fn init_nvim(&mut self, nvim_bin_path: Option<&String>) {
-        let nvim =
-            nvim::initialize(self.state.clone(), nvim_bin_path).expect("Can't start nvim instance");
+        let nvim = nvim::initialize(self.state.clone(), nvim_bin_path)
+            .expect("Can't start nvim instance");
         let mut state = self.state.borrow_mut();
         state.nvim = Some(Rc::new(RefCell::new(nvim)));
     }
@@ -364,13 +410,14 @@ impl Shell {
 
 impl Deref for Shell {
     type Target = gtk::Box;
-    
+
     fn deref(&self) -> &gtk::Box {
         &self.widget
     }
 }
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
+    state.im_context.focus_in();
     state.cursor.as_mut().unwrap().enter_focus();
     let point = state.model.cur_point();
     state.on_redraw(&RepaintMode::Area(point));
@@ -378,6 +425,7 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 }
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
+    state.im_context.focus_out();
     state.cursor.as_mut().unwrap().leave_focus();
     let point = state.model.cur_point();
     state.on_redraw(&RepaintMode::Area(point));
@@ -457,6 +505,19 @@ fn gtk_draw(parent: &ui::Components, state: &mut State, ctx: &cairo::Context) ->
         state.char_width = Some(width as f64);
     }
 
+    //TODO: to much call of this function
+    let (row, col) = state.model.get_cursor();
+    let (x, y, width, height) = ModelRect::point(col, row)
+        .to_area(state.line_height.unwrap(), state.char_width.unwrap());
+    state
+        .im_context
+        .set_cursor_location(&gdk::Rectangle {
+                                 x,
+                                 y,
+                                 width,
+                                 height,
+                             });
+
     draw(state, ctx);
     request_window_resize(parent, state);
 
@@ -500,7 +561,7 @@ fn draw_backgound(state: &State,
 
             if !draw_bitmap.get(col_idx, line_idx) {
                 let (bg, _) = state.colors(cell);
-                
+
                 if &state.bg_color != bg {
                     ctx.set_source_rgb(bg.0, bg.1, bg.2);
                     ctx.rectangle(current_point.0, current_point.1, char_width, line_height);
@@ -533,15 +594,21 @@ fn draw(state: &State, ctx: &cairo::Context) {
     for clip_idx in 0..clip_rects.len() {
         let clip = clip_rects.get(clip_idx).unwrap();
 
-        let model_clip = get_model_clip(state,
-                                        line_height,
-                                        char_width,
-                                        (clip.x, clip.y, clip.x + clip.width, clip.y + clip.height));
+        let model_clip =
+            get_model_clip(state,
+                           line_height,
+                           char_width,
+                           (clip.x, clip.y, clip.x + clip.width, clip.y + clip.height));
 
         let line_x = model_clip.left as f64 * char_width;
         let mut line_y: f64 = model_clip.top as f64 * line_height;
 
-        draw_backgound(state, &draw_bitmap, ctx, line_height, char_width, &model_clip);
+        draw_backgound(state,
+                       &draw_bitmap,
+                       ctx,
+                       line_height,
+                       char_width,
+                       &model_clip);
 
         for (line_idx, line) in state.model.clip_model(&model_clip) {
 
@@ -705,9 +772,7 @@ fn gtk_configure_event(state: &Arc<UiMutex<State>>, ev: &EventConfigure) -> bool
                 let rows = (height as f64 / line_height).trunc() as usize;
                 let columns = (width as f64 / char_width).trunc() as usize;
                 if state_ref.model.rows != rows || state_ref.model.columns != columns {
-                    if let Err(err) = state_ref
-                           .nvim()
-                           .ui_try_resize(columns as u64, rows as u64) {
+                    if let Err(err) = state_ref.nvim().ui_try_resize(columns as u64, rows as u64) {
                         println!("Error trying resize nvim {}", err);
                     }
                 }
@@ -859,13 +924,9 @@ impl RedrawEvents for State {
                 let point = ModelRect::point(col as usize, row as usize);
                 let (x, y, width, height) = point.to_area(line_height, char_width);
 
-                self.popup_menu.borrow_mut().show(&self,
-                                                      menu,
-                                                      selected,
-                                                      x,
-                                                      y,
-                                                      width,
-                                                      height);
+                self.popup_menu
+                    .borrow_mut()
+                    .show(&self, menu, selected, x, y, width, height);
             }
             _ => (),
         };
@@ -884,8 +945,12 @@ impl RedrawEvents for State {
     }
 
 
-    fn tabline_update(&mut self, selected: Tabpage, tabs: Vec<(Tabpage, Option<&str>)>) -> RepaintMode {
-        self.tabs.update_tabs(&self.nvim.as_ref().unwrap(), &selected, &tabs);
+    fn tabline_update(&mut self,
+                      selected: Tabpage,
+                      tabs: Vec<(Tabpage, Option<&str>)>)
+                      -> RepaintMode {
+        self.tabs
+            .update_tabs(&self.nvim.as_ref().unwrap(), &selected, &tabs);
 
         RepaintMode::Nothing
     }
@@ -910,7 +975,7 @@ impl ModelBitamp {
     pub fn new(cols: usize, rows: usize) -> ModelBitamp {
         let words_for_cols = cols / 64 + 1;
 
-        ModelBitamp { 
+        ModelBitamp {
             words_for_cols: words_for_cols,
             model: vec![0; rows * words_for_cols],
         }
@@ -950,4 +1015,3 @@ mod tests {
         assert_eq!(false, bitmap.get(62, 22));
     }
 }
-

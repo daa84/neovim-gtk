@@ -6,8 +6,10 @@ use std::sync::Arc;
 use gtk;
 use gtk_sys;
 use gtk::prelude::*;
+use gtk::ApplicationExt;
 use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image, AboutDialog};
-use gio::{Menu, MenuItem, SimpleAction};
+use gio::prelude::*;
+use gio::{Menu, MenuExt, MenuItem, MenuItemExt, SimpleAction};
 use glib;
 
 use settings::Settings;
