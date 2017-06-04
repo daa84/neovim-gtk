@@ -37,6 +37,8 @@ use gio::ApplicationExt;
 
 use ui::Ui;
 
+use shell::ShellOptions;
+
 const BIN_PATH_ARG: &'static str = "--nvim-bin-path";
 
 fn main() {
@@ -64,11 +66,9 @@ fn main() {
 }
 
 fn activate(app: &gtk::Application) {
-    let mut ui = Ui::new();
+    let mut ui = Ui::new(ShellOptions::new(nvim_bin_path(std::env::args()), open_arg()));
 
-    ui.init(app,
-            nvim_bin_path(std::env::args()).as_ref(),
-            open_arg().as_ref());
+    ui.init(app);
 }
 
 fn nvim_bin_path<I>(args: I) -> Option<String>

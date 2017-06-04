@@ -1,8 +1,8 @@
 use std::cell::{RefMut, RefCell};
 use std::rc::Rc;
-use std::sync;
 use std::sync::Arc;
 use std::ops::Deref;
+use std::thread;
 
 use cairo;
 use pangocairo::CairoContextExt;
@@ -24,12 +24,23 @@ use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport};
 use input;
 use input::keyval_to_input_string;
 use cursor::Cursor;
-use ui;
 use ui::UiMutex;
 use popup_menu::PopupMenu;
 use tabline::Tabline;
 
 const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
+
+macro_rules! idle_cb_call {
+    ($state:ident.$cb:ident($( $x:expr ),*)) => (
+            glib::idle_add(move || {
+                               if let Some(ref cb) = $state.borrow().$cb {
+                                   (&mut *cb.borrow_mut())($($x),*);
+                               }
+
+                               glib::Continue(false)
+                           });
+    )
+}
 
 
 #[derive(PartialEq)]
@@ -61,16 +72,18 @@ pub struct State {
     request_resize: bool,
     resize_timer: Option<glib::SourceId>,
 
-    parent: sync::Weak<UiMutex<ui::Components>>,
+    options: ShellOptions,
+
+    detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
 }
 
 impl State {
-    pub fn new(settings: Rc<RefCell<Settings>>, parent: &Arc<UiMutex<ui::Components>>) -> State {
+    pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> State {
         let drawing_area = gtk::DrawingArea::new();
         let popup_menu = RefCell::new(PopupMenu::new(&drawing_area));
 
         State {
-            model: UiModel::new(24, 80),
+            model: UiModel::new(1, 1),
             nvim: None,
             cur_attrs: None,
             bg_color: COLOR_BLACK,
@@ -91,7 +104,9 @@ impl State {
             resize_timer: None,
             request_resize: false,
 
-            parent: Arc::downgrade(parent),
+            options,
+
+            detach_cb: None,
         }
     }
 
@@ -109,6 +124,16 @@ impl State {
 
     pub fn nvim_clone(&self) -> Rc<RefCell<Neovim>> {
         self.nvim.as_ref().unwrap().clone()
+    }
+
+    pub fn set_detach_cb<F>(&mut self, cb: Option<F>)
+        where F: FnMut() + Send + 'static
+    {
+        if cb.is_some() {
+            self.detach_cb = Some(Box::new(RefCell::new(cb.unwrap())));
+        } else {
+            self.detach_cb = None;
+        }
     }
 
     fn create_pango_font(&self) -> FontDescription {
@@ -146,14 +171,12 @@ impl State {
 
     pub fn open_file(&self, path: &str) {
         let mut nvim = self.nvim();
-        nvim.command(&format!("e {}", path))
-            .report_err(&mut *nvim);
+        nvim.command(&format!("e {}", path)).report_err(&mut *nvim);
     }
 
     pub fn cd(&self, path: &str) {
         let mut nvim = self.nvim();
-        nvim.command(&format!("cd {}", path))
-            .report_err(&mut *nvim);
+        nvim.command(&format!("cd {}", path)).report_err(&mut *nvim);
     }
 
     fn request_resize(&mut self) {
@@ -183,6 +206,36 @@ impl State {
             _ => self.drawing_area.queue_draw(),
         }
     }
+
+    fn calc_char_bounds(&self, ctx: &cairo::Context) -> (i32, i32) {
+        let layout = ctx.create_pango_layout();
+
+        let desc = self.create_pango_font();
+        layout.set_font_description(Some(&desc));
+        layout.set_text("A", -1);
+
+        layout.get_pixel_size()
+    }
+
+    fn calc_line_metrics(&mut self, ctx: &cairo::Context) {
+        if self.line_height.is_none() {
+            let (width, height) = self.calc_char_bounds(ctx);
+            self.line_height = Some(height as f64);
+            self.char_width = Some(width as f64);
+        }
+    }
+
+    fn calc_nvim_size(&self) -> Option<(usize, usize)> {
+        if let Some(line_height) = self.line_height {
+            if let Some(char_width) = self.char_width {
+                let alloc = self.drawing_area.get_allocation();
+                return Some(((alloc.width as f64 / char_width).trunc() as usize,
+                             (alloc.height as f64 / line_height).trunc() as usize));
+            }
+        }
+
+        None
+    }
 }
 
 pub struct UiState {
@@ -195,6 +248,20 @@ impl UiState {
     }
 }
 
+pub struct ShellOptions {
+    nvim_bin_path: Option<String>,
+    open_path: Option<String>,
+}
+
+impl ShellOptions {
+    pub fn new(nvim_bin_path: Option<String>, open_path: Option<String>) -> Self {
+        ShellOptions {
+            nvim_bin_path,
+            open_path,
+        }
+    }
+}
+
 pub struct Shell {
     pub state: Arc<UiMutex<State>>,
     ui_state: Rc<RefCell<UiState>>,
@@ -203,9 +270,9 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn new(settings: Rc<RefCell<Settings>>, parent: &Arc<UiMutex<ui::Components>>) -> Shell {
+    pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> Shell {
         let shell = Shell {
-            state: Arc::new(UiMutex::new(State::new(settings, parent))),
+            state: Arc::new(UiMutex::new(State::new(settings, options))),
             ui_state: Rc::new(RefCell::new(UiState::new())),
 
             widget: gtk::Box::new(gtk::Orientation::Vertical, 0),
@@ -218,8 +285,7 @@ impl Shell {
     }
 
     pub fn init(&mut self) {
-        let state = self.state.borrow_mut();
-        state.drawing_area.set_size_request(500, 300);
+        let mut state = self.state.borrow_mut();
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
         state.drawing_area.set_can_focus(true);
@@ -265,12 +331,7 @@ impl Shell {
         let ref_state = self.state.clone();
         state
             .drawing_area
-            .connect_draw(move |_, ctx| {
-                              let mut state = ref_state.borrow_mut();
-                              let ref_parent = sync::Weak::upgrade(&state.parent).unwrap();
-                              let parent = ref_parent.borrow();
-                              gtk_draw(&*parent, &mut *state, ctx)
-                          });
+            .connect_draw(move |_, ctx| gtk_draw(&ref_state, ctx));
 
         let ref_state = self.state.clone();
         state
@@ -296,6 +357,13 @@ impl Shell {
         state
             .drawing_area
             .connect_focus_out_event(move |_, _| gtk_focus_out(&mut *ref_state.borrow_mut()));
+
+        let ref_state = self.state.clone();
+        state
+            .drawing_area
+            .connect_configure_event(move |_, ev| gtk_configure_event(&ref_state, ev));
+
+        state.cursor.as_mut().unwrap().start();
     }
 
     #[cfg(unix)]
@@ -306,24 +374,6 @@ impl Shell {
     #[cfg(unix)]
     pub fn set_font_desc(&self, font_name: &str) {
         self.state.borrow_mut().set_font_desc(font_name);
-    }
-
-    pub fn add_configure_event(&mut self) {
-        let mut state = self.state.borrow_mut();
-
-        let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_configure_event(move |_, ev| gtk_configure_event(&ref_state, ev));
-
-        state.cursor.as_mut().unwrap().start();
-    }
-
-    pub fn init_nvim(&mut self, nvim_bin_path: Option<&String>) {
-        let nvim =
-            nvim::initialize(self.state.clone(), nvim_bin_path).expect("Can't start nvim instance");
-        let mut state = self.state.borrow_mut();
-        state.nvim = Some(Rc::new(RefCell::new(nvim)));
     }
 
     pub fn grab_focus(&self) {
@@ -360,11 +410,18 @@ impl Shell {
         let mut nvim = &mut *state.nvim();
         nvim.command(":wa").report_err(nvim);
     }
+
+    pub fn set_detach_cb<F>(&self, cb: Option<F>)
+        where F: FnMut() + Send + 'static
+    {
+        let mut state = self.state.borrow_mut();
+        state.set_detach_cb(cb);
+    }
 }
 
 impl Deref for Shell {
     type Target = gtk::Box;
-    
+
     fn deref(&self) -> &gtk::Box {
         &self.widget
     }
@@ -450,18 +507,52 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
     Inhibit(false)
 }
 
-fn gtk_draw(parent: &ui::Components, state: &mut State, ctx: &cairo::Context) -> Inhibit {
+#[inline]
+fn update_line_metrics(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
+    let mut state = state_arc.borrow_mut();
+
     if state.line_height.is_none() {
-        let (width, height) = calc_char_bounds(state, ctx);
-        state.line_height = Some(height as f64);
-        state.char_width = Some(width as f64);
+        state.calc_line_metrics(ctx);
     }
+}
 
-    draw(state, ctx);
-    request_window_resize(parent, state);
+fn gtk_draw(state: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
+    update_line_metrics(state, ctx);
+    init_nvim(state);
 
+    draw(&*state.borrow(), ctx);
+    request_window_resize(&mut *state.borrow_mut());
 
     Inhibit(false)
+}
+
+
+fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
+    let mut state = state_arc.borrow_mut();
+
+    if state.nvim.is_none() {
+        let (cols, rows) = state.calc_nvim_size().unwrap();
+        let mut nvim = nvim::initialize(state_arc.clone(),
+                                        state.options.nvim_bin_path.as_ref(),
+                                        cols as u64,
+                                        rows as u64)
+                .expect("Can't start nvim instance");
+
+        if let Some(ref path) = state.options.open_path {
+            nvim.command(&format!("e {}", path)).report_err(&mut nvim);
+        }
+
+        let guard = nvim.session.take_dispatch_guard();
+
+        let state_ref = state_arc.clone();
+        thread::spawn(move || {
+            guard.join().expect("Can't join dispatch thread");
+
+            idle_cb_call!(state_ref.detach_cb());
+        });
+
+        state.nvim = Some(Rc::new(RefCell::new(nvim)));
+    }
 }
 
 #[inline]
@@ -500,7 +591,7 @@ fn draw_backgound(state: &State,
 
             if !draw_bitmap.get(col_idx, line_idx) {
                 let (bg, _) = state.colors(cell);
-                
+
                 if &state.bg_color != bg {
                     ctx.set_source_rgb(bg.0, bg.1, bg.2);
                     ctx.rectangle(current_point.0, current_point.1, char_width, line_height);
@@ -533,15 +624,21 @@ fn draw(state: &State, ctx: &cairo::Context) {
     for clip_idx in 0..clip_rects.len() {
         let clip = clip_rects.get(clip_idx).unwrap();
 
-        let model_clip = get_model_clip(state,
-                                        line_height,
-                                        char_width,
-                                        (clip.x, clip.y, clip.x + clip.width, clip.y + clip.height));
+        let model_clip =
+            get_model_clip(state,
+                           line_height,
+                           char_width,
+                           (clip.x, clip.y, clip.x + clip.width, clip.y + clip.height));
 
         let line_x = model_clip.left as f64 * char_width;
         let mut line_y: f64 = model_clip.top as f64 * line_height;
 
-        draw_backgound(state, &draw_bitmap, ctx, line_height, char_width, &model_clip);
+        draw_backgound(state,
+                       &draw_bitmap,
+                       ctx,
+                       line_height,
+                       char_width,
+                       &model_clip);
 
         for (line_idx, line) in state.model.clip_model(&model_clip) {
 
@@ -644,17 +741,7 @@ fn update_font_description(desc: &mut FontDescription, attrs: &Attrs) {
     }
 }
 
-fn calc_char_bounds(shell: &State, ctx: &cairo::Context) -> (i32, i32) {
-    let layout = ctx.create_pango_layout();
-
-    let desc = shell.create_pango_font();
-    layout.set_font_description(Some(&desc));
-    layout.set_text("A", -1);
-
-    layout.get_pixel_size()
-}
-
-fn request_window_resize(parent: &ui::Components, state: &mut State) {
+fn request_window_resize(state: &mut State) {
     if !state.request_resize {
         return;
     }
@@ -670,7 +757,12 @@ fn request_window_resize(parent: &ui::Components, state: &mut State) {
     let request_width = (state.model.columns as f64 * state.char_width.unwrap()) as i32;
 
     if width != request_width || height != request_height {
-        let window = parent.window();
+        let window: gtk::Window = state
+            .drawing_area
+            .get_toplevel()
+            .unwrap()
+            .downcast()
+            .unwrap();
         let (win_width, win_height) = window.get_size();
         let h_border = win_width - width;
         let v_border = win_height - height;
@@ -685,35 +777,26 @@ fn split_color(indexed_color: u64) -> Color {
     Color(r / 255.0, g / 255.0, b / 255.0)
 }
 
-fn gtk_configure_event(state: &Arc<UiMutex<State>>, ev: &EventConfigure) -> bool {
-    let (width, height) = ev.get_size();
-
+fn gtk_configure_event(state: &Arc<UiMutex<State>>, _: &EventConfigure) -> bool {
     let mut state_ref = state.borrow_mut();
 
     if let Some(timer) = state_ref.resize_timer {
         glib::source_remove(timer);
     }
-    if let Some(line_height) = state_ref.line_height {
-        if let Some(char_width) = state_ref.char_width {
+    if let Some((columns, rows)) = state_ref.calc_nvim_size() {
+        let state = state.clone();
+        state_ref.resize_timer = Some(glib::timeout_add(250, move || {
+            let mut state_ref = state.borrow_mut();
 
-            let state = state.clone();
-            state_ref.resize_timer = Some(glib::timeout_add(250, move || {
-                let mut state_ref = state.borrow_mut();
+            state_ref.resize_timer = None;
 
-                state_ref.resize_timer = None;
-
-                let rows = (height as f64 / line_height).trunc() as usize;
-                let columns = (width as f64 / char_width).trunc() as usize;
-                if state_ref.model.rows != rows || state_ref.model.columns != columns {
-                    if let Err(err) = state_ref
-                           .nvim()
-                           .ui_try_resize(columns as u64, rows as u64) {
-                        println!("Error trying resize nvim {}", err);
-                    }
+            if state_ref.model.rows != rows || state_ref.model.columns != columns {
+                if let Err(err) = state_ref.nvim().ui_try_resize(columns as u64, rows as u64) {
+                    println!("Error trying resize nvim {}", err);
                 }
-                Continue(false)
-            }));
-        }
+            }
+            Continue(false)
+        }));
     }
     false
 }
@@ -859,13 +942,9 @@ impl RedrawEvents for State {
                 let point = ModelRect::point(col as usize, row as usize);
                 let (x, y, width, height) = point.to_area(line_height, char_width);
 
-                self.popup_menu.borrow_mut().show(&self,
-                                                      menu,
-                                                      selected,
-                                                      x,
-                                                      y,
-                                                      width,
-                                                      height);
+                self.popup_menu
+                    .borrow_mut()
+                    .show(&self, menu, selected, x, y, width, height);
             }
             _ => (),
         };
@@ -884,8 +963,12 @@ impl RedrawEvents for State {
     }
 
 
-    fn tabline_update(&mut self, selected: Tabpage, tabs: Vec<(Tabpage, Option<&str>)>) -> RepaintMode {
-        self.tabs.update_tabs(&self.nvim.as_ref().unwrap(), &selected, &tabs);
+    fn tabline_update(&mut self,
+                      selected: Tabpage,
+                      tabs: Vec<(Tabpage, Option<&str>)>)
+                      -> RepaintMode {
+        self.tabs
+            .update_tabs(&self.nvim.as_ref().unwrap(), &selected, &tabs);
 
         RepaintMode::Nothing
     }
@@ -910,7 +993,7 @@ impl ModelBitamp {
     pub fn new(cols: usize, rows: usize) -> ModelBitamp {
         let words_for_cols = cols / 64 + 1;
 
-        ModelBitamp { 
+        ModelBitamp {
             words_for_cols: words_for_cols,
             model: vec![0; rows * words_for_cols],
         }
@@ -950,4 +1033,3 @@ mod tests {
         assert_eq!(false, bitmap.get(62, 22));
     }
 }
-

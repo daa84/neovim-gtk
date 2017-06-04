@@ -77,7 +77,9 @@ macro_rules! try_uint {
 }
 
 pub fn initialize(shell: Arc<UiMutex<shell::State>>,
-                  nvim_bin_path: Option<&String>)
+                  nvim_bin_path: Option<&String>,
+                  cols: u64,
+                  rows: u64)
                   -> Result<Neovim> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
@@ -120,7 +122,7 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
     let mut opts = UiAttachOptions::new();
     opts.set_popupmenu_external(false);
     opts.set_tabline_external(true);
-    nvim.ui_attach(80, 24, opts)
+    nvim.ui_attach(cols, rows, opts)
         .map_err(|e| Error::new(ErrorKind::Other, e))?;
     nvim.command("runtime! ginit.vim")
         .map_err(|e| Error::new(ErrorKind::Other, e))?;
