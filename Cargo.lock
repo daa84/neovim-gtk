@@ -56,6 +56,11 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "bitflags"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
 name = "byteorder"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -161,9 +166,9 @@ dependencies = [
 [[package]]
 name = "gio"
 version = "0.1.3"
-source = "git+https://github.com/gtk-rs/gio#7f54acd011ae831a7827c02170d9b90208128a26"
+source = "git+https://github.com/gtk-rs/gio#52757aced2f5e7a24a66fadae1a261cf8a3dd209"
 dependencies = [
- "bitflags 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "gio-sys 0.3.4 (git+https://github.com/gtk-rs/sys)",
  "glib 0.1.3 (git+https://github.com/gtk-rs/glib)",
  "glib-sys 0.3.4 (git+https://github.com/gtk-rs/sys)",
@@ -563,6 +568,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum atk-sys 0.3.4 (git+https://github.com/gtk-rs/sys)" = "<none>"
 "checksum bitflags 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4f67931368edf3a9a51d29886d245f1c3db2f1ef0dcc9e35ff70341b78c10d23"
 "checksum bitflags 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "1370e9fc2a6ae53aea8b7a5110edbd08836ed87c88736dfabccade1c2b44bff4"
+"checksum bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4efd02e230a02e18f92fc2735f44597385ed02ad8f831e7c1c1156ee5e1ab3a5"
 "checksum byteorder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c40977b0ee6b9885c9013cd41d9feffdd22deb3bb4dc3a71d901cc7a77de18c8"
 "checksum c_vec 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "6237ac5a4b1e81c213c24c6437964c61e646df910a914b4ab1487b46df20bd13"
 "checksum cairo-rs 0.1.3 (git+https://github.com/gtk-rs/cairo)" = "<none>"

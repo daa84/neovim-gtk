@@ -73,7 +73,7 @@ impl Ui {
     pub fn init(&mut self,
                 app: &gtk::Application,
                 nvim_bin_path: Option<&String>,
-                open_path: Option<&String>) {
+                open_path: Option<&str>) {
         if self.initialized {
             return;
         }
