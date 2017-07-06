@@ -20,19 +20,21 @@ use neovim_lib::neovim_api::Tabpage;
 use settings::{Settings, FontSource};
 use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim;
-use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport};
+use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient};
 use input;
 use input::keyval_to_input_string;
 use cursor::Cursor;
 use ui::UiMutex;
 use popup_menu::PopupMenu;
 use tabline::Tabline;
+use error;
 
-const DEFAULT_FONT_NAME: &'static str = "DejaVu Sans Mono 12";
+const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
+pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2";
 
 macro_rules! idle_cb_call {
     ($state:ident.$cb:ident($( $x:expr ),*)) => (
-            glib::idle_add(move || {
+            gtk::idle_add(move || {
                                if let Some(ref cb) = $state.borrow().$cb {
                                    (&mut *cb.borrow_mut())($($x),*);
                                }
@@ -58,14 +60,16 @@ pub struct State {
     cur_attrs: Option<Attrs>,
     pub mode: NvimMode,
     mouse_enabled: bool,
-    nvim: Option<Rc<RefCell<Neovim>>>,
+    nvim: Rc<RefCell<NeovimClient>>,
     font_desc: FontDescription,
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
 
+    stack: gtk::Stack,
     drawing_area: gtk::DrawingArea,
     tabs: Tabline,
+    error_area: error::ErrorArea,
 
     line_height: Option<f64>,
     char_width: Option<f64>,
@@ -84,7 +88,7 @@ impl State {
 
         State {
             model: UiModel::new(1, 1),
-            nvim: None,
+            nvim: Rc::new(RefCell::new(NeovimClient::new())),
             cur_attrs: None,
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
@@ -96,8 +100,10 @@ impl State {
             popup_menu,
             settings: settings,
 
+            stack: gtk::Stack::new(),
             drawing_area,
             tabs: Tabline::new(),
+            error_area: error::ErrorArea::new(),
 
             line_height: None,
             char_width: None,
@@ -119,11 +125,11 @@ impl State {
     }
 
     pub fn nvim(&self) -> RefMut<Neovim> {
-        self.nvim.as_ref().unwrap().borrow_mut()
+        RefMut::map(self.nvim.borrow_mut(), |n| n.nvim_mut())
     }
 
-    pub fn nvim_clone(&self) -> Rc<RefCell<Neovim>> {
-        self.nvim.as_ref().unwrap().clone()
+    pub fn nvim_clone(&self) -> Rc<RefCell<NeovimClient>> {
+        self.nvim.clone()
     }
 
     pub fn set_detach_cb<F>(&mut self, cb: Option<F>)
@@ -284,14 +290,27 @@ impl Shell {
         shell
     }
 
+    pub fn is_nvim_initialized(&self) -> bool {
+        let state = self.state.borrow();
+        let nvim = state.nvim.borrow();
+        nvim.is_initialized()
+    }
+
     pub fn init(&mut self) {
         let mut state = self.state.borrow_mut();
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
         state.drawing_area.set_can_focus(true);
 
-        self.widget.pack_start(&*state.tabs, false, true, 0);
-        self.widget.pack_start(&state.drawing_area, true, true, 0);
+        let nvim_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+
+        nvim_box.pack_start(&*state.tabs, false, true, 0);
+        nvim_box.pack_start(&state.drawing_area, true, true, 0);
+
+        state.stack.add_named(&nvim_box, "Nvim");
+        state.stack.add_named(&*state.error_area, "Error");
+
+        self.widget.pack_start(&state.stack, true, true, 0);
 
         state
             .drawing_area
@@ -516,27 +535,45 @@ fn update_line_metrics(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
     }
 }
 
-fn gtk_draw(state: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
-    update_line_metrics(state, ctx);
-    init_nvim(state);
+fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
+    update_line_metrics(state_arc, ctx);
+    init_nvim(state_arc);
 
-    draw(&*state.borrow(), ctx);
-    request_window_resize(&mut *state.borrow_mut());
+    let mut state = state_arc.borrow_mut();
+    // in case nvim not initialized
+    if !state.nvim.borrow().is_error() {
+        draw(&*state, ctx);
+        request_window_resize(&mut *state);
+    }
 
     Inhibit(false)
 }
 
 
 fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
-    let mut state = state_arc.borrow_mut();
+    let state = state_arc.borrow();
 
-    if state.nvim.is_none() {
+    let mut nvim_client = state.nvim.borrow_mut();
+    if !nvim_client.is_initialized() && !nvim_client.is_error() {
         let (cols, rows) = state.calc_nvim_size().unwrap();
-        let mut nvim = nvim::initialize(state_arc.clone(),
-                                        state.options.nvim_bin_path.as_ref(),
-                                        cols as u64,
-                                        rows as u64)
-                .expect("Can't start nvim instance");
+        let mut nvim = match nvim::initialize(state_arc.clone(),
+                                              state.options.nvim_bin_path.as_ref(),
+                                              cols as u64,
+                                              rows as u64) {
+            Ok(nvim) => nvim,
+            Err(err) => {
+                nvim_client.set_error();
+                state.error_area.show_nvim_start_error(&err.source(), err.cmd());
+
+                let stack = state.stack.clone();
+                gtk::idle_add(move || {
+                                  stack.set_visible_child_name("Error");
+                                  Continue(false)
+                              });
+
+                return;
+            }
+        };
 
         if let Some(ref path) = state.options.open_path {
             nvim.command(&format!("e {}", path)).report_err(&mut nvim);
@@ -546,12 +583,12 @@ fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
 
         let state_ref = state_arc.clone();
         thread::spawn(move || {
-            guard.join().expect("Can't join dispatch thread");
+                          guard.join().expect("Can't join dispatch thread");
 
-            idle_cb_call!(state_ref.detach_cb());
-        });
+                          idle_cb_call!(state_ref.detach_cb());
+                      });
 
-        state.nvim = Some(Rc::new(RefCell::new(nvim)));
+        nvim_client.set_nvim(nvim);
     }
 }
 
@@ -783,6 +820,11 @@ fn gtk_configure_event(state: &Arc<UiMutex<State>>, _: &EventConfigure) -> bool 
     if let Some(timer) = state_ref.resize_timer {
         glib::source_remove(timer);
     }
+
+    if !state_ref.nvim.borrow().is_initialized() {
+        return false;
+    }
+
     if let Some((columns, rows)) = state_ref.calc_nvim_size() {
         let state = state.clone();
         state_ref.resize_timer = Some(glib::timeout_add(250, move || {
@@ -967,8 +1009,7 @@ impl RedrawEvents for State {
                       selected: Tabpage,
                       tabs: Vec<(Tabpage, Option<&str>)>)
                       -> RepaintMode {
-        self.tabs
-            .update_tabs(&self.nvim.as_ref().unwrap(), &selected, &tabs);
+        self.tabs.update_tabs(&self.nvim, &selected, &tabs);
 
         RepaintMode::Nothing
     }

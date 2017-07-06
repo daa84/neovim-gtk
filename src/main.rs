@@ -31,6 +31,7 @@ mod shell_dlg;
 mod popup_menu;
 mod project;
 mod tabline;
+mod error;
 
 use std::env;
 use gio::ApplicationExt;

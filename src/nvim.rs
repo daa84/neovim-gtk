@@ -1,8 +1,10 @@
-use std::io::{Result, Error, ErrorKind};
+use std::error;
+use std::fmt;
 use std::env;
 use std::process::{Stdio, Command};
 use std::result;
 use std::sync::Arc;
+use std::ops::{Deref, DerefMut};
 
 use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError, UiOption};
 use neovim_lib::neovim_api::Tabpage;
@@ -76,11 +78,52 @@ macro_rules! try_uint {
     ($exp:expr) => ($exp.as_u64().ok_or("Can't convert argument to u64".to_owned())?)
 }
 
+#[derive(Debug)]
+pub struct NvimInitError {
+    source: Box<error::Error>,
+    cmd: String,
+}
+
+impl NvimInitError {
+    pub fn new<E>(cmd: &Command, error: E) -> NvimInitError
+        where E: Into<Box<error::Error>>
+    {
+        NvimInitError {
+            cmd: format!("{:?}", cmd),
+            source: error.into(),
+        }
+    }
+
+    pub fn source(&self) -> String {
+        format!("{}", self.source)
+    }
+
+    pub fn cmd(&self) -> &str {
+        &self.cmd
+    }
+}
+
+impl fmt::Display for NvimInitError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {        
+        write!(f, "{:?}", self.source)
+    }
+}
+
+impl error::Error for NvimInitError {
+    fn description(&self) -> &str {
+        "Can't start nvim instance"
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        Some(&*self.source)
+    }
+}
+
 pub fn initialize(shell: Arc<UiMutex<shell::State>>,
                   nvim_bin_path: Option<&String>,
                   cols: u64,
                   rows: u64)
-                  -> Result<Neovim> {
+                  -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
     } else {
@@ -108,10 +151,7 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
     let session = Session::new_child_cmd(&mut cmd);
 
     let session = match session {
-        Err(e) => {
-            println!("Error execute: {:?}", cmd);
-            return Err(From::from(e));
-        }
+        Err(e) => return Err(NvimInitError::new(&cmd, e)),
         Ok(s) => s,
     };
 
@@ -123,9 +163,9 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
     opts.set_popupmenu_external(false);
     opts.set_tabline_external(true);
     nvim.ui_attach(cols, rows, opts)
-        .map_err(|e| Error::new(ErrorKind::Other, e))?;
+        .map_err(|e| NvimInitError::new(&cmd, e))?;
     nvim.command("runtime! ginit.vim")
-        .map_err(|e| Error::new(ErrorKind::Other, e))?;
+        .map_err(|e| NvimInitError::new(&cmd, e))?;
 
     Ok(nvim)
 }
@@ -369,6 +409,95 @@ impl RepaintMode {
                 RepaintMode::AreaList(list)
             }
         }
+    }
+}
+
+
+enum NeovimClientWrapper {
+    Uninitialized,
+    Initialized(Neovim),
+    Error,
+}
+
+impl NeovimClientWrapper {
+    pub fn is_initialized(&self) -> bool {
+        match *self {
+            NeovimClientWrapper::Initialized(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_error(&self) -> bool {
+        match *self {
+            NeovimClientWrapper::Error => true,
+            _ => false,
+        }
+    }
+
+    pub fn nvim(&self) -> &Neovim {
+        match *self {
+            NeovimClientWrapper::Initialized(ref nvim) => nvim,
+            NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
+            NeovimClientWrapper::Error => panic!("Access to neovim client that is not started due to some error"),
+        }
+    }
+
+    pub fn nvim_mut(&mut self) -> &mut Neovim {
+        match *self {
+            NeovimClientWrapper::Initialized(ref mut nvim) => nvim,
+            NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
+            NeovimClientWrapper::Error => panic!("Access to neovim client that is not started due to some error"),
+        }
+    }
+}
+
+pub struct NeovimClient {
+    nvim: NeovimClientWrapper
+}
+
+impl NeovimClient {
+    pub fn new() -> Self {
+        NeovimClient { 
+            nvim: NeovimClientWrapper::Uninitialized,
+        }
+    }
+
+    pub fn set_nvim(&mut self, nvim: Neovim) {
+        self.nvim = NeovimClientWrapper::Initialized(nvim);
+    }
+
+    pub fn set_error(&mut self) {
+        self.nvim = NeovimClientWrapper::Error;
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        self.nvim.is_initialized()
+    }
+
+    pub fn is_error(&self) -> bool {
+        self.nvim.is_error()
+    }
+
+    pub fn nvim(&self) -> &Neovim {
+        self.nvim.nvim()
+    }
+
+    pub fn nvim_mut(&mut self) -> &mut Neovim {
+        self.nvim.nvim_mut()
+    }
+}
+
+impl Deref for NeovimClient {
+    type Target = Neovim;
+
+    fn deref(&self) -> &Neovim {
+        self.nvim()
+    }
+}
+
+impl DerefMut for NeovimClient {
+    fn deref_mut(&mut self) -> &mut Neovim {
+        self.nvim_mut()
     }
 }
 

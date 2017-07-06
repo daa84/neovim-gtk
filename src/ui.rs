@@ -159,6 +159,10 @@ fn on_help_about(comps: &Components) {
 }
 
 fn gtk_delete(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
+    if !shell.borrow().is_nvim_initialized() {
+        return Inhibit(false);
+    }
+
     Inhibit(if shell_dlg::can_close_window(comps, shell) {
                 let comps = comps.borrow();
                 comps.close_window();
