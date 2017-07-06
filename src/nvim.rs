@@ -5,6 +5,7 @@ use std::process::{Stdio, Command};
 use std::result;
 use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
+use std::collections::HashMap;
 
 use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError, UiOption};
 use neovim_lib::neovim_api::Tabpage;
@@ -60,6 +61,11 @@ pub trait RedrawEvents {
                       selected: Tabpage,
                       tabs: Vec<(Tabpage, Option<&str>)>)
                       -> RepaintMode;
+
+    fn mode_info_set(&mut self,
+                     cursor_style_enabled: bool,
+                     mode_info: Vec<ModeInfo>)
+                     -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -76,6 +82,61 @@ macro_rules! try_int {
 
 macro_rules! try_uint {
     ($exp:expr) => ($exp.as_u64().ok_or("Can't convert argument to u64".to_owned())?)
+}
+
+macro_rules! try_bool {
+    ($exp:expr) => ($exp.as_bool().ok_or("Can't convert argument to bool".to_owned())?)
+}
+
+pub enum CursorShape {
+    Block,
+    Horizontal,
+    Vertical,
+    Unknown,
+}
+
+impl CursorShape {
+    fn new(shape_code: &Value) -> Result<CursorShape, String> {
+        let str_code = shape_code
+            .as_str()
+            .ok_or("Can't convert cursor shape to string".to_owned())?;
+
+        Ok(match str_code {
+               "block" => CursorShape::Block,
+               "horizontal" => CursorShape::Horizontal,
+               "vertical" => CursorShape::Vertical,
+               _ => {
+                   error!("Unknown cursor_shape {}", str_code);
+                   CursorShape::Unknown
+               }
+           })
+    }
+}
+
+pub struct ModeInfo {
+    cursor_shape: Option<CursorShape>,
+}
+
+impl ModeInfo {
+    pub fn new(mode_info_arr: &Vec<(Value, Value)>) -> Result<Self, String> {
+        let mode_info_map = mode_info_arr
+            .iter()
+            .map(|p| {
+                     p.0
+                         .as_str()
+                         .ok_or("mode_info key not string".to_owned())
+                         .map(|key| (key, p.1.clone()))
+                 })
+            .collect::<Result<HashMap<&str, Value>, String>>()?;
+
+        let cursor_shape = if let Some(shape) = mode_info_map.get("cursor_shape") {
+            Some(CursorShape::new(shape)?)
+        } else {
+            None
+        };
+
+        Ok(ModeInfo { cursor_shape })
+    }
 }
 
 #[derive(Debug)]
@@ -104,7 +165,7 @@ impl NvimInitError {
 }
 
 impl fmt::Display for NvimInitError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {        
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.source)
     }
 }
@@ -352,6 +413,21 @@ fn call(ui: &mut shell::State,
             }
             ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
         }
+        "mode_info_set" => {
+            let mode_info_array = args[1]
+                .as_array()
+                .ok_or("Erro get array key value for mode_info")?;
+
+            let mode_info = mode_info_array
+                .iter()
+                .map(|mi| {
+                         mi.as_map()
+                             .ok_or("Erro get map for mode_info".to_owned())
+                             .and_then(|mi_map| ModeInfo::new(mi_map))
+                     })
+                .collect::<Result<Vec<_>, String>>()?;
+            ui.mode_info_set(try_bool!(args[0]), mode_info)
+        }
         _ => {
             println!("Event {}({:?})", method, args);
             RepaintMode::Nothing
@@ -438,7 +514,9 @@ impl NeovimClientWrapper {
         match *self {
             NeovimClientWrapper::Initialized(ref nvim) => nvim,
             NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
-            NeovimClientWrapper::Error => panic!("Access to neovim client that is not started due to some error"),
+            NeovimClientWrapper::Error => {
+                panic!("Access to neovim client that is not started due to some error")
+            }
         }
     }
 
@@ -446,20 +524,20 @@ impl NeovimClientWrapper {
         match *self {
             NeovimClientWrapper::Initialized(ref mut nvim) => nvim,
             NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
-            NeovimClientWrapper::Error => panic!("Access to neovim client that is not started due to some error"),
+            NeovimClientWrapper::Error => {
+                panic!("Access to neovim client that is not started due to some error")
+            }
         }
     }
 }
 
 pub struct NeovimClient {
-    nvim: NeovimClientWrapper
+    nvim: NeovimClientWrapper,
 }
 
 impl NeovimClient {
     pub fn new() -> Self {
-        NeovimClient { 
-            nvim: NeovimClientWrapper::Uninitialized,
-        }
+        NeovimClient { nvim: NeovimClientWrapper::Uninitialized }
     }
 
     pub fn set_nvim(&mut self, nvim: Neovim) {

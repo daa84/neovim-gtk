@@ -1013,6 +1013,14 @@ impl RedrawEvents for State {
 
         RepaintMode::Nothing
     }
+
+
+    fn mode_info_set(&mut self,
+                     cursor_style_enabled: bool,
+                     mode_info: Vec<nvim::ModeInfo>) -> RepaintMode {
+        // TODO: mode info handle
+        RepaintMode::Nothing
+    }
 }
 
 impl GuiApi for State {
