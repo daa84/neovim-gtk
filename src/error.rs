@@ -37,7 +37,7 @@ impl ErrorArea {
                                        &#9679; Not supported nvim version (minimum supported version is <b>{}</b>)\n\
                                        &#9679; Error in configuration file (init.vim or ginit.vim)\n\
                                        &#9679; Wrong nvim binary path \
-                                       (right path can be passed with <i>--nvim-bin-path=path_here</i> option)", 
+                                       (right path can be passed with <i>--nvim-bin-path=path_here</i>)", 
                                        encode_minimal(cmd), encode_minimal(err), shell::MINIMUM_SUPPORTED_NVIM_VERSION));
         self.base.show_all();
     }
