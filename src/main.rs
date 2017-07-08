@@ -20,6 +20,7 @@ extern crate serde;
 extern crate toml;
 
 mod value;
+mod mode;
 mod ui_model;
 #[macro_use]
 mod ui;

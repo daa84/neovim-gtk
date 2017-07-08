@@ -2,7 +2,7 @@ use cairo;
 use ui_model::Color;
 use ui::UiMutex;
 use shell;
-use shell::NvimMode;
+use mode;
 use nvim::{RepaintMode, RedrawEvents};
 use std::sync::{Arc, Weak};
 
@@ -123,7 +123,7 @@ impl Cursor {
         let current_point = ctx.get_current_point();
         ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.6 * state.alpha.0);
 
-        let cursor_width = if shell.mode == NvimMode::Insert {
+        let cursor_width = if shell.mode.is(&mode::NvimMode::Insert) {
             char_width / 5.0
         } else {
             if double_width {

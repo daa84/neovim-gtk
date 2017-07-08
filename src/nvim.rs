@@ -41,7 +41,7 @@ pub trait RedrawEvents {
 
     fn on_update_sp(&mut self, sp: i64) -> RepaintMode;
 
-    fn on_mode_change(&mut self, mode: &str) -> RepaintMode;
+    fn on_mode_change(&mut self, mode: &str, idx: u64) -> RepaintMode;
 
     fn on_mouse(&mut self, on: bool) -> RepaintMode;
 
@@ -106,6 +106,7 @@ macro_rules! map_array {
     );
 }
 
+#[derive(Debug)]
 pub enum CursorShape {
     Block,
     Horizontal,
@@ -131,8 +132,10 @@ impl CursorShape {
     }
 }
 
+#[derive(Debug)]
 pub struct ModeInfo {
     cursor_shape: Option<CursorShape>,
+    cell_percentage: Option<u64>,
 }
 
 impl ModeInfo {
@@ -145,7 +148,16 @@ impl ModeInfo {
             None
         };
 
-        Ok(ModeInfo { cursor_shape })
+        let cell_percentage = if let Some(cell_percentage) = mode_info_map.get("cell_percentage") {
+            cell_percentage.as_u64()
+        } else {
+            None
+        };
+
+        Ok(ModeInfo {
+               cursor_shape,
+               cell_percentage,
+           })
     }
 }
 
@@ -376,7 +388,7 @@ fn call(ui: &mut shell::State,
         "update_bg" => ui.on_update_bg(try_int!(args[0])),
         "update_fg" => ui.on_update_fg(try_int!(args[0])),
         "update_sp" => ui.on_update_sp(try_int!(args[0])),
-        "mode_change" => ui.on_mode_change(try_str!(args[0])),
+        "mode_change" => ui.on_mode_change(try_str!(args[0]), try_uint!(args[1])),
         "mouse_on" => ui.on_mouse(true),
         "mouse_off" => ui.on_mouse(false),
         "busy_start" => ui.on_busy(true),
