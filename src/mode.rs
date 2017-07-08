@@ -26,6 +26,13 @@ impl Mode {
         self.mode == *mode
     }
 
+    pub fn mode_info(&self) -> nvim::ModeInfo {
+        self.info
+            .as_ref()
+            .and_then(|i| i.get(self.idx).cloned())
+            .unwrap_or_else(nvim::ModeInfo::default)
+    }
+
     pub fn update(&mut self, mode: &str, idx: usize) {
         match mode {
             "normal" => self.mode = NvimMode::Normal,
