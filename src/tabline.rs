@@ -69,7 +69,7 @@ impl Tabline {
     fn update_state(&self,
                     nvim: &Rc<RefCell<nvim::NeovimClient>>,
                     selected: &Tabpage,
-                    tabs: &Vec<(Tabpage, Option<&str>)>) {
+                    tabs: &Vec<(Tabpage, Option<String>)>) {
         let mut state = self.state.borrow_mut();
 
         if state.nvim.is_none() {
@@ -84,7 +84,7 @@ impl Tabline {
     pub fn update_tabs(&self,
                        nvim: &Rc<RefCell<nvim::NeovimClient>>,
                        selected: &Tabpage,
-                       tabs: &Vec<(Tabpage, Option<&str>)>) {
+                       tabs: &Vec<(Tabpage, Option<String>)>) {
         if tabs.len() <= 1 {
             self.tabs.hide();
             return;
@@ -113,7 +113,7 @@ impl Tabline {
         for (idx, tab) in tabs.iter().enumerate() {
             let tab_child = self.tabs.get_nth_page(Some(idx as u32));
             self.tabs
-                .set_tab_label_text(&tab_child.unwrap(), &tab.1.unwrap_or("??"));
+                .set_tab_label_text(&tab_child.unwrap(), &tab.1.as_ref().unwrap_or(&"??".to_owned()));
 
             if *selected == tab.0 {
                 self.tabs.set_current_page(Some(idx as u32));

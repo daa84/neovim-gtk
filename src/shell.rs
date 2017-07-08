@@ -1007,7 +1007,7 @@ impl RedrawEvents for State {
 
     fn tabline_update(&mut self,
                       selected: Tabpage,
-                      tabs: Vec<(Tabpage, Option<&str>)>)
+                      tabs: Vec<(Tabpage, Option<String>)>)
                       -> RepaintMode {
         self.tabs.update_tabs(&self.nvim, &selected, &tabs);
 

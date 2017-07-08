@@ -5,7 +5,6 @@ use std::process::{Stdio, Command};
 use std::result;
 use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
-use std::collections::HashMap;
 
 use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError, UiOption};
 use neovim_lib::neovim_api::Tabpage;
@@ -14,6 +13,8 @@ use ui::UiMutex;
 use ui_model::{ModelRect, ModelRectVec};
 use shell;
 use glib;
+
+use value::ValueMapExt;
 
 pub trait RedrawEvents {
     fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode;
@@ -59,7 +60,7 @@ pub trait RedrawEvents {
 
     fn tabline_update(&mut self,
                       selected: Tabpage,
-                      tabs: Vec<(Tabpage, Option<&str>)>)
+                      tabs: Vec<(Tabpage, Option<String>)>)
                       -> RepaintMode;
 
     fn mode_info_set(&mut self,
@@ -86,6 +87,23 @@ macro_rules! try_uint {
 
 macro_rules! try_bool {
     ($exp:expr) => ($exp.as_bool().ok_or("Can't convert argument to bool".to_owned())?)
+}
+
+macro_rules! map_array {
+    ($arg:expr, $err:expr, |$item:ident| $exp:expr) => (
+        $arg.as_array()
+            .ok_or($err)
+            .and_then(|items| items.iter().map(|$item| {
+                $exp
+            }).collect::<Result<Vec<_>, _>>())
+    );
+    ($arg:expr, $err:expr, |$item:ident| {$exp:expr}) => (
+        $arg.as_array()
+            .ok_or($err)
+            .and_then(|items| items.iter().map(|$item| {
+                $exp
+            }).collect::<Result<Vec<_>, _>>())
+    );
 }
 
 pub enum CursorShape {
@@ -119,15 +137,7 @@ pub struct ModeInfo {
 
 impl ModeInfo {
     pub fn new(mode_info_arr: &Vec<(Value, Value)>) -> Result<Self, String> {
-        let mode_info_map = mode_info_arr
-            .iter()
-            .map(|p| {
-                     p.0
-                         .as_str()
-                         .ok_or("mode_info key not string".to_owned())
-                         .map(|key| (key, p.1.clone()))
-                 })
-            .collect::<Result<HashMap<&str, Value>, String>>()?;
+        let mode_info_map = mode_info_arr.to_attrs_map()?;
 
         let cursor_shape = if let Some(shape) = mode_info_map.get("cursor_shape") {
             Some(CursorShape::new(shape)?)
@@ -372,17 +382,11 @@ fn call(ui: &mut shell::State,
         "busy_start" => ui.on_busy(true),
         "busy_stop" => ui.on_busy(false),
         "popupmenu_show" => {
-            let mut menu_items = Vec::new();
-
-            let items = args[0].as_array().ok_or("Error get menu list array")?;
-            for item in items {
-                let item_line: result::Result<Vec<_>, &str> = item.as_array()
-                    .ok_or("Error get menu item array")?
-                    .iter()
-                    .map(|col| col.as_str().ok_or("Error get menu column"))
-                    .collect();
-                menu_items.push(item_line?);
-            }
+            let menu_items = map_array!(args[0], "Error get menu list array", |item| {
+                map_array!(item,
+                           "Error get menu item array",
+                           |col| col.as_str().ok_or("Error get menu column"))
+            })?;
 
             ui.popupmenu_show(&menu_items,
                               try_int!(args[1]),
@@ -392,40 +396,32 @@ fn call(ui: &mut shell::State,
         "popupmenu_hide" => ui.popupmenu_hide(),
         "popupmenu_select" => ui.popupmenu_select(try_int!(args[0])),
         "tabline_update" => {
-            let tabs_in = args[1].as_array().ok_or("Error get tabline list")?;
+            let tabs_out = map_array!(args[1], "Error get tabline list".to_owned(), |tab| {
+                tab.as_map()
+                    .ok_or("Error get map for tab".to_owned())
+                    .and_then(|tab_map| tab_map.to_attrs_map())
+                    .map(|tab_attrs| {
+                        let name_attr = tab_attrs
+                            .get("name")
+                            .and_then(|n| n.as_str().map(|s| s.to_owned()));
+                        let tab_attr = tab_attrs
+                            .get("tab")
+                            .map(|tab_id| Tabpage::new(tab_id.clone()))
+                            .unwrap();
 
-            let mut tabs_out = Vec::new();
-            for tab in tabs_in {
-                let tab_attrs = tab.as_map().ok_or("Error get map for tab")?;
-
-                let mut tab_attr = None;
-                let mut name_attr = None;
-
-                for attr in tab_attrs {
-                    let key = attr.0.as_str().ok_or("Error get key value")?;
-                    if key == "tab" {
-                        tab_attr = Some(Tabpage::new(attr.1.clone()));
-                    } else if key == "name" {
-                        name_attr = attr.1.as_str();
-                    }
-                }
-                tabs_out.push((tab_attr.unwrap(), name_attr));
-            }
+                        (tab_attr, name_attr)
+                    })
+            })?;
             ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
         }
         "mode_info_set" => {
-            let mode_info_array = args[1]
-                .as_array()
-                .ok_or("Erro get array key value for mode_info")?;
-
-            let mode_info = mode_info_array
-                .iter()
-                .map(|mi| {
-                         mi.as_map()
-                             .ok_or("Erro get map for mode_info".to_owned())
-                             .and_then(|mi_map| ModeInfo::new(mi_map))
-                     })
-                .collect::<Result<Vec<_>, String>>()?;
+            let mode_info = map_array!(args[1],
+                                       "Error get array key value for mode_info".to_owned(),
+                                       |mi| {
+                                           mi.as_map()
+                                               .ok_or("Erro get map for mode_info".to_owned())
+                                               .and_then(|mi_map| ModeInfo::new(mi_map))
+                                       })?;
             ui.mode_info_set(try_bool!(args[0]), mode_info)
         }
         _ => {
