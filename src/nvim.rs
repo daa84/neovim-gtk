@@ -139,13 +139,6 @@ pub struct ModeInfo {
 }
 
 impl ModeInfo {
-    pub fn default() -> Self {
-        ModeInfo {
-            cursor_shape: Some(CursorShape::Block),
-            cell_percentage: None,
-        }
-    }
-
     pub fn new(mode_info_arr: &Vec<(Value, Value)>) -> Result<Self, String> {
         let mode_info_map = mode_info_arr.to_attrs_map()?;
 
@@ -167,12 +160,12 @@ impl ModeInfo {
            })
     }
 
-    pub fn cursor_shape(&self) -> CursorShape {
-        self.cursor_shape.as_ref().cloned().unwrap_or(CursorShape::Block)
+    pub fn cursor_shape(&self) -> Option<&CursorShape> {
+        self.cursor_shape.as_ref()
     }
 
     pub fn cell_percentage(&self) -> u64 {
-        self.cell_percentage.unwrap_or(100)
+        self.cell_percentage.unwrap_or(0)
     }
 }
 
