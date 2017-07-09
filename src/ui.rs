@@ -125,7 +125,13 @@ impl Ui {
         shell.grab_focus();
 
         let comps_ref = self.comps.clone();
-        shell.set_detach_cb(Some(move || comps_ref.borrow().close_window()));
+        shell.set_detach_cb(Some(move || { 
+            let comps_ref = comps_ref.clone();
+            gtk::idle_add(move || {
+                comps_ref.borrow().close_window();
+                Continue(false)
+            });
+        }));
     }
 
     fn create_main_menu(&self, app: &gtk::Application) {

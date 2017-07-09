@@ -34,7 +34,7 @@ pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2";
 
 macro_rules! idle_cb_call {
     ($state:ident.$cb:ident($( $x:expr ),*)) => (
-            gtk::idle_add(move || {
+            glib::idle_add(move || {
                                if let Some(ref cb) = $state.borrow().$cb {
                                    (&mut *cb.borrow_mut())($($x),*);
                                }
