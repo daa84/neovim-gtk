@@ -28,6 +28,7 @@ use ui::UiMutex;
 use popup_menu::PopupMenu;
 use tabline::Tabline;
 use error;
+use mode;
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2";
@@ -44,27 +45,20 @@ macro_rules! idle_cb_call {
     )
 }
 
-
-#[derive(PartialEq)]
-pub enum NvimMode {
-    Normal,
-    Insert,
-    Other,
-}
-
 pub struct State {
     pub model: UiModel,
     bg_color: Color,
     fg_color: Color,
     sp_color: Color,
     cur_attrs: Option<Attrs>,
-    pub mode: NvimMode,
     mouse_enabled: bool,
     nvim: Rc<RefCell<NeovimClient>>,
     font_desc: FontDescription,
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
+
+    pub mode: mode::Mode,
 
     stack: gtk::Stack,
     drawing_area: gtk::DrawingArea,
@@ -93,13 +87,15 @@ impl State {
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
             sp_color: COLOR_RED,
-            mode: NvimMode::Normal,
             mouse_enabled: true,
             font_desc: FontDescription::from_string(DEFAULT_FONT_NAME),
             cursor: None,
             popup_menu,
             settings: settings,
 
+            mode: mode::Mode::new(),
+
+            // UI
             stack: gtk::Stack::new(),
             drawing_area,
             tabs: Tabline::new(),
@@ -414,7 +410,7 @@ impl Shell {
 
     pub fn edit_paste(&self) {
         let state = self.state.borrow();
-        let paste_command = if state.mode == NvimMode::Normal {
+        let paste_command = if state.mode.is(&mode::NvimMode::Normal) {
             "\"*p"
         } else {
             "<Esc>\"*pa"
@@ -949,13 +945,8 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn on_mode_change(&mut self, mode: &str) -> RepaintMode {
-        match mode {
-            "normal" => self.mode = NvimMode::Normal,
-            "insert" => self.mode = NvimMode::Insert,
-            _ => self.mode = NvimMode::Other,
-        }
-
+    fn on_mode_change(&mut self, mode: &str, idx: u64) -> RepaintMode {
+        self.mode.update(mode, idx as usize);
         RepaintMode::Area(self.model.cur_point())
     }
 
@@ -1007,10 +998,18 @@ impl RedrawEvents for State {
 
     fn tabline_update(&mut self,
                       selected: Tabpage,
-                      tabs: Vec<(Tabpage, Option<&str>)>)
+                      tabs: Vec<(Tabpage, Option<String>)>)
                       -> RepaintMode {
         self.tabs.update_tabs(&self.nvim, &selected, &tabs);
 
+        RepaintMode::Nothing
+    }
+
+
+    fn mode_info_set(&mut self,
+                     cursor_style_enabled: bool,
+                     mode_info: Vec<nvim::ModeInfo>) -> RepaintMode {
+        self.mode.set_info(cursor_style_enabled, mode_info);
         RepaintMode::Nothing
     }
 }
