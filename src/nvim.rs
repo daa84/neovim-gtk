@@ -1,8 +1,10 @@
-use std::io::{Result, Error, ErrorKind};
+use std::error;
+use std::fmt;
 use std::env;
 use std::process::{Stdio, Command};
 use std::result;
 use std::sync::Arc;
+use std::ops::{Deref, DerefMut};
 
 use neovim_lib::{Handler, Neovim, NeovimApi, Session, Value, UiAttachOptions, CallError, UiOption};
 use neovim_lib::neovim_api::Tabpage;
@@ -11,6 +13,8 @@ use ui::UiMutex;
 use ui_model::{ModelRect, ModelRectVec};
 use shell;
 use glib;
+
+use value::ValueMapExt;
 
 pub trait RedrawEvents {
     fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode;
@@ -37,7 +41,7 @@ pub trait RedrawEvents {
 
     fn on_update_sp(&mut self, sp: i64) -> RepaintMode;
 
-    fn on_mode_change(&mut self, mode: &str) -> RepaintMode;
+    fn on_mode_change(&mut self, mode: &str, idx: u64) -> RepaintMode;
 
     fn on_mouse(&mut self, on: bool) -> RepaintMode;
 
@@ -56,8 +60,13 @@ pub trait RedrawEvents {
 
     fn tabline_update(&mut self,
                       selected: Tabpage,
-                      tabs: Vec<(Tabpage, Option<&str>)>)
+                      tabs: Vec<(Tabpage, Option<String>)>)
                       -> RepaintMode;
+
+    fn mode_info_set(&mut self,
+                     cursor_style_enabled: bool,
+                     mode_info: Vec<ModeInfo>)
+                     -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -76,9 +85,136 @@ macro_rules! try_uint {
     ($exp:expr) => ($exp.as_u64().ok_or("Can't convert argument to u64".to_owned())?)
 }
 
+macro_rules! try_bool {
+    ($exp:expr) => ($exp.as_bool().ok_or("Can't convert argument to bool".to_owned())?)
+}
+
+macro_rules! map_array {
+    ($arg:expr, $err:expr, |$item:ident| $exp:expr) => (
+        $arg.as_array()
+            .ok_or($err)
+            .and_then(|items| items.iter().map(|$item| {
+                $exp
+            }).collect::<Result<Vec<_>, _>>())
+    );
+    ($arg:expr, $err:expr, |$item:ident| {$exp:expr}) => (
+        $arg.as_array()
+            .ok_or($err)
+            .and_then(|items| items.iter().map(|$item| {
+                $exp
+            }).collect::<Result<Vec<_>, _>>())
+    );
+}
+
+#[derive(Debug, Clone)]
+pub enum CursorShape {
+    Block,
+    Horizontal,
+    Vertical,
+    Unknown,
+}
+
+impl CursorShape {
+    fn new(shape_code: &Value) -> Result<CursorShape, String> {
+        let str_code = shape_code
+            .as_str()
+            .ok_or("Can't convert cursor shape to string".to_owned())?;
+
+        Ok(match str_code {
+               "block" => CursorShape::Block,
+               "horizontal" => CursorShape::Horizontal,
+               "vertical" => CursorShape::Vertical,
+               _ => {
+                   error!("Unknown cursor_shape {}", str_code);
+                   CursorShape::Unknown
+               }
+           })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ModeInfo {
+    cursor_shape: Option<CursorShape>,
+    cell_percentage: Option<u64>,
+}
+
+impl ModeInfo {
+    pub fn new(mode_info_arr: &Vec<(Value, Value)>) -> Result<Self, String> {
+        let mode_info_map = mode_info_arr.to_attrs_map()?;
+
+        let cursor_shape = if let Some(shape) = mode_info_map.get("cursor_shape") {
+            Some(CursorShape::new(shape)?)
+        } else {
+            None
+        };
+
+        let cell_percentage = if let Some(cell_percentage) = mode_info_map.get("cell_percentage") {
+            cell_percentage.as_u64()
+        } else {
+            None
+        };
+
+        Ok(ModeInfo {
+               cursor_shape,
+               cell_percentage,
+           })
+    }
+
+    pub fn cursor_shape(&self) -> Option<&CursorShape> {
+        self.cursor_shape.as_ref()
+    }
+
+    pub fn cell_percentage(&self) -> u64 {
+        self.cell_percentage.unwrap_or(0)
+    }
+}
+
+#[derive(Debug)]
+pub struct NvimInitError {
+    source: Box<error::Error>,
+    cmd: String,
+}
+
+impl NvimInitError {
+    pub fn new<E>(cmd: &Command, error: E) -> NvimInitError
+        where E: Into<Box<error::Error>>
+    {
+        NvimInitError {
+            cmd: format!("{:?}", cmd),
+            source: error.into(),
+        }
+    }
+
+    pub fn source(&self) -> String {
+        format!("{}", self.source)
+    }
+
+    pub fn cmd(&self) -> &str {
+        &self.cmd
+    }
+}
+
+impl fmt::Display for NvimInitError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.source)
+    }
+}
+
+impl error::Error for NvimInitError {
+    fn description(&self) -> &str {
+        "Can't start nvim instance"
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        Some(&*self.source)
+    }
+}
+
 pub fn initialize(shell: Arc<UiMutex<shell::State>>,
-                  nvim_bin_path: Option<&String>)
-                  -> Result<Neovim> {
+                  nvim_bin_path: Option<&String>,
+                  cols: u64,
+                  rows: u64)
+                  -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
     } else {
@@ -106,10 +242,7 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
     let session = Session::new_child_cmd(&mut cmd);
 
     let session = match session {
-        Err(e) => {
-            println!("Error execute: {:?}", cmd);
-            return Err(From::from(e));
-        }
+        Err(e) => return Err(NvimInitError::new(&cmd, e)),
         Ok(s) => s,
     };
 
@@ -120,10 +253,10 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
     let mut opts = UiAttachOptions::new();
     opts.set_popupmenu_external(false);
     opts.set_tabline_external(true);
-    nvim.ui_attach(80, 24, opts)
-        .map_err(|e| Error::new(ErrorKind::Other, e))?;
+    nvim.ui_attach(cols, rows, opts)
+        .map_err(|e| NvimInitError::new(&cmd, e))?;
     nvim.command("runtime! ginit.vim")
-        .map_err(|e| Error::new(ErrorKind::Other, e))?;
+        .map_err(|e| NvimInitError::new(&cmd, e))?;
 
     Ok(nvim)
 }
@@ -263,23 +396,17 @@ fn call(ui: &mut shell::State,
         "update_bg" => ui.on_update_bg(try_int!(args[0])),
         "update_fg" => ui.on_update_fg(try_int!(args[0])),
         "update_sp" => ui.on_update_sp(try_int!(args[0])),
-        "mode_change" => ui.on_mode_change(try_str!(args[0])),
+        "mode_change" => ui.on_mode_change(try_str!(args[0]), try_uint!(args[1])),
         "mouse_on" => ui.on_mouse(true),
         "mouse_off" => ui.on_mouse(false),
         "busy_start" => ui.on_busy(true),
         "busy_stop" => ui.on_busy(false),
         "popupmenu_show" => {
-            let mut menu_items = Vec::new();
-
-            let items = args[0].as_array().ok_or("Error get menu list array")?;
-            for item in items {
-                let item_line: result::Result<Vec<_>, &str> = item.as_array()
-                    .ok_or("Error get menu item array")?
-                    .iter()
-                    .map(|col| col.as_str().ok_or("Error get menu column"))
-                    .collect();
-                menu_items.push(item_line?);
-            }
+            let menu_items = map_array!(args[0], "Error get menu list array", |item| {
+                map_array!(item,
+                           "Error get menu item array",
+                           |col| col.as_str().ok_or("Error get menu column"))
+            })?;
 
             ui.popupmenu_show(&menu_items,
                               try_int!(args[1]),
@@ -289,26 +416,33 @@ fn call(ui: &mut shell::State,
         "popupmenu_hide" => ui.popupmenu_hide(),
         "popupmenu_select" => ui.popupmenu_select(try_int!(args[0])),
         "tabline_update" => {
-            let tabs_in = args[1].as_array().ok_or("Error get tabline list")?;
+            let tabs_out = map_array!(args[1], "Error get tabline list".to_owned(), |tab| {
+                tab.as_map()
+                    .ok_or("Error get map for tab".to_owned())
+                    .and_then(|tab_map| tab_map.to_attrs_map())
+                    .map(|tab_attrs| {
+                        let name_attr = tab_attrs
+                            .get("name")
+                            .and_then(|n| n.as_str().map(|s| s.to_owned()));
+                        let tab_attr = tab_attrs
+                            .get("tab")
+                            .map(|tab_id| Tabpage::new(tab_id.clone()))
+                            .unwrap();
 
-            let mut tabs_out = Vec::new();
-            for tab in tabs_in {
-                let tab_attrs = tab.as_map().ok_or("Error get map for tab")?;
-
-                let mut tab_attr = None;
-                let mut name_attr = None;
-
-                for attr in tab_attrs {
-                    let key = attr.0.as_str().ok_or("Error get key value")?;
-                    if key == "tab" {
-                        tab_attr = Some(Tabpage::new(attr.1.clone()));
-                    } else if key == "name" {
-                        name_attr = attr.1.as_str();
-                    }
-                }
-                tabs_out.push((tab_attr.unwrap(), name_attr));
-            }
+                        (tab_attr, name_attr)
+                    })
+            })?;
             ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
+        }
+        "mode_info_set" => {
+            let mode_info = map_array!(args[1],
+                                       "Error get array key value for mode_info".to_owned(),
+                                       |mi| {
+                                           mi.as_map()
+                                               .ok_or("Erro get map for mode_info".to_owned())
+                                               .and_then(|mi_map| ModeInfo::new(mi_map))
+                                       })?;
+            ui.mode_info_set(try_bool!(args[0]), mode_info)
         }
         _ => {
             println!("Event {}({:?})", method, args);
@@ -367,6 +501,97 @@ impl RepaintMode {
                 RepaintMode::AreaList(list)
             }
         }
+    }
+}
+
+
+enum NeovimClientWrapper {
+    Uninitialized,
+    Initialized(Neovim),
+    Error,
+}
+
+impl NeovimClientWrapper {
+    pub fn is_initialized(&self) -> bool {
+        match *self {
+            NeovimClientWrapper::Initialized(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_error(&self) -> bool {
+        match *self {
+            NeovimClientWrapper::Error => true,
+            _ => false,
+        }
+    }
+
+    pub fn nvim(&self) -> &Neovim {
+        match *self {
+            NeovimClientWrapper::Initialized(ref nvim) => nvim,
+            NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
+            NeovimClientWrapper::Error => {
+                panic!("Access to neovim client that is not started due to some error")
+            }
+        }
+    }
+
+    pub fn nvim_mut(&mut self) -> &mut Neovim {
+        match *self {
+            NeovimClientWrapper::Initialized(ref mut nvim) => nvim,
+            NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
+            NeovimClientWrapper::Error => {
+                panic!("Access to neovim client that is not started due to some error")
+            }
+        }
+    }
+}
+
+pub struct NeovimClient {
+    nvim: NeovimClientWrapper,
+}
+
+impl NeovimClient {
+    pub fn new() -> Self {
+        NeovimClient { nvim: NeovimClientWrapper::Uninitialized }
+    }
+
+    pub fn set_nvim(&mut self, nvim: Neovim) {
+        self.nvim = NeovimClientWrapper::Initialized(nvim);
+    }
+
+    pub fn set_error(&mut self) {
+        self.nvim = NeovimClientWrapper::Error;
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        self.nvim.is_initialized()
+    }
+
+    pub fn is_error(&self) -> bool {
+        self.nvim.is_error()
+    }
+
+    pub fn nvim(&self) -> &Neovim {
+        self.nvim.nvim()
+    }
+
+    pub fn nvim_mut(&mut self) -> &mut Neovim {
+        self.nvim.nvim_mut()
+    }
+}
+
+impl Deref for NeovimClient {
+    type Target = Neovim;
+
+    fn deref(&self) -> &Neovim {
+        self.nvim()
+    }
+}
+
+impl DerefMut for NeovimClient {
+    fn deref_mut(&mut self) -> &mut Neovim {
+        self.nvim_mut()
     }
 }
 

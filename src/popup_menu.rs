@@ -9,6 +9,7 @@ use gdk::{EventButton, EventType};
 
 use neovim_lib::{Neovim, NeovimApi};
 
+use nvim;
 use nvim::ErrorReport;
 use shell;
 use input;
@@ -16,7 +17,7 @@ use input;
 const MAX_VISIBLE_ROWS: i32 = 10;
 
 struct State {
-    nvim: Option<Rc<RefCell<Neovim>>>,
+    nvim: Option<Rc<RefCell<nvim::NeovimClient>>>,
     renderer: gtk::CellRendererText,
     tree: gtk::TreeView,
     scroll: gtk::ScrolledWindow,

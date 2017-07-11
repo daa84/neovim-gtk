@@ -19,6 +19,8 @@ extern crate serde_derive;
 extern crate serde;
 extern crate toml;
 
+mod value;
+mod mode;
 mod ui_model;
 #[macro_use]
 mod ui;
@@ -31,13 +33,15 @@ mod shell_dlg;
 mod popup_menu;
 mod project;
 mod tabline;
+mod error;
 
 
 use std::env;
-use gtk::prelude::*;
 use gio::{ApplicationExt, FileExt};
 
 use ui::Ui;
+
+use shell::ShellOptions;
 
 const BIN_PATH_ARG: &'static str = "--nvim-bin-path";
 
@@ -65,25 +69,22 @@ fn main() {
         .filter(|a| !a.starts_with(BIN_PATH_ARG))
         .map(String::as_str)
         .collect();
-    app.run(argv.len() as i32, &argv);
+    app.run(&argv);
 }
 
 fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
     for f in files {
-        let mut ui = Ui::new();
+        let mut ui = Ui::new(ShellOptions::new(nvim_bin_path(std::env::args()),
+                f.get_path().and_then(|p| p.to_str().map(str::to_owned))));
 
-        ui.init(app,
-                nvim_bin_path(std::env::args()).as_ref(),
-                f.get_path().as_ref().map(|p| p.to_str()).unwrap_or(None));
+        ui.init(app);
     }
 }
 
 fn activate(app: &gtk::Application) {
-    let mut ui = Ui::new();
+    let mut ui = Ui::new(ShellOptions::new(nvim_bin_path(std::env::args()), None));
 
-    ui.init(app,
-            nvim_bin_path(std::env::args()).as_ref(),
-            None);
+    ui.init(app);
 }
 
 fn nvim_bin_path<I>(args: I) -> Option<String>

@@ -10,10 +10,9 @@ use gtk::ApplicationExt;
 use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image, AboutDialog};
 use gio::prelude::*;
 use gio::{Menu, MenuExt, MenuItem, MenuItemExt, SimpleAction};
-use glib;
 
 use settings::Settings;
-use shell::Shell;
+use shell::{Shell, ShellOptions};
 use shell_dlg;
 use project::Projects;
 
@@ -53,10 +52,10 @@ impl Components {
 }
 
 impl Ui {
-    pub fn new() -> Ui {
+    pub fn new(options: ShellOptions) -> Ui {
         let comps = Arc::new(UiMutex::new(Components::new()));
         let settings = Rc::new(RefCell::new(Settings::new()));
-        let shell = Rc::new(RefCell::new(Shell::new(settings.clone(), &comps)));
+        let shell = Rc::new(RefCell::new(Shell::new(settings.clone(), options)));
         settings.borrow_mut().set_shell(Rc::downgrade(&shell));
 
         let projects = Projects::new(&comps.borrow().open_btn, shell.clone());
@@ -70,10 +69,7 @@ impl Ui {
         }
     }
 
-    pub fn init(&mut self,
-                app: &gtk::Application,
-                nvim_bin_path: Option<&String>,
-                open_path: Option<&str>) {
+    pub fn init(&mut self, app: &gtk::Application) {
         if self.initialized {
             return;
         }
@@ -91,7 +87,9 @@ impl Ui {
 
         let projects = self.projects.clone();
         comps.header_bar.pack_start(&comps.open_btn);
-        comps.open_btn.connect_clicked(move |_| projects.borrow_mut().show());
+        comps
+            .open_btn
+            .connect_clicked(move |_| projects.borrow_mut().show());
 
         let save_image = Image::new_from_icon_name("document-save",
                                                    gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
@@ -114,40 +112,28 @@ impl Ui {
         let window = comps.window.as_ref().unwrap();
 
         window.set_titlebar(Some(&comps.header_bar));
+        window.set_default_size(800, 600);
 
-        let mut shell = self.shell.borrow_mut();
+        let shell = self.shell.borrow();
         window.add(&**shell);
 
         window.show_all();
-        window.set_title("Neovim-gtk");
+        window.set_title("NeoVim-gtk");
 
         let comps_ref = self.comps.clone();
         let shell_ref = self.shell.clone();
         window.connect_delete_event(move |_, _| gtk_delete(&*comps_ref, &*shell_ref));
 
-        shell.add_configure_event();
-        shell.init_nvim(nvim_bin_path);
         shell.grab_focus();
 
-        if open_path.is_some() {
-            shell.open_file(open_path.unwrap());
-        }
-
-        self.guard_dispatch_thread(&mut shell);
-    }
-
-    fn guard_dispatch_thread(&self, shell: &mut Shell) {
-        let state = shell.state.borrow();
-        let guard = state.nvim().session.take_dispatch_guard();
-
-        let comps = self.comps.clone();
-        thread::spawn(move || {
-                          guard.join().expect("Can't join dispatch thread");
-                          glib::idle_add(move || {
-                                             comps.borrow().close_window();
-                                             glib::Continue(false)
-                                         });
-                      });
+        let comps_ref = self.comps.clone();
+        shell.set_detach_cb(Some(move || { 
+            let comps_ref = comps_ref.clone();
+            gtk::idle_add(move || {
+                comps_ref.borrow().close_window();
+                Continue(false)
+            });
+        }));
     }
 
     fn create_main_menu(&self, app: &gtk::Application) {
@@ -181,6 +167,10 @@ fn on_help_about(comps: &Components) {
 }
 
 fn gtk_delete(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
+    if !shell.borrow().is_nvim_initialized() {
+        return Inhibit(false);
+    }
+
     Inhibit(if shell_dlg::can_close_window(comps, shell) {
                 let comps = comps.borrow();
                 comps.close_window();
