@@ -250,6 +250,7 @@ impl UiState {
     }
 }
 
+#[derive(Clone)]
 pub struct ShellOptions {
     nvim_bin_path: Option<String>,
     open_path: Option<String>,
@@ -545,46 +546,82 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     Inhibit(false)
 }
 
+fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
+                   options: ShellOptions,
+                   cols: usize,
+                   rows: usize) {
+    // execute nvim
+    let mut nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
+        Ok(nvim) => nvim,
+        Err(err) => {
+            // TODO: process error //
+            return;
+        }
+    };
+
+    // add callback on session end
+    let guard = nvim.session.take_dispatch_guard();
+    let state_ref = state_arc.clone();
+    thread::spawn(move || {
+                      guard.join().expect("Can't join dispatch thread");
+
+                      idle_cb_call!(state_ref.detach_cb());
+                  });
+
+    // attach ui
+    let state_ref = state_arc.clone();
+    let mut post_init = Some(move || {
+        let mut nvim = nvim;
+        if let Err(err) = nvim::post_start_init(&mut nvim,
+                                                options.open_path.as_ref(),
+                                                cols as u64,
+                                                rows as u64) {
+            // TODO: process error //
+        }
+
+        let state = state_arc.borrow_mut();
+        state.nvim.borrow_mut().set_nvim(nvim);
+    });
+
+    glib::idle_add(move || {
+        let cl = post_init.take();
+        cl();
+        Continue(false)
+    });
+
+    //{
+    //Ok(nvim) => nvim,
+    //Err(err) => {
+    //nvim_client.set_error();
+    //state
+    //.error_area
+    //.show_nvim_start_error(&err.source(), err.cmd());
+
+    //let stack = state.stack.clone();
+    //gtk::idle_add(move || {
+    //stack.set_visible_child_name("Error");
+    //Continue(false)
+    //});
+
+    //return;
+    //}
+    //};
+
+
+
+    //nvim_client.set_nvim(nvim);
+}
 
 fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
     let state = state_arc.borrow();
 
-    let mut nvim_client = state.nvim.borrow_mut();
-    if !nvim_client.is_initialized() && !nvim_client.is_error() {
+    if state.nvim.borrow().is_uninitialized() {
         let (cols, rows) = state.calc_nvim_size().unwrap();
-        let mut nvim = match nvim::initialize(state_arc.clone(),
-                                              state.options.nvim_bin_path.as_ref(),
-                                              cols as u64,
-                                              rows as u64) {
-            Ok(nvim) => nvim,
-            Err(err) => {
-                nvim_client.set_error();
-                state.error_area.show_nvim_start_error(&err.source(), err.cmd());
 
-                let stack = state.stack.clone();
-                gtk::idle_add(move || {
-                                  stack.set_visible_child_name("Error");
-                                  Continue(false)
-                              });
+        let state_arc = state_arc.clone();
+        let options = state.options.clone();
+        thread::spawn(move || { init_nvim_async(state_arc, options, cols, rows); });
 
-                return;
-            }
-        };
-
-        if let Some(ref path) = state.options.open_path {
-            nvim.command(&format!("e {}", path)).report_err(&mut nvim);
-        }
-
-        let guard = nvim.session.take_dispatch_guard();
-
-        let state_ref = state_arc.clone();
-        thread::spawn(move || {
-                          guard.join().expect("Can't join dispatch thread");
-
-                          idle_cb_call!(state_ref.detach_cb());
-                      });
-
-        nvim_client.set_nvim(nvim);
     }
 }
 
@@ -1008,7 +1045,8 @@ impl RedrawEvents for State {
 
     fn mode_info_set(&mut self,
                      cursor_style_enabled: bool,
-                     mode_info: Vec<nvim::ModeInfo>) -> RepaintMode {
+                     mode_info: Vec<nvim::ModeInfo>)
+                     -> RepaintMode {
         self.mode.set_info(cursor_style_enabled, mode_info);
         RepaintMode::Nothing
     }
