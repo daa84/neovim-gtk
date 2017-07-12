@@ -526,41 +526,41 @@ impl RepaintMode {
 }
 
 
-enum NeovimClientWrapper {
+enum NeovimClientState {
     Uninitialized,
     InitInProgress,
     Initialized(Neovim),
     Error,
 }
 
-impl NeovimClientWrapper {
+impl NeovimClientState {
     pub fn is_uninitialized(&self) -> bool {
         match *self {
-            NeovimClientWrapper::Uninitialized => true,
+            NeovimClientState::Uninitialized => true,
             _ => false,
         }
     }
 
     pub fn is_initialized(&self) -> bool {
         match *self {
-            NeovimClientWrapper::Initialized(_) => true,
+            NeovimClientState::Initialized(_) => true,
             _ => false,
         }
     }
 
     pub fn is_error(&self) -> bool {
         match *self {
-            NeovimClientWrapper::Error => true,
+            NeovimClientState::Error => true,
             _ => false,
         }
     }
 
     pub fn nvim(&self) -> &Neovim {
         match *self {
-            NeovimClientWrapper::Initialized(ref nvim) => nvim,
-            NeovimClientWrapper::InitInProgress |
-            NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
-            NeovimClientWrapper::Error => {
+            NeovimClientState::Initialized(ref nvim) => nvim,
+            NeovimClientState::InitInProgress |
+            NeovimClientState::Uninitialized => panic!("Access to uninitialized neovim client"),
+            NeovimClientState::Error => {
                 panic!("Access to neovim client that is not started due to some error")
             }
         }
@@ -568,10 +568,10 @@ impl NeovimClientWrapper {
 
     pub fn nvim_mut(&mut self) -> &mut Neovim {
         match *self {
-            NeovimClientWrapper::Initialized(ref mut nvim) => nvim,
-            NeovimClientWrapper::InitInProgress |
-            NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
-            NeovimClientWrapper::Error => {
+            NeovimClientState::Initialized(ref mut nvim) => nvim,
+            NeovimClientState::InitInProgress |
+            NeovimClientState::Uninitialized => panic!("Access to uninitialized neovim client"),
+            NeovimClientState::Error => {
                 panic!("Access to neovim client that is not started due to some error")
             }
         }
@@ -579,40 +579,44 @@ impl NeovimClientWrapper {
 }
 
 pub struct NeovimClient {
-    nvim: NeovimClientWrapper,
+    state: NeovimClientState,
 }
 
 impl NeovimClient {
     pub fn new() -> Self {
-        NeovimClient { nvim: NeovimClientWrapper::Uninitialized }
+        NeovimClient { state: NeovimClientState::Uninitialized }
     }
 
-    pub fn set_nvim(&mut self, nvim: Neovim) {
-        self.nvim = NeovimClientWrapper::Initialized(nvim);
+    pub fn set_initialized(&mut self, nvim: Neovim) {
+        self.state = NeovimClientState::Initialized(nvim);
     }
 
     pub fn set_error(&mut self) {
-        self.nvim = NeovimClientWrapper::Error;
+        self.state = NeovimClientState::Error;
+    }
+
+    pub fn set_in_progress(&mut self) {
+        self.state = NeovimClientState::InitInProgress;
     }
 
     pub fn is_initialized(&self) -> bool {
-        self.nvim.is_initialized()
+        self.state.is_initialized()
     }
 
     pub fn is_uninitialized(&self) -> bool {
-        self.nvim.is_uninitialized()
+        self.state.is_uninitialized()
     }
 
     pub fn is_error(&self) -> bool {
-        self.nvim.is_error()
+        self.state.is_error()
     }
 
     pub fn nvim(&self) -> &Neovim {
-        self.nvim.nvim()
+        self.state.nvim()
     }
 
     pub fn nvim_mut(&mut self) -> &mut Neovim {
-        self.nvim.nvim_mut()
+        self.state.nvim_mut()
     }
 }
 

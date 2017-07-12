@@ -238,6 +238,14 @@ impl State {
 
         None
     }
+
+    fn show_error_area(&self) {
+        let stack = self.stack.clone();
+        gtk::idle_add(move || {
+                          stack.set_visible_child_name("Error");
+                          Continue(false)
+                      });
+    }
 }
 
 pub struct UiState {
@@ -554,7 +562,17 @@ fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
     let mut nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
         Ok(nvim) => nvim,
         Err(err) => {
-            // TODO: process error //
+            let source = err.source();
+            let cmd = err.cmd().unwrap().to_owned();
+
+            glib::idle_add(move || {
+                let state = state_arc.borrow();
+                state.nvim.borrow_mut().set_error();
+                state.error_area.show_nvim_start_error(&source, &cmd);
+                state.show_error_area();
+
+                Continue(false)
+            });
             return;
         }
     };
@@ -569,59 +587,45 @@ fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
                   });
 
     // attach ui
-    let state_ref = state_arc.clone();
-    let mut post_init = Some(move || {
-        let mut nvim = nvim;
+    let mut nvim = Some(nvim);
+    glib::idle_add(move || {
+        let mut nvim = nvim.take().unwrap();
         if let Err(err) = nvim::post_start_init(&mut nvim,
                                                 options.open_path.as_ref(),
                                                 cols as u64,
                                                 rows as u64) {
-            // TODO: process error //
+            let source = err.source();
+
+            let state_ref = state_arc.clone();
+            glib::idle_add(move || {
+                let state = state_ref.borrow();
+                state.nvim.borrow_mut().set_error();
+                state.error_area.show_nvim_init_error(&source);
+                state.show_error_area();
+
+                Continue(false)
+            });
+        } else {
+            let state = state_arc.borrow_mut();
+            state.nvim.borrow_mut().set_initialized(nvim);
         }
 
-        let state = state_arc.borrow_mut();
-        state.nvim.borrow_mut().set_nvim(nvim);
-    });
-
-    glib::idle_add(move || {
-        let cl = post_init.take();
-        cl();
         Continue(false)
     });
-
-    //{
-    //Ok(nvim) => nvim,
-    //Err(err) => {
-    //nvim_client.set_error();
-    //state
-    //.error_area
-    //.show_nvim_start_error(&err.source(), err.cmd());
-
-    //let stack = state.stack.clone();
-    //gtk::idle_add(move || {
-    //stack.set_visible_child_name("Error");
-    //Continue(false)
-    //});
-
-    //return;
-    //}
-    //};
-
-
-
-    //nvim_client.set_nvim(nvim);
 }
 
 fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
     let state = state_arc.borrow();
 
-    if state.nvim.borrow().is_uninitialized() {
+    let mut nvim = state.nvim.borrow_mut();
+    if nvim.is_uninitialized() {
+        nvim.set_in_progress();
+
         let (cols, rows) = state.calc_nvim_size().unwrap();
 
         let state_arc = state_arc.clone();
         let options = state.options.clone();
         thread::spawn(move || { init_nvim_async(state_arc, options, cols, rows); });
-
     }
 }
 

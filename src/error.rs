@@ -28,6 +28,19 @@ impl ErrorArea {
         ErrorArea { base, label }
     }
 
+    pub fn show_nvim_init_error(&self, err: &str) {
+        error!("Can't initialize nvim: {}", err);
+        self.label.set_markup(&format!("<big>Can't initialize nvim:</big>\n\
+                                       <span foreground=\"red\"><i>{}</i></span>\n\n\
+                                       <big>Possible error reasons:</big>\n\
+                                       &#9679; Not supported nvim version (minimum supported version is <b>{}</b>)\n\
+                                       &#9679; Error in configuration file (init.vim or ginit.vim)\n\
+                                       &#9679; Wrong nvim binary path \
+                                       (right path can be passed with <i>--nvim-bin-path=path_here</i>)", 
+                                       encode_minimal(err), shell::MINIMUM_SUPPORTED_NVIM_VERSION));
+        self.base.show_all();
+    }
+
     pub fn show_nvim_start_error(&self, err: &str, cmd: &str) {
         error!("Can't start nvim: {}\nCommand line: {}", err, cmd);
         self.label.set_markup(&format!("<big>Can't start nvim instance:</big>\n\
