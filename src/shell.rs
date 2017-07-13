@@ -554,6 +554,33 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     Inhibit(false)
 }
 
+fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
+    let source = err.source();
+    let cmd = err.cmd().unwrap().to_owned();
+
+    glib::idle_add(move || {
+        let state = state_arc.borrow();
+        state.nvim.borrow_mut().set_error();
+        state.error_area.show_nvim_start_error(&source, &cmd);
+        state.show_error_area();
+
+        Continue(false)
+    });
+}
+
+fn show_nvim_init_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
+    let source = err.source();
+
+    glib::idle_add(move || {
+        let state = state_arc.borrow();
+        state.nvim.borrow_mut().set_error();
+        state.error_area.show_nvim_init_error(&source);
+        state.show_error_area();
+
+        Continue(false)
+    });
+}
+
 fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
                    options: ShellOptions,
                    cols: usize,
@@ -562,17 +589,7 @@ fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
     let mut nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
         Ok(nvim) => nvim,
         Err(err) => {
-            let source = err.source();
-            let cmd = err.cmd().unwrap().to_owned();
-
-            glib::idle_add(move || {
-                let state = state_arc.borrow();
-                state.nvim.borrow_mut().set_error();
-                state.error_area.show_nvim_start_error(&source, &cmd);
-                state.show_error_area();
-
-                Continue(false)
-            });
+            show_nvim_start_error(err, state_arc);
             return;
         }
     };
@@ -594,17 +611,7 @@ fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
                                                 options.open_path.as_ref(),
                                                 cols as u64,
                                                 rows as u64) {
-            let source = err.source();
-
-            let state_ref = state_arc.clone();
-            glib::idle_add(move || {
-                let state = state_ref.borrow();
-                state.nvim.borrow_mut().set_error();
-                state.error_area.show_nvim_init_error(&source);
-                state.show_error_area();
-
-                Continue(false)
-            });
+            show_nvim_init_error(err, state_arc.clone());
         } else {
             let state = state_arc.borrow_mut();
             state.nvim.borrow_mut().set_initialized(nvim);
