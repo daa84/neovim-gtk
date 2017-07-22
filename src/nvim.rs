@@ -534,6 +534,13 @@ enum NeovimClientState {
 }
 
 impl NeovimClientState {
+    pub fn is_initializing(&self) -> bool {
+        match *self {
+            NeovimClientState::InitInProgress => true,
+            _ => false,
+        }
+    }
+
     pub fn is_uninitialized(&self) -> bool {
         match *self {
             NeovimClientState::Uninitialized => true,
@@ -544,13 +551,6 @@ impl NeovimClientState {
     pub fn is_initialized(&self) -> bool {
         match *self {
             NeovimClientState::Initialized(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_error(&self) -> bool {
-        match *self {
-            NeovimClientState::Error => true,
             _ => false,
         }
     }
@@ -607,8 +607,8 @@ impl NeovimClient {
         self.state.is_uninitialized()
     }
 
-    pub fn is_error(&self) -> bool {
-        self.state.is_error()
+    pub fn is_initializing(&self) -> bool {
+        self.state.is_initializing()
     }
 
     pub fn nvim(&self) -> &Neovim {

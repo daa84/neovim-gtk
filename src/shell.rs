@@ -302,7 +302,7 @@ impl Shell {
     }
 
     pub fn init(&mut self) {
-        let mut state = self.state.borrow_mut();
+        let state = self.state.borrow();
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
         state.drawing_area.set_can_focus(true);
@@ -386,8 +386,6 @@ impl Shell {
         state
             .drawing_area
             .connect_configure_event(move |_, ev| gtk_configure_event(&ref_state, ev));
-
-        state.cursor.as_mut().unwrap().start();
     }
 
     #[cfg(unix)]
@@ -545,10 +543,11 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     init_nvim(state_arc);
 
     let mut state = state_arc.borrow_mut();
-    // in case nvim not initialized
-    if !state.nvim.borrow().is_error() {
+    if state.nvim.borrow().is_initialized() {
         draw(&*state, ctx);
         request_window_resize(&mut *state);
+    } else if state.nvim.borrow().is_initializing() {
+        draw_initializing(&*state, ctx);
     }
 
     Inhibit(false)
@@ -559,26 +558,26 @@ fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>
     let cmd = err.cmd().unwrap().to_owned();
 
     glib::idle_add(move || {
-        let state = state_arc.borrow();
-        state.nvim.borrow_mut().set_error();
-        state.error_area.show_nvim_start_error(&source, &cmd);
-        state.show_error_area();
+                       let state = state_arc.borrow();
+                       state.nvim.borrow_mut().set_error();
+                       state.error_area.show_nvim_start_error(&source, &cmd);
+                       state.show_error_area();
 
-        Continue(false)
-    });
+                       Continue(false)
+                   });
 }
 
 fn show_nvim_init_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
     let source = err.source();
 
     glib::idle_add(move || {
-        let state = state_arc.borrow();
-        state.nvim.borrow_mut().set_error();
-        state.error_area.show_nvim_init_error(&source);
-        state.show_error_area();
+                       let state = state_arc.borrow();
+                       state.nvim.borrow_mut().set_error();
+                       state.error_area.show_nvim_init_error(&source);
+                       state.show_error_area();
 
-        Continue(false)
-    });
+                       Continue(false)
+                   });
 }
 
 fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
@@ -613,8 +612,9 @@ fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
                                                 rows as u64) {
             show_nvim_init_error(err, state_arc.clone());
         } else {
-            let state = state_arc.borrow_mut();
+            let mut state = state_arc.borrow_mut();
             state.nvim.borrow_mut().set_initialized(nvim);
+            state.cursor.as_mut().unwrap().start();
         }
 
         Continue(false)
@@ -632,7 +632,7 @@ fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
 
         let state_arc = state_arc.clone();
         let options = state.options.clone();
-        thread::spawn(move || { init_nvim_async(state_arc, options, cols, rows); });
+        thread::spawn(move || init_nvim_async(state_arc, options, cols, rows));
     }
 }
 
@@ -685,6 +685,43 @@ fn draw_backgound(state: &State,
         }
         line_y += line_height;
     }
+}
+
+fn draw_initializing(state: &State, ctx: &cairo::Context) {
+    let layout = ctx.create_pango_layout();
+    let desc = state.create_pango_font();
+    let alloc = state.drawing_area.get_allocation();
+    let line_height = state.line_height.unwrap();
+    let char_width = state.char_width.unwrap();
+
+    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
+    ctx.paint();
+
+    layout.set_font_description(&desc);
+    layout.set_text("Loading..", -1);
+    let (width, height) = layout.get_pixel_size();
+
+    let x = alloc.width as f64 / 2.0 - width as f64 / 2.0;
+    let y = alloc.height as f64 / 2.0 - height as f64 / 2.0;
+
+    ctx.move_to(x, y);
+    ctx.set_source_rgb(state.fg_color.0, state.fg_color.1, state.fg_color.2);
+    ctx.update_pango_layout(&layout);
+    ctx.show_pango_layout(&layout);
+
+
+    ctx.move_to(x + width as f64, y);
+    state
+        .cursor
+        .as_ref()
+        .unwrap()
+        .draw(ctx,
+              state,
+              char_width,
+              line_height,
+              y,
+              false,
+              &state.bg_color);
 }
 
 fn draw(state: &State, ctx: &cairo::Context) {
@@ -753,7 +790,7 @@ fn draw(state: &State, ctx: &cairo::Context) {
                     if !cell.ch.is_whitespace() {
                         update_font_description(&mut desc, &cell.attrs);
 
-                        layout.set_font_description(Some(&desc));
+                        layout.set_font_description(&desc);
                         buf.clear();
                         buf.push(cell.ch);
                         layout.set_text(&buf, -1);
