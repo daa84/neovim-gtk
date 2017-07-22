@@ -8,7 +8,7 @@ use cairo;
 use pangocairo::CairoContextExt;
 use pango;
 use pango::FontDescription;
-use gdk::{ModifierType, EventConfigure, EventButton, EventMotion, EventType, EventScroll};
+use gdk::{ModifierType, EventButton, EventMotion, EventType, EventScroll};
 use gdk_sys;
 use glib;
 use gtk;
@@ -68,6 +68,7 @@ pub struct State {
     line_height: Option<f64>,
     char_width: Option<f64>,
     request_resize: bool,
+    request_nvim_resize: bool,
     resize_timer: Option<glib::SourceId>,
 
     options: ShellOptions,
@@ -105,6 +106,7 @@ impl State {
             char_width: None,
             resize_timer: None,
             request_resize: false,
+            request_nvim_resize: false,
 
             options,
 
@@ -183,6 +185,10 @@ impl State {
 
     fn request_resize(&mut self) {
         self.request_resize = true;
+    }
+
+    fn request_nvim_resize(&mut self) {
+        self.request_nvim_resize = true;
     }
 
     fn close_popup_menu(&self) {
@@ -385,7 +391,10 @@ impl Shell {
         let ref_state = self.state.clone();
         state
             .drawing_area
-            .connect_configure_event(move |_, ev| gtk_configure_event(&ref_state, ev));
+            .connect_configure_event(move |_, _| {
+                try_nvim_resize(&ref_state);
+                false
+            });
     }
 
     #[cfg(unix)]
@@ -540,6 +549,11 @@ fn update_line_metrics(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
 
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     update_line_metrics(state_arc, ctx);
+
+    if state_arc.borrow_mut().request_nvim_resize {
+        try_nvim_resize(state_arc);
+    }
+
     init_nvim(state_arc);
 
     let mut state = state_arc.borrow_mut();
@@ -895,15 +909,17 @@ fn split_color(indexed_color: u64) -> Color {
     Color(r / 255.0, g / 255.0, b / 255.0)
 }
 
-fn gtk_configure_event(state: &Arc<UiMutex<State>>, _: &EventConfigure) -> bool {
+fn try_nvim_resize(state: &Arc<UiMutex<State>>) {
     let mut state_ref = state.borrow_mut();
+
+    state_ref.request_nvim_resize = false;
 
     if let Some(timer) = state_ref.resize_timer {
         glib::source_remove(timer);
     }
 
     if !state_ref.nvim.borrow().is_initialized() {
-        return false;
+        return;
     }
 
     if let Some((columns, rows)) = state_ref.calc_nvim_size() {
@@ -915,13 +931,12 @@ fn gtk_configure_event(state: &Arc<UiMutex<State>>, _: &EventConfigure) -> bool 
 
             if state_ref.model.rows != rows || state_ref.model.columns != columns {
                 if let Err(err) = state_ref.nvim().ui_try_resize(columns as u64, rows as u64) {
-                    println!("Error trying resize nvim {}", err);
+                    error!("Error trying resize nvim {}", err);
                 }
             }
             Continue(false)
         }));
     }
-    false
 }
 
 impl RedrawEvents for State {
@@ -1103,7 +1118,7 @@ impl RedrawEvents for State {
 impl GuiApi for State {
     fn set_font(&mut self, font_desc: &str) {
         self.set_font_desc(font_desc);
-        self.request_resize();
+        self.request_nvim_resize();
 
         let mut settings = self.settings.borrow_mut();
         settings.set_font_source(FontSource::Rpc);
