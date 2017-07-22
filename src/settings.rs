@@ -7,6 +7,8 @@ use nvim::RepaintMode;
 use shell::Shell;
 #[cfg(unix)]
 use gio;
+#[cfg(unix)]
+use gio::SettingsExt;
 
 #[derive(PartialEq)]
 pub enum FontSource {

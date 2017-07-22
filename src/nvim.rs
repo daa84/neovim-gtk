@@ -172,15 +172,24 @@ impl ModeInfo {
 #[derive(Debug)]
 pub struct NvimInitError {
     source: Box<error::Error>,
-    cmd: String,
+    cmd: Option<String>,
 }
 
 impl NvimInitError {
+    pub fn new_post_init<E>(error: E) -> NvimInitError
+        where E: Into<Box<error::Error>>
+    {
+        NvimInitError {
+            cmd: None,
+            source: error.into(),
+        }
+    }
+
     pub fn new<E>(cmd: &Command, error: E) -> NvimInitError
         where E: Into<Box<error::Error>>
     {
         NvimInitError {
-            cmd: format!("{:?}", cmd),
+            cmd: Some(format!("{:?}", cmd)),
             source: error.into(),
         }
     }
@@ -189,8 +198,8 @@ impl NvimInitError {
         format!("{}", self.source)
     }
 
-    pub fn cmd(&self) -> &str {
-        &self.cmd
+    pub fn cmd(&self) -> Option<&String> {
+        self.cmd.as_ref()
     }
 }
 
@@ -210,11 +219,9 @@ impl error::Error for NvimInitError {
     }
 }
 
-pub fn initialize(shell: Arc<UiMutex<shell::State>>,
-                  nvim_bin_path: Option<&String>,
-                  cols: u64,
-                  rows: u64)
-                  -> result::Result<Neovim, NvimInitError> {
+pub fn start(shell: Arc<UiMutex<shell::State>>,
+             nvim_bin_path: Option<&String>)
+             -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
     } else {
@@ -250,15 +257,29 @@ pub fn initialize(shell: Arc<UiMutex<shell::State>>,
 
     nvim.session
         .start_event_loop_handler(NvimHandler::new(shell));
+
+    Ok(nvim)
+}
+
+pub fn post_start_init(nvim: &mut Neovim,
+                       open_path: Option<&String>,
+                       cols: u64,
+                       rows: u64)
+                       -> result::Result<(), NvimInitError> {
     let mut opts = UiAttachOptions::new();
     opts.set_popupmenu_external(false);
     opts.set_tabline_external(true);
     nvim.ui_attach(cols, rows, opts)
-        .map_err(|e| NvimInitError::new(&cmd, e))?;
+        .map_err(|e| NvimInitError::new_post_init(e))?;
     nvim.command("runtime! ginit.vim")
-        .map_err(|e| NvimInitError::new(&cmd, e))?;
+        .map_err(|e| NvimInitError::new_post_init(e))?;
 
-    Ok(nvim)
+    if let Some(path) = open_path {
+        nvim.command(&format!("e {}", path))
+            .map_err(|e| NvimInitError::new_post_init(e))?;
+    }
+
+    Ok(())
 }
 
 pub struct NvimHandler {
@@ -505,32 +526,41 @@ impl RepaintMode {
 }
 
 
-enum NeovimClientWrapper {
+enum NeovimClientState {
     Uninitialized,
+    InitInProgress,
     Initialized(Neovim),
     Error,
 }
 
-impl NeovimClientWrapper {
-    pub fn is_initialized(&self) -> bool {
+impl NeovimClientState {
+    pub fn is_initializing(&self) -> bool {
         match *self {
-            NeovimClientWrapper::Initialized(_) => true,
+            NeovimClientState::InitInProgress => true,
             _ => false,
         }
     }
 
-    pub fn is_error(&self) -> bool {
+    pub fn is_uninitialized(&self) -> bool {
         match *self {
-            NeovimClientWrapper::Error => true,
+            NeovimClientState::Uninitialized => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        match *self {
+            NeovimClientState::Initialized(_) => true,
             _ => false,
         }
     }
 
     pub fn nvim(&self) -> &Neovim {
         match *self {
-            NeovimClientWrapper::Initialized(ref nvim) => nvim,
-            NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
-            NeovimClientWrapper::Error => {
+            NeovimClientState::Initialized(ref nvim) => nvim,
+            NeovimClientState::InitInProgress |
+            NeovimClientState::Uninitialized => panic!("Access to uninitialized neovim client"),
+            NeovimClientState::Error => {
                 panic!("Access to neovim client that is not started due to some error")
             }
         }
@@ -538,9 +568,10 @@ impl NeovimClientWrapper {
 
     pub fn nvim_mut(&mut self) -> &mut Neovim {
         match *self {
-            NeovimClientWrapper::Initialized(ref mut nvim) => nvim,
-            NeovimClientWrapper::Uninitialized => panic!("Access to uninitialized neovim client"),
-            NeovimClientWrapper::Error => {
+            NeovimClientState::Initialized(ref mut nvim) => nvim,
+            NeovimClientState::InitInProgress |
+            NeovimClientState::Uninitialized => panic!("Access to uninitialized neovim client"),
+            NeovimClientState::Error => {
                 panic!("Access to neovim client that is not started due to some error")
             }
         }
@@ -548,36 +579,44 @@ impl NeovimClientWrapper {
 }
 
 pub struct NeovimClient {
-    nvim: NeovimClientWrapper,
+    state: NeovimClientState,
 }
 
 impl NeovimClient {
     pub fn new() -> Self {
-        NeovimClient { nvim: NeovimClientWrapper::Uninitialized }
+        NeovimClient { state: NeovimClientState::Uninitialized }
     }
 
-    pub fn set_nvim(&mut self, nvim: Neovim) {
-        self.nvim = NeovimClientWrapper::Initialized(nvim);
+    pub fn set_initialized(&mut self, nvim: Neovim) {
+        self.state = NeovimClientState::Initialized(nvim);
     }
 
     pub fn set_error(&mut self) {
-        self.nvim = NeovimClientWrapper::Error;
+        self.state = NeovimClientState::Error;
+    }
+
+    pub fn set_in_progress(&mut self) {
+        self.state = NeovimClientState::InitInProgress;
     }
 
     pub fn is_initialized(&self) -> bool {
-        self.nvim.is_initialized()
+        self.state.is_initialized()
     }
 
-    pub fn is_error(&self) -> bool {
-        self.nvim.is_error()
+    pub fn is_uninitialized(&self) -> bool {
+        self.state.is_uninitialized()
+    }
+
+    pub fn is_initializing(&self) -> bool {
+        self.state.is_initializing()
     }
 
     pub fn nvim(&self) -> &Neovim {
-        self.nvim.nvim()
+        self.state.nvim()
     }
 
     pub fn nvim_mut(&mut self) -> &mut Neovim {
-        self.nvim.nvim_mut()
+        self.state.nvim_mut()
     }
 }
 

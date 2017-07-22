@@ -9,7 +9,7 @@ use pangocairo::CairoContextExt;
 use pango;
 use pango::{LayoutExt, FontDescription};
 use gdk;
-use gdk::{ModifierType, EventConfigure, EventButton, EventMotion, EventType, EventScroll};
+use gdk::{ModifierType, EventButton, EventMotion, EventType, EventScroll};
 use gdk_sys;
 use glib;
 use gtk;
@@ -70,6 +70,7 @@ pub struct State {
     line_height: Option<f64>,
     char_width: Option<f64>,
     request_resize: bool,
+    request_nvim_resize: bool,
     resize_timer: Option<glib::SourceId>,
 
     options: ShellOptions,
@@ -108,6 +109,7 @@ impl State {
             char_width: None,
             resize_timer: None,
             request_resize: false,
+            request_nvim_resize: false,
 
             options,
 
@@ -188,6 +190,10 @@ impl State {
         self.request_resize = true;
     }
 
+    fn request_nvim_resize(&mut self) {
+        self.request_nvim_resize = true;
+    }
+
     fn close_popup_menu(&self) {
         if self.popup_menu.borrow().is_open() {
             let mut nvim = self.nvim();
@@ -245,6 +251,14 @@ impl State {
 
         None
     }
+
+    fn show_error_area(&self) {
+        let stack = self.stack.clone();
+        gtk::idle_add(move || {
+                          stack.set_visible_child_name("Error");
+                          Continue(false)
+                      });
+    }
 }
 
 pub struct UiState {
@@ -257,6 +271,7 @@ impl UiState {
     }
 }
 
+#[derive(Clone)]
 pub struct ShellOptions {
     nvim_bin_path: Option<String>,
     open_path: Option<String>,
@@ -300,7 +315,7 @@ impl Shell {
     }
 
     pub fn init(&mut self) {
-        let mut state = self.state.borrow_mut();
+        let state = self.state.borrow();
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
         state.drawing_area.set_can_focus(true);
@@ -421,9 +436,10 @@ impl Shell {
         let ref_state = self.state.clone();
         state
             .drawing_area
-            .connect_configure_event(move |_, ev| gtk_configure_event(&ref_state, ev));
-
-        state.cursor.as_mut().unwrap().start();
+            .connect_configure_event(move |_, _| {
+                try_nvim_resize(&ref_state);
+                false
+            });
     }
 
     #[cfg(unix)]
@@ -580,60 +596,104 @@ fn update_line_metrics(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
 
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     update_line_metrics(state_arc, ctx);
+
+    if state_arc.borrow_mut().request_nvim_resize {
+        try_nvim_resize(state_arc);
+    }
+
     init_nvim(state_arc);
 
     let mut state = state_arc.borrow_mut();
-    // in case nvim not initialized
-    if !state.nvim.borrow().is_error() {
+    if state.nvim.borrow().is_initialized() {
         draw(&*state, ctx);
         request_window_resize(&mut *state);
+    } else if state.nvim.borrow().is_initializing() {
+        draw_initializing(&*state, ctx);
     }
 
     Inhibit(false)
 }
 
+fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
+    let source = err.source();
+    let cmd = err.cmd().unwrap().to_owned();
+
+    glib::idle_add(move || {
+                       let state = state_arc.borrow();
+                       state.nvim.borrow_mut().set_error();
+                       state.error_area.show_nvim_start_error(&source, &cmd);
+                       state.show_error_area();
+
+                       Continue(false)
+                   });
+}
+
+fn show_nvim_init_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
+    let source = err.source();
+
+    glib::idle_add(move || {
+                       let state = state_arc.borrow();
+                       state.nvim.borrow_mut().set_error();
+                       state.error_area.show_nvim_init_error(&source);
+                       state.show_error_area();
+
+                       Continue(false)
+                   });
+}
+
+fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
+                   options: ShellOptions,
+                   cols: usize,
+                   rows: usize) {
+    // execute nvim
+    let mut nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
+        Ok(nvim) => nvim,
+        Err(err) => {
+            show_nvim_start_error(err, state_arc);
+            return;
+        }
+    };
+
+    // add callback on session end
+    let guard = nvim.session.take_dispatch_guard();
+    let state_ref = state_arc.clone();
+    thread::spawn(move || {
+                      guard.join().expect("Can't join dispatch thread");
+
+                      idle_cb_call!(state_ref.detach_cb());
+                  });
+
+    // attach ui
+    let mut nvim = Some(nvim);
+    glib::idle_add(move || {
+        let mut nvim = nvim.take().unwrap();
+        if let Err(err) = nvim::post_start_init(&mut nvim,
+                                                options.open_path.as_ref(),
+                                                cols as u64,
+                                                rows as u64) {
+            show_nvim_init_error(err, state_arc.clone());
+        } else {
+            let mut state = state_arc.borrow_mut();
+            state.nvim.borrow_mut().set_initialized(nvim);
+            state.cursor.as_mut().unwrap().start();
+        }
+
+        Continue(false)
+    });
+}
 
 fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
     let state = state_arc.borrow();
 
-    let mut nvim_client = state.nvim.borrow_mut();
-    if !nvim_client.is_initialized() && !nvim_client.is_error() {
+    let mut nvim = state.nvim.borrow_mut();
+    if nvim.is_uninitialized() {
+        nvim.set_in_progress();
+
         let (cols, rows) = state.calc_nvim_size().unwrap();
-        let mut nvim = match nvim::initialize(state_arc.clone(),
-                                              state.options.nvim_bin_path.as_ref(),
-                                              cols as u64,
-                                              rows as u64) {
-            Ok(nvim) => nvim,
-            Err(err) => {
-                nvim_client.set_error();
-                state
-                    .error_area
-                    .show_nvim_start_error(&err.source(), err.cmd());
 
-                let stack = state.stack.clone();
-                gtk::idle_add(move || {
-                                  stack.set_visible_child_name("Error");
-                                  Continue(false)
-                              });
-
-                return;
-            }
-        };
-
-        if let Some(ref path) = state.options.open_path {
-            nvim.command(&format!("e {}", path)).report_err(&mut nvim);
-        }
-
-        let guard = nvim.session.take_dispatch_guard();
-
-        let state_ref = state_arc.clone();
-        thread::spawn(move || {
-                          guard.join().expect("Can't join dispatch thread");
-
-                          idle_cb_call!(state_ref.detach_cb());
-                      });
-
-        nvim_client.set_nvim(nvim);
+        let state_arc = state_arc.clone();
+        let options = state.options.clone();
+        thread::spawn(move || init_nvim_async(state_arc, options, cols, rows));
     }
 }
 
@@ -686,6 +746,43 @@ fn draw_backgound(state: &State,
         }
         line_y += line_height;
     }
+}
+
+fn draw_initializing(state: &State, ctx: &cairo::Context) {
+    let layout = ctx.create_pango_layout();
+    let desc = state.create_pango_font();
+    let alloc = state.drawing_area.get_allocation();
+    let line_height = state.line_height.unwrap();
+    let char_width = state.char_width.unwrap();
+
+    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
+    ctx.paint();
+
+    layout.set_font_description(&desc);
+    layout.set_text("Loading..", -1);
+    let (width, height) = layout.get_pixel_size();
+
+    let x = alloc.width as f64 / 2.0 - width as f64 / 2.0;
+    let y = alloc.height as f64 / 2.0 - height as f64 / 2.0;
+
+    ctx.move_to(x, y);
+    ctx.set_source_rgb(state.fg_color.0, state.fg_color.1, state.fg_color.2);
+    ctx.update_pango_layout(&layout);
+    ctx.show_pango_layout(&layout);
+
+
+    ctx.move_to(x + width as f64, y);
+    state
+        .cursor
+        .as_ref()
+        .unwrap()
+        .draw(ctx,
+              state,
+              char_width,
+              line_height,
+              y,
+              false,
+              &state.bg_color);
 }
 
 fn draw(state: &State, ctx: &cairo::Context) {
@@ -754,7 +851,7 @@ fn draw(state: &State, ctx: &cairo::Context) {
                     if !cell.ch.is_whitespace() {
                         update_font_description(&mut desc, &cell.attrs);
 
-                        layout.set_font_description(Some(&desc));
+                        layout.set_font_description(&desc);
                         buf.clear();
                         buf.push(cell.ch);
                         layout.set_text(&buf, -1);
@@ -859,15 +956,17 @@ fn split_color(indexed_color: u64) -> Color {
     Color(r / 255.0, g / 255.0, b / 255.0)
 }
 
-fn gtk_configure_event(state: &Arc<UiMutex<State>>, _: &EventConfigure) -> bool {
+fn try_nvim_resize(state: &Arc<UiMutex<State>>) {
     let mut state_ref = state.borrow_mut();
+
+    state_ref.request_nvim_resize = false;
 
     if let Some(timer) = state_ref.resize_timer {
         glib::source_remove(timer);
     }
 
     if !state_ref.nvim.borrow().is_initialized() {
-        return false;
+        return;
     }
 
     if let Some((columns, rows)) = state_ref.calc_nvim_size() {
@@ -879,13 +978,12 @@ fn gtk_configure_event(state: &Arc<UiMutex<State>>, _: &EventConfigure) -> bool 
 
             if state_ref.model.rows != rows || state_ref.model.columns != columns {
                 if let Err(err) = state_ref.nvim().ui_try_resize(columns as u64, rows as u64) {
-                    println!("Error trying resize nvim {}", err);
+                    error!("Error trying resize nvim {}", err);
                 }
             }
             Continue(false)
         }));
     }
-    false
 }
 
 impl RedrawEvents for State {
@@ -1066,7 +1164,7 @@ impl RedrawEvents for State {
 impl GuiApi for State {
     fn set_font(&mut self, font_desc: &str) {
         self.set_font_desc(font_desc);
-        self.request_resize();
+        self.request_nvim_resize();
 
         let mut settings = self.settings.borrow_mut();
         settings.set_font_source(FontSource::Rpc);
