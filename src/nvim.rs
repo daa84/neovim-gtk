@@ -27,7 +27,7 @@ pub trait RedrawEvents {
 
     fn on_redraw(&self, mode: &RepaintMode);
 
-    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) -> RepaintMode;
+    fn on_highlight_set(&mut self, attrs: &[(Value, Value)]) -> RepaintMode;
 
     fn on_eol_clear(&mut self) -> RepaintMode;
 
@@ -48,7 +48,7 @@ pub trait RedrawEvents {
     fn on_busy(&mut self, busy: bool) -> RepaintMode;
 
     fn popupmenu_show(&mut self,
-                      menu: &Vec<Vec<&str>>,
+                      menu: &[Vec<&str>],
                       selected: i64,
                       row: u64,
                       col: u64)
@@ -74,32 +74,32 @@ pub trait GuiApi {
 }
 
 macro_rules! try_str {
-    ($exp:expr) => ($exp.as_str().ok_or("Can't convert argument to string".to_owned())?)
+    ($exp:expr) => ($exp.as_str().ok_or_else(|| "Can't convert argument to string".to_owned())?)
 }
 
 macro_rules! try_int {
-    ($expr:expr) => ($expr.as_i64().ok_or("Can't convert argument to int".to_owned())?)
+    ($expr:expr) => ($expr.as_i64().ok_or_else(|| "Can't convert argument to int".to_owned())?)
 }
 
 macro_rules! try_uint {
-    ($exp:expr) => ($exp.as_u64().ok_or("Can't convert argument to u64".to_owned())?)
+    ($exp:expr) => ($exp.as_u64().ok_or_else(|| "Can't convert argument to u64".to_owned())?)
 }
 
 macro_rules! try_bool {
-    ($exp:expr) => ($exp.as_bool().ok_or("Can't convert argument to bool".to_owned())?)
+    ($exp:expr) => ($exp.as_bool().ok_or_else(|| "Can't convert argument to bool".to_owned())?)
 }
 
 macro_rules! map_array {
     ($arg:expr, $err:expr, |$item:ident| $exp:expr) => (
         $arg.as_array()
-            .ok_or($err)
+            .ok_or_else(|| $err)
             .and_then(|items| items.iter().map(|$item| {
                 $exp
             }).collect::<Result<Vec<_>, _>>())
     );
     ($arg:expr, $err:expr, |$item:ident| {$exp:expr}) => (
         $arg.as_array()
-            .ok_or($err)
+            .ok_or_else(|| $err)
             .and_then(|items| items.iter().map(|$item| {
                 $exp
             }).collect::<Result<Vec<_>, _>>())
@@ -118,7 +118,7 @@ impl CursorShape {
     fn new(shape_code: &Value) -> Result<CursorShape, String> {
         let str_code = shape_code
             .as_str()
-            .ok_or("Can't convert cursor shape to string".to_owned())?;
+            .ok_or_else(|| "Can't convert cursor shape to string".to_owned())?;
 
         Ok(match str_code {
                "block" => CursorShape::Block,
@@ -270,13 +270,13 @@ pub fn post_start_init(nvim: &mut Neovim,
     opts.set_popupmenu_external(false);
     opts.set_tabline_external(true);
     nvim.ui_attach(cols, rows, opts)
-        .map_err(|e| NvimInitError::new_post_init(e))?;
+        .map_err(NvimInitError::new_post_init)?;
     nvim.command("runtime! ginit.vim")
-        .map_err(|e| NvimInitError::new_post_init(e))?;
+        .map_err(NvimInitError::new_post_init)?;
 
     if let Some(path) = open_path {
         nvim.command(&format!("e {}", path))
-            .map_err(|e| NvimInitError::new_post_init(e))?;
+            .map_err(NvimInitError::new_post_init)?;
     }
 
     Ok(())
@@ -300,9 +300,9 @@ impl NvimHandler {
                     for ev in &params {
                         if let Some(ev_args) = ev.as_array() {
                             if let Some(ev_name) = ev_args[0].as_str() {
-                                for ref local_args in ev_args.iter().skip(1) {
+                                for local_args in ev_args.iter().skip(1) {
                                     let args = match *local_args {
-                                        &Value::Array(ref ar) => ar.clone(),
+                                        Value::Array(ref ar) => ar.clone(),
                                         _ => vec![],
                                     };
                                     let call_reapint_mode = call(ui, ev_name, &args)?;
@@ -321,7 +321,7 @@ impl NvimHandler {
                 });
             }
             "Gui" => {
-                if params.len() > 0 {
+                if !params.is_empty() {
                     if let Some(ev_name) = params[0].as_str().map(String::from) {
                         let args = params.iter().skip(1).cloned().collect();
                         self.safe_call(move |ui| {
@@ -390,7 +390,7 @@ fn call_gui_event(ui: &mut shell::State,
 
 fn call(ui: &mut shell::State,
         method: &str,
-        args: &Vec<Value>)
+        args: &[Value])
         -> result::Result<RepaintMode, String> {
     let repaint_mode = match method {
         "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
@@ -439,7 +439,7 @@ fn call(ui: &mut shell::State,
         "tabline_update" => {
             let tabs_out = map_array!(args[1], "Error get tabline list".to_owned(), |tab| {
                 tab.as_map()
-                    .ok_or("Error get map for tab".to_owned())
+                    .ok_or_else(|| "Error get map for tab".to_owned())
                     .and_then(|tab_map| tab_map.to_attrs_map())
                     .map(|tab_attrs| {
                         let name_attr = tab_attrs
@@ -460,7 +460,7 @@ fn call(ui: &mut shell::State,
                                        "Error get array key value for mode_info".to_owned(),
                                        |mi| {
                                            mi.as_map()
-                                               .ok_or("Erro get map for mode_info".to_owned())
+                                               .ok_or_else(|| "Erro get map for mode_info".to_owned())
                                                .and_then(|mi_map| ModeInfo::new(mi_map))
                                        })?;
             ui.mode_info_set(try_bool!(args[0]), mode_info)
@@ -480,7 +480,7 @@ pub trait ErrorReport {
 
 impl<T> ErrorReport for result::Result<T, CallError> {
     fn report_err(&self, _: &mut NeovimApi) {
-        if let &Err(ref err) = self {
+        if let Err(ref err) = *self {
             println!("{}", err);
             //nvim.report_error(&err_msg).expect("Error report error :)");
         }
@@ -509,7 +509,7 @@ impl RepaintMode {
             }
             (RepaintMode::AreaList(mut target), RepaintMode::AreaList(source)) => {
                 for s in &source.list {
-                    target.join(&s);
+                    target.join(s);
                 }
                 RepaintMode::AreaList(target)
             }

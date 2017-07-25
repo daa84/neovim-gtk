@@ -26,7 +26,7 @@ pub fn can_close_window(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> 
 
 fn show_not_saved_dlg(comps: &UiMutex<Components>,
                       shell: &Shell,
-                      changed_bufs: &Vec<String>)
+                      changed_bufs: &[String])
                       -> bool {
     let mut changed_files = changed_bufs
         .iter()
@@ -62,8 +62,7 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>,
             }
         }
         CLOSE_WITHOUT_SAVE => true,
-        CANCEL_ID => false,
-        _ => false,
+        CANCEL_ID | _ => false,
     };
 
     dlg.destroy();
@@ -77,28 +76,28 @@ fn get_changed_buffers(shell: &Shell) -> Result<Vec<String>, CallError> {
     let buffers = nvim.list_bufs().unwrap();
 
     Ok(buffers
-       .iter()
-       .map(|buf| {
-           (match buf.get_option(&mut nvim, "modified") {
-               Ok(Value::Boolean(val)) => val,
-               Ok(_) => {
-                   println!("Value must be boolean");
-                   false
-               }
-               Err(ref err) => {
-                   println!("Something going wrong while getting buffer option: {}", err);
-                   false
-               }
-           },
-           match buf.get_name(&mut nvim) {
-               Ok(name) => name,
-               Err(ref err) => {
-                   println!("Something going wrong while getting buffer name: {}", err);
-                   "<Error>".to_owned()
-               }
-           })
-       })
-        .filter(|e| e.0)
-        .map(|e| e.1)
-        .collect())
+           .iter()
+           .map(|buf| {
+        (match buf.get_option(&mut nvim, "modified") {
+             Ok(Value::Boolean(val)) => val,
+             Ok(_) => {
+                 println!("Value must be boolean");
+                 false
+             }
+             Err(ref err) => {
+                 println!("Something going wrong while getting buffer option: {}", err);
+                 false
+             }
+         },
+         match buf.get_name(&mut nvim) {
+             Ok(name) => name,
+             Err(ref err) => {
+                 println!("Something going wrong while getting buffer name: {}", err);
+                 "<Error>".to_owned()
+             }
+         })
+    })
+           .filter(|e| e.0)
+           .map(|e| e.1)
+           .collect())
 }
