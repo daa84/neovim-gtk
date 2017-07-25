@@ -92,7 +92,7 @@ fn open_arg_impl<I>(args: I) -> Option<String>
 {
     args.skip(1)
         .last()
-        .map(|a| if !a.starts_with("-") {
+        .map(|a| if !a.starts_with('-') {
                  Some(a.to_owned())
              } else {
                  None

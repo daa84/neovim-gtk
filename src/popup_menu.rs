@@ -35,7 +35,7 @@ impl State {
 
     fn before_show(&mut self,
                    shell: &shell::State,
-                   menu_items: &Vec<Vec<&str>>,
+                   menu_items: &[Vec<&str>],
                    selected: i64) {
         if self.nvim.is_none() {
             self.nvim = Some(shell.nvim_clone());
@@ -45,7 +45,7 @@ impl State {
         self.select(selected);
     }
 
-    fn update_tree(&self, menu: &Vec<Vec<&str>>, shell: &shell::State) {
+    fn update_tree(&self, menu: &[Vec<&str>], shell: &shell::State) {
         if menu.is_empty() {
             return;
         }
@@ -55,7 +55,7 @@ impl State {
         self.renderer.set_property_foreground_rgba(Some(&shell.get_foreground().into()));
         self.renderer.set_property_background_rgba(Some(&shell.get_background().into()));
 
-        let col_count = menu.get(0).unwrap().len();
+        let col_count = menu[0].len();
         let columns = self.tree.get_columns();
 
         if columns.len() != col_count {
@@ -166,7 +166,7 @@ impl PopupMenu {
 
     pub fn show(&mut self,
                 shell: &shell::State,
-                menu_items: &Vec<Vec<&str>>,
+                menu_items: &[Vec<&str>],
                 selected: i64,
                 x: i32,
                 y: i32,

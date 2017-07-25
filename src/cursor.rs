@@ -182,12 +182,10 @@ fn cursor_rect(mode: &mode::Mode,
     } else {
         let cursor_width = if mode.is(&mode::NvimMode::Insert) {
             char_width / 5.0
+        } else if double_width {
+            char_width * 2.0
         } else {
-            if double_width {
-                char_width * 2.0
-            } else {
-                char_width
-            }
+            char_width
         };
 
         (line_y, cursor_width, line_height)

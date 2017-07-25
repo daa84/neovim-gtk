@@ -21,12 +21,12 @@ const CURRENT_DIR_PIXBUF: &str = "folder";
 const PLAIN_FILE_PIXBUF: &str = "text-x-generic";
 
 enum ProjectViewColumns {
-    NameColumn,
-    PathColumn,
-    UriColumn,
-    PixbufColumn,
-    ProjectColumn,
-    ProjectStoredColumn,
+    Name,
+    Path,
+    Uri,
+    Pixbuf,
+    Project,
+    ProjectStored,
 }
 
 const COLUMN_COUNT: usize = 6;
@@ -36,12 +36,12 @@ const COLUMN_TYPES: [Type; COLUMN_COUNT] = [Type::String,
                                             Type::String,
                                             Type::Bool,
                                             Type::Bool];
-const COLUMN_IDS: [u32; COLUMN_COUNT] = [ProjectViewColumns::NameColumn as u32,
-                                         ProjectViewColumns::PathColumn as u32,
-                                         ProjectViewColumns::UriColumn as u32,
-                                         ProjectViewColumns::PixbufColumn as u32,
-                                         ProjectViewColumns::ProjectColumn as u32,
-                                         ProjectViewColumns::ProjectStoredColumn as u32];
+const COLUMN_IDS: [u32; COLUMN_COUNT] = [ProjectViewColumns::Name as u32,
+                                         ProjectViewColumns::Path as u32,
+                                         ProjectViewColumns::Uri as u32,
+                                         ProjectViewColumns::Pixbuf as u32,
+                                         ProjectViewColumns::Project as u32,
+                                         ProjectViewColumns::ProjectStored as u32];
 
 pub struct Projects {
     shell: Rc<RefCell<Shell>>,
@@ -161,12 +161,12 @@ impl Projects {
         let list_store = self.get_list_store();
         if let Some(iter) = list_store.get_iter(path) {
             let value: bool = list_store
-                .get_value(&iter, ProjectViewColumns::ProjectStoredColumn as i32)
+                .get_value(&iter, ProjectViewColumns::ProjectStored as i32)
                 .get()
                 .unwrap();
 
             list_store.set_value(&iter,
-                                 ProjectViewColumns::ProjectStoredColumn as u32,
+                                 ProjectViewColumns::ProjectStored as u32,
                                  &ToValue::to_value(&!value));
 
             let pixbuf = if value {
@@ -176,10 +176,10 @@ impl Projects {
             };
 
             list_store.set_value(&iter,
-                                 ProjectViewColumns::PixbufColumn as u32,
+                                 ProjectViewColumns::Pixbuf as u32,
                                  &ToValue::to_value(pixbuf));
 
-            let uri_value = list_store.get_value(&iter, ProjectViewColumns::UriColumn as i32);
+            let uri_value = list_store.get_value(&iter, ProjectViewColumns::Uri as i32);
             let uri: String = uri_value.get().unwrap();
 
             let mut store = self.store.as_mut().unwrap();
@@ -194,8 +194,8 @@ impl Projects {
 
 
     fn open_uri(&self, model: &TreeModel, iter: &TreeIter) {
-        let uri: String = model.get_value(&iter, ProjectViewColumns::UriColumn as i32).get().unwrap();
-        let project: bool = model.get_value(&iter, ProjectViewColumns::ProjectColumn as i32).get().unwrap();
+        let uri: String = model.get_value(iter, ProjectViewColumns::Uri as i32).get().unwrap();
+        let project: bool = model.get_value(iter, ProjectViewColumns::Project as i32).get().unwrap();
 
         let shell = self.shell.borrow();
         if project {
@@ -226,15 +226,12 @@ impl Projects {
         const CANCEL_ID: i32 = 1;
 
         dlg.add_buttons(&[("_Open", OPEN_ID), ("_Cancel", CANCEL_ID)]);
-        match dlg.run() {
-            OPEN_ID => {
-                if let Some(filename) = dlg.get_filename() {
-                    if let Some(filename) = filename.to_str() {
-                        self.shell.borrow().open_file(filename);
-                    }
+        if dlg.run() == OPEN_ID {
+            if let Some(filename) = dlg.get_filename() {
+                if let Some(filename) = filename.to_str() {
+                    self.shell.borrow().open_file(filename);
                 }
             }
-            _ => (),
         }
         dlg.destroy();
     }
@@ -271,7 +268,7 @@ impl Projects {
 
         image_column.add_attribute(&icon_renderer,
                                    "icon-name",
-                                   ProjectViewColumns::PixbufColumn as i32);
+                                   ProjectViewColumns::Pixbuf as i32);
 
         self.tree.append_column(&image_column);
 
@@ -287,10 +284,10 @@ impl Projects {
 
         text_column.add_attribute(&self.name_renderer,
                                   "markup",
-                                  ProjectViewColumns::NameColumn as i32);
+                                  ProjectViewColumns::Name as i32);
         text_column.add_attribute(&self.path_renderer,
                                   "markup",
-                                  ProjectViewColumns::PathColumn as i32);
+                                  ProjectViewColumns::Path as i32);
 
         let area = text_column
             .get_area()
@@ -309,10 +306,10 @@ impl Projects {
         toggle_column.pack_start(&self.toggle_renderer, true);
         toggle_column.add_attribute(&self.toggle_renderer,
                                     "visible",
-                                    ProjectViewColumns::ProjectColumn as i32);
+                                    ProjectViewColumns::Project as i32);
         toggle_column.add_attribute(&self.toggle_renderer,
                                     "active",
-                                    ProjectViewColumns::ProjectStoredColumn as i32);
+                                    ProjectViewColumns::ProjectStored as i32);
 
         self.tree.append_column(&toggle_column);
     }
@@ -384,7 +381,7 @@ impl EntryStore {
     pub fn find_mut(&mut self, uri: &str) -> Option<&mut Entry> {
         self.entries
             .iter_mut()
-            .find(|e| e.project == true && e.uri == uri)
+            .find(|e| e.project && e.uri == uri)
     }
 
     pub fn load(nvim: &mut Neovim) -> EntryStore {
@@ -399,7 +396,7 @@ impl EntryStore {
                 if let Some(pwd) = pwd.as_str() {
                     if entries
                            .iter()
-                           .find(|e| e.project == true && e.uri == pwd)
+                           .find(|e| e.project && e.uri == pwd)
                            .is_none() {
                         entries.insert(0, Entry::new_current_project(pwd));
                     }
@@ -467,7 +464,7 @@ impl Entry {
             uri: uri.to_owned(),
             path: path.parent()
                 .map(|s| format!("<small>{}</small>", encode_minimal(&s.to_string_lossy())))
-                .unwrap_or("".to_owned()),
+                .unwrap_or_else(|| "".to_owned()),
             file_name: format!("<big>{}</big>", encode_minimal(name)),
             name: name.to_owned(),
             pixbuf: BOOKMARKED_PIXBUF,
@@ -480,13 +477,13 @@ impl Entry {
         let path = Path::new(uri);
         let name = path.file_name()
             .map(|f| f.to_string_lossy().as_ref().to_owned())
-            .unwrap_or(path.to_string_lossy().as_ref().to_owned());
+            .unwrap_or_else(|| path.to_string_lossy().as_ref().to_owned());
 
         Entry {
             uri: uri.to_owned(),
             path: path.parent()
                 .map(|s| format!("<small>{}</small>", encode_minimal(&s.to_string_lossy())))
-                .unwrap_or("".to_owned()),
+                .unwrap_or_else(|| "".to_owned()),
             file_name: format!("<big>{}</big>", encode_minimal(&name)),
             name,
             pixbuf: CURRENT_DIR_PIXBUF,
@@ -499,7 +496,7 @@ impl Entry {
         let path = Path::new(uri);
         let name = path.file_name()
             .map(|f| f.to_string_lossy().as_ref().to_owned())
-            .unwrap_or("<empty>".to_owned());
+            .unwrap_or_else(|| "<empty>".to_owned());
 
         Entry {
             uri: uri.to_owned(),
@@ -508,7 +505,7 @@ impl Entry {
                          format!("<small>{}</small>",
                                  encode_minimal(&s.to_string_lossy()))
                      })
-                .unwrap_or("".to_owned()),
+                .unwrap_or_else(|| "".to_owned()),
             file_name: format!("<big>{}</big>", encode_minimal(&name)),
             name,
             pixbuf: PLAIN_FILE_PIXBUF,

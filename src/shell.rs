@@ -198,7 +198,7 @@ impl State {
         }
     }
 
-    fn queue_draw_area<M: AsRef<ModelRect>>(&self, rect_list: &Vec<M>) {
+    fn queue_draw_area<M: AsRef<ModelRect>>(&self, rect_list: &[M]) {
         match (&self.line_height, &self.char_width) {
             (&Some(line_height), &Some(char_width)) => {
                 for rect in rect_list {
@@ -392,9 +392,9 @@ impl Shell {
         state
             .drawing_area
             .connect_configure_event(move |_, _| {
-                try_nvim_resize(&ref_state);
-                false
-            });
+                                         try_nvim_resize(&ref_state);
+                                         false
+                                     });
     }
 
     #[cfg(unix)]
@@ -964,11 +964,11 @@ impl RedrawEvents for State {
     }
 
     fn on_redraw(&self, mode: &RepaintMode) {
-        match mode {
-            &RepaintMode::All => self.drawing_area.queue_draw(),
-            &RepaintMode::Area(ref rect) => self.queue_draw_area(&vec![rect]),
-            &RepaintMode::AreaList(ref list) => self.queue_draw_area(&list.list),
-            &RepaintMode::Nothing => (),
+        match *mode {
+            RepaintMode::All => self.drawing_area.queue_draw(),
+            RepaintMode::Area(ref rect) => self.queue_draw_area(&[rect]),
+            RepaintMode::AreaList(ref list) => self.queue_draw_area(&list.list),
+            RepaintMode::Nothing => (),
         }
     }
 
@@ -981,7 +981,7 @@ impl RedrawEvents for State {
         RepaintMode::Area(self.model.scroll(count))
     }
 
-    fn on_highlight_set(&mut self, attrs: &Vec<(Value, Value)>) -> RepaintMode {
+    fn on_highlight_set(&mut self, attrs: &[(Value, Value)]) -> RepaintMode {
         let mut model_attrs = Attrs::new();
 
         for &(ref key_val, ref val) in attrs {
@@ -1065,22 +1065,19 @@ impl RedrawEvents for State {
     }
 
     fn popupmenu_show(&mut self,
-                      menu: &Vec<Vec<&str>>,
+                      menu: &[Vec<&str>],
                       selected: i64,
                       row: u64,
                       col: u64)
                       -> RepaintMode {
-        match (&self.line_height, &self.char_width) {
-            (&Some(line_height), &Some(char_width)) => {
-                let point = ModelRect::point(col as usize, row as usize);
-                let (x, y, width, height) = point.to_area(line_height, char_width);
+        if let (&Some(line_height), &Some(char_width)) = (&self.line_height, &self.char_width) {
+            let point = ModelRect::point(col as usize, row as usize);
+            let (x, y, width, height) = point.to_area(line_height, char_width);
 
-                self.popup_menu
-                    .borrow_mut()
-                    .show(&self, menu, selected, x, y, width, height);
-            }
-            _ => (),
-        };
+            self.popup_menu
+                .borrow_mut()
+                .show(self, menu, selected, x, y, width, height);
+        }
 
         RepaintMode::Nothing
     }

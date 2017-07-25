@@ -172,8 +172,8 @@ impl UiModel {
         let mut cell = &mut self.model[self.cur_row][self.cur_col];
 
         cell.ch = text.chars().last().unwrap_or(' ');
-        cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(|| Attrs::new());
-        cell.attrs.double_width = text.len() == 0;
+        cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);
+        cell.attrs.double_width = text.is_empty();
         self.cur_col += 1;
         if self.cur_col >= self.columns {
             self.cur_col -= 1;
@@ -274,7 +274,7 @@ impl ModelRectVec {
 
     pub fn join(&mut self, other: &ModelRect) {
         match self.find_neighbor(other) {
-            Some(i) => self.list.get_mut(i).unwrap().join(other),
+            Some(i) => self.list[i].join(other),
             None => self.list.push(other.clone()),
         }
     }
@@ -379,17 +379,7 @@ impl ModelRect {
                      x2: f64,
                      y2: f64)
                      -> ModelRect {
-        let x1 = if x1 > 0.0 {
-            x1 // - 1.0
-        } else {
-            x1
-        };
         let x2 = if x2 > 0.0 { x2 - 1.0 } else { x2 };
-        let y1 = if y1 > 0.0 {
-            y1 // - 1.0
-        } else {
-            y1
-        };
         let y2 = if y2 > 0.0 { y2 - 1.0 } else { y2 };
         let left = (x1 / char_width) as usize;
         let right = (x2 / char_width) as usize;
@@ -435,11 +425,11 @@ impl<'a> Iterator for ClipRowIterator<'a> {
 
 pub struct ClipLine<'a> {
     rect: &'a ModelRect,
-    line: &'a Vec<Cell>,
+    line: &'a [Cell],
 }
 
 impl<'a> ClipLine<'a> {
-    pub fn new(model: &'a Vec<Cell>, rect: &'a ModelRect) -> ClipLine<'a> {
+    pub fn new(model: &'a [Cell], rect: &'a ModelRect) -> ClipLine<'a> {
         ClipLine {
             line: model,
             rect: rect,
@@ -469,7 +459,7 @@ pub struct ClipColIterator<'a> {
 }
 
 impl<'a> ClipColIterator<'a> {
-    pub fn new(model: &'a Vec<Cell>, rect: &'a ModelRect) -> ClipColIterator<'a> {
+    pub fn new(model: &'a [Cell], rect: &'a ModelRect) -> ClipColIterator<'a> {
         ClipColIterator {
             rect: rect,
             pos: 0,
