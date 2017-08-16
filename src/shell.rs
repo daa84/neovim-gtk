@@ -134,7 +134,8 @@ impl State {
     }
 
     pub fn set_detach_cb<F>(&mut self, cb: Option<F>)
-        where F: FnMut() + Send + 'static
+    where
+        F: FnMut() + Send + 'static,
     {
         if cb.is_some() {
             self.detach_cb = Some(Box::new(RefCell::new(cb.unwrap())));
@@ -227,7 +228,7 @@ impl State {
 
         let desc = self.create_pango_font();
         layout.set_font_description(Some(&desc));
-        layout.set_text("A", -1);
+        layout.set_text("A");
 
         layout.get_pixel_size()
     }
@@ -244,8 +245,10 @@ impl State {
         if let Some(line_height) = self.line_height {
             if let Some(char_width) = self.char_width {
                 let alloc = self.drawing_area.get_allocation();
-                return Some(((alloc.width as f64 / char_width).trunc() as usize,
-                             (alloc.height as f64 / line_height).trunc() as usize));
+                return Some((
+                    (alloc.width as f64 / char_width).trunc() as usize,
+                    (alloc.height as f64 / line_height).trunc() as usize,
+                ));
             }
         }
 
@@ -255,9 +258,9 @@ impl State {
     fn show_error_area(&self) {
         let stack = self.stack.clone();
         gtk::idle_add(move || {
-                          stack.set_visible_child_name("Error");
-                          Continue(false)
-                      });
+            stack.set_visible_child_name("Error");
+            Continue(false)
+        });
     }
 }
 
@@ -332,114 +335,106 @@ impl Shell {
 
         self.widget.pack_start(&state.stack, true, true, 0);
 
-        state
-            .drawing_area
-            .set_events((gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
-                         gdk_sys::GDK_BUTTON_MOTION_MASK |
-                         gdk_sys::GDK_SCROLL_MASK)
-                                .bits() as i32);
+        state.drawing_area.set_events(
+            (gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
+                 gdk_sys::GDK_BUTTON_MOTION_MASK |
+                 gdk_sys::GDK_SCROLL_MASK)
+                .bits() as i32,
+        );
 
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
-        state
-            .drawing_area
-            .connect_button_press_event(move |_, ev| {
-                                            gtk_button_press(&mut *ref_state.borrow_mut(),
-                                                             &mut *ref_ui_state.borrow_mut(),
-                                                             ev)
-                                        });
+        state.drawing_area.connect_button_press_event(move |_, ev| {
+            gtk_button_press(
+                &mut *ref_state.borrow_mut(),
+                &mut *ref_ui_state.borrow_mut(),
+                ev,
+            )
+        });
 
         let ref_ui_state = self.ui_state.clone();
-        state
-            .drawing_area
-            .connect_button_release_event(move |_, _| {
-                                              gtk_button_release(&mut *ref_ui_state.borrow_mut())
-                                          });
+        state.drawing_area.connect_button_release_event(
+            move |_, _| {
+                gtk_button_release(&mut *ref_ui_state.borrow_mut())
+            },
+        );
 
 
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
-        state
-            .drawing_area
-            .connect_motion_notify_event(move |_, ev| {
-                                             gtk_motion_notify(&mut *ref_state.borrow_mut(),
-                                                               &mut *ref_ui_state.borrow_mut(),
-                                                               ev)
-                                         });
+        state.drawing_area.connect_motion_notify_event(
+            move |_, ev| {
+                gtk_motion_notify(
+                    &mut *ref_state.borrow_mut(),
+                    &mut *ref_ui_state.borrow_mut(),
+                    ev,
+                )
+            },
+        );
 
         let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_draw(move |_, ctx| gtk_draw(&ref_state, ctx));
+        state.drawing_area.connect_draw(
+            move |_, ctx| gtk_draw(&ref_state, ctx),
+        );
 
         let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_key_press_event(move |_, ev| {
-                let mut shell = ref_state.borrow_mut();
-                shell.cursor.as_mut().unwrap().reset_state();
-                // TODO: improve
-                // GtkIMContext will eat a Shift-Space and not tell us about shift.
-                // Also don't let IME eat any GDK_KEY_KP_ events
-                if !ev.get_state().contains(gdk::SHIFT_MASK) &&
-                   ev.get_keyval() < gdk_sys::GDK_KEY_KP_Space as u32 &&
-                   ev.get_keyval() > gdk_sys::GDK_KEY_KP_Divide as u32 &&
-                   shell.im_context.filter_keypress(ev) {
-                    println!("Filter");
-                    Inhibit(true)
+        state.drawing_area.connect_key_press_event(move |_, ev| {
+            let mut shell = ref_state.borrow_mut();
+            shell.cursor.as_mut().unwrap().reset_state();
+            // GtkIMContext will eat a Shift-Space and not tell us about shift.
+            // Also don't let IME eat any GDK_KEY_KP_ events
+            if !ev.get_state().contains(gdk::SHIFT_MASK) &&
+                ev.get_keyval() < gdk_sys::GDK_KEY_KP_Space as u32 &&
+                ev.get_keyval() > gdk_sys::GDK_KEY_KP_Divide as u32 &&
+                shell.im_context.filter_keypress(ev)
+            {
+                Inhibit(true)
+            } else {
+                if shell.nvim.borrow().is_initialized() {
+                    input::gtk_key_press(&mut shell.nvim.borrow_mut(), ev)
                 } else {
-                    if shell.nvim.borrow().is_initialized() {
-                        input::gtk_key_press(&mut shell.nvim.borrow_mut(), ev)
-                    } else {
-                        Inhibit(false)
-                    }
+                    Inhibit(false)
                 }
-            });
+            }
+        });
         let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_key_release_event(move |_, ev| {
-                                           ref_state.borrow().im_context.filter_keypress(ev);
-                                           Inhibit(false)
-                                       });
+        state.drawing_area.connect_key_release_event(move |_, ev| {
+            ref_state.borrow().im_context.filter_keypress(ev);
+            Inhibit(false)
+        });
 
         let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_scroll_event(move |_, ev| gtk_scroll_event(&mut *ref_state.borrow_mut(), ev));
+        state.drawing_area.connect_scroll_event(move |_, ev| {
+            gtk_scroll_event(&mut *ref_state.borrow_mut(), ev)
+        });
 
         let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_focus_in_event(move |_, _| gtk_focus_in(&mut *ref_state.borrow_mut()));
+        state.drawing_area.connect_focus_in_event(move |_, _| {
+            gtk_focus_in(&mut *ref_state.borrow_mut())
+        });
 
         let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_focus_out_event(move |_, _| gtk_focus_out(&mut *ref_state.borrow_mut()));
+        state.drawing_area.connect_focus_out_event(move |_, _| {
+            gtk_focus_out(&mut *ref_state.borrow_mut())
+        });
 
         let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_realize(move |w| {
-                                 ref_state
-                                     .borrow()
-                                     .im_context
-                                     .set_client_window(w.get_window().as_ref())
-                             });
+        state.drawing_area.connect_realize(move |w| {
+            ref_state.borrow().im_context.set_client_window(
+                w.get_window().as_ref(),
+            )
+        });
 
         let ref_state = self.state.clone();
-        state
-            .im_context
-            .connect_commit(move |_, ch| ref_state.borrow().im_commit(ch));
+        state.im_context.connect_commit(move |_, ch| {
+            ref_state.borrow().im_commit(ch)
+        });
 
         let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_configure_event(move |_, _| {
-                                         try_nvim_resize(&ref_state);
-                                         false
-                                     });
+        state.drawing_area.connect_configure_event(move |_, _| {
+            try_nvim_resize(&ref_state);
+            false
+        });
     }
 
     #[cfg(unix)]
@@ -488,7 +483,8 @@ impl Shell {
     }
 
     pub fn set_detach_cb<F>(&self, cb: Option<F>)
-        where F: FnMut() + Send + 'static
+    where
+        F: FnMut() + Send + 'static,
     {
         let mut state = self.state.borrow_mut();
         state.set_detach_cb(cb);
@@ -567,8 +563,9 @@ fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f
             let col = (x / char_width).trunc() as u64;
             let row = (y / line_height).trunc() as u64;
             let input_str = format!("{}<{},{}>", keyval_to_input_string(input, state), col, row);
-            nvim.input(&input_str)
-                .expect("Can't send mouse input event");
+            nvim.input(&input_str).expect(
+                "Can't send mouse input event",
+            );
         }
     }
 }
@@ -619,32 +616,34 @@ fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>
     let cmd = err.cmd().unwrap().to_owned();
 
     glib::idle_add(move || {
-                       let state = state_arc.borrow();
-                       state.nvim.borrow_mut().set_error();
-                       state.error_area.show_nvim_start_error(&source, &cmd);
-                       state.show_error_area();
+        let state = state_arc.borrow();
+        state.nvim.borrow_mut().set_error();
+        state.error_area.show_nvim_start_error(&source, &cmd);
+        state.show_error_area();
 
-                       Continue(false)
-                   });
+        Continue(false)
+    });
 }
 
 fn show_nvim_init_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
     let source = err.source();
 
     glib::idle_add(move || {
-                       let state = state_arc.borrow();
-                       state.nvim.borrow_mut().set_error();
-                       state.error_area.show_nvim_init_error(&source);
-                       state.show_error_area();
+        let state = state_arc.borrow();
+        state.nvim.borrow_mut().set_error();
+        state.error_area.show_nvim_init_error(&source);
+        state.show_error_area();
 
-                       Continue(false)
-                   });
+        Continue(false)
+    });
 }
 
-fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
-                   options: ShellOptions,
-                   cols: usize,
-                   rows: usize) {
+fn init_nvim_async(
+    state_arc: Arc<UiMutex<State>>,
+    options: ShellOptions,
+    cols: usize,
+    rows: usize,
+) {
     // execute nvim
     let mut nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
         Ok(nvim) => nvim,
@@ -658,19 +657,22 @@ fn init_nvim_async(state_arc: Arc<UiMutex<State>>,
     let guard = nvim.session.take_dispatch_guard();
     let state_ref = state_arc.clone();
     thread::spawn(move || {
-                      guard.join().expect("Can't join dispatch thread");
+        guard.join().expect("Can't join dispatch thread");
 
-                      idle_cb_call!(state_ref.detach_cb());
-                  });
+        idle_cb_call!(state_ref.detach_cb());
+    });
 
     // attach ui
     let mut nvim = Some(nvim);
     glib::idle_add(move || {
         let mut nvim = nvim.take().unwrap();
-        if let Err(err) = nvim::post_start_init(&mut nvim,
-                                                options.open_path.as_ref(),
-                                                cols as u64,
-                                                rows as u64) {
+        if let Err(err) = nvim::post_start_init(
+            &mut nvim,
+            options.open_path.as_ref(),
+            cols as u64,
+            rows as u64,
+        )
+        {
             show_nvim_init_error(err, state_arc.clone());
         } else {
             let mut state = state_arc.borrow_mut();
@@ -698,11 +700,12 @@ fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
 }
 
 #[inline]
-fn get_model_clip(state: &State,
-                  line_height: f64,
-                  char_width: f64,
-                  clip: (f64, f64, f64, f64))
-                  -> ModelRect {
+fn get_model_clip(
+    state: &State,
+    line_height: f64,
+    char_width: f64,
+    clip: (f64, f64, f64, f64),
+) -> ModelRect {
     let mut model_clip =
         ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
     // in some cases symbols from previous row affect next row
@@ -716,12 +719,14 @@ fn get_model_clip(state: &State,
 }
 
 #[inline]
-fn draw_backgound(state: &State,
-                  draw_bitmap: &ModelBitamp,
-                  ctx: &cairo::Context,
-                  line_height: f64,
-                  char_width: f64,
-                  model_clip: &ModelRect) {
+fn draw_backgound(
+    state: &State,
+    draw_bitmap: &ModelBitamp,
+    ctx: &cairo::Context,
+    line_height: f64,
+    char_width: f64,
+    model_clip: &ModelRect,
+) {
     let line_x = model_clip.left as f64 * char_width;
     let mut line_y: f64 = model_clip.top as f64 * line_height;
 
@@ -759,7 +764,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     ctx.paint();
 
     layout.set_font_description(&desc);
-    layout.set_text("Loading..", -1);
+    layout.set_text("Loading..");
     let (width, height) = layout.get_pixel_size();
 
     let x = alloc.width as f64 / 2.0 - width as f64 / 2.0;
@@ -772,17 +777,15 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
 
 
     ctx.move_to(x + width as f64, y);
-    state
-        .cursor
-        .as_ref()
-        .unwrap()
-        .draw(ctx,
-              state,
-              char_width,
-              line_height,
-              y,
-              false,
-              &state.bg_color);
+    state.cursor.as_ref().unwrap().draw(
+        ctx,
+        state,
+        char_width,
+        line_height,
+        y,
+        false,
+        &state.bg_color,
+    );
 }
 
 fn draw(state: &State, ctx: &cairo::Context) {
@@ -803,21 +806,24 @@ fn draw(state: &State, ctx: &cairo::Context) {
     for clip_idx in 0..clip_rects.len() {
         let clip = clip_rects.get(clip_idx).unwrap();
 
-        let model_clip =
-            get_model_clip(state,
-                           line_height,
-                           char_width,
-                           (clip.x, clip.y, clip.x + clip.width, clip.y + clip.height));
+        let model_clip = get_model_clip(state, line_height, char_width, (
+            clip.x,
+            clip.y,
+            clip.x + clip.width,
+            clip.y + clip.height,
+        ));
 
         let line_x = model_clip.left as f64 * char_width;
         let mut line_y: f64 = model_clip.top as f64 * line_height;
 
-        draw_backgound(state,
-                       &draw_bitmap,
-                       ctx,
-                       line_height,
-                       char_width,
-                       &model_clip);
+        draw_backgound(
+            state,
+            &draw_bitmap,
+            ctx,
+            line_height,
+            char_width,
+            &model_clip,
+        );
 
         for (line_idx, line) in state.model.clip_model(&model_clip) {
 
@@ -832,17 +838,15 @@ fn draw(state: &State, ctx: &cairo::Context) {
                     let (bg, fg) = state.colors(cell);
 
                     if row == line_idx && col == col_idx {
-                        state
-                            .cursor
-                            .as_ref()
-                            .unwrap()
-                            .draw(ctx,
-                                  state,
-                                  char_width,
-                                  line_height,
-                                  line_y,
-                                  double_width,
-                                  bg);
+                        state.cursor.as_ref().unwrap().draw(
+                            ctx,
+                            state,
+                            char_width,
+                            line_height,
+                            line_y,
+                            double_width,
+                            bg,
+                        );
 
                         ctx.move_to(current_point.0, current_point.1);
                     }
@@ -854,7 +858,7 @@ fn draw(state: &State, ctx: &cairo::Context) {
                         layout.set_font_description(&desc);
                         buf.clear();
                         buf.push(cell.ch);
-                        layout.set_text(&buf, -1);
+                        layout.set_text(&buf);
 
                         // correct layout for double_width chars
                         if double_width {
@@ -1111,19 +1115,26 @@ impl RedrawEvents for State {
         RepaintMode::Area(self.model.cur_point())
     }
 
-    fn popupmenu_show(&mut self,
-                      menu: &[Vec<&str>],
-                      selected: i64,
-                      row: u64,
-                      col: u64)
-                      -> RepaintMode {
+    fn popupmenu_show(
+        &mut self,
+        menu: &[Vec<&str>],
+        selected: i64,
+        row: u64,
+        col: u64,
+    ) -> RepaintMode {
         if let (&Some(line_height), &Some(char_width)) = (&self.line_height, &self.char_width) {
             let point = ModelRect::point(col as usize, row as usize);
             let (x, y, width, height) = point.to_area(line_height, char_width);
 
-            self.popup_menu
-                .borrow_mut()
-                .show(self, menu, selected, x, y, width, height);
+            self.popup_menu.borrow_mut().show(
+                self,
+                menu,
+                selected,
+                x,
+                y,
+                width,
+                height,
+            );
         }
 
         RepaintMode::Nothing
@@ -1140,19 +1151,21 @@ impl RedrawEvents for State {
     }
 
 
-    fn tabline_update(&mut self,
-                      selected: Tabpage,
-                      tabs: Vec<(Tabpage, Option<String>)>)
-                      -> RepaintMode {
+    fn tabline_update(
+        &mut self,
+        selected: Tabpage,
+        tabs: Vec<(Tabpage, Option<String>)>,
+    ) -> RepaintMode {
         self.tabs.update_tabs(&self.nvim, &selected, &tabs);
 
         RepaintMode::Nothing
     }
 
-    fn mode_info_set(&mut self,
-                     cursor_style_enabled: bool,
-                     mode_info: Vec<nvim::ModeInfo>)
-                     -> RepaintMode {
+    fn mode_info_set(
+        &mut self,
+        cursor_style_enabled: bool,
+        mode_info: Vec<nvim::ModeInfo>,
+    ) -> RepaintMode {
         self.mode.set_info(cursor_style_enabled, mode_info);
         RepaintMode::Nothing
     }
