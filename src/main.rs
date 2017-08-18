@@ -3,9 +3,12 @@ extern crate gtk_sys;
 extern crate gio;
 extern crate gdk;
 extern crate gdk_sys;
+#[macro_use]
 extern crate glib;
+extern crate glib_sys as glib_ffi;
 extern crate cairo;
 extern crate pango;
+extern crate pango_sys;
 extern crate pangocairo;
 extern crate neovim_lib;
 extern crate phf;
@@ -19,12 +22,15 @@ extern crate serde_derive;
 extern crate serde;
 extern crate toml;
 
+mod sys;
+
 mod value;
 mod mode;
 mod ui_model;
 #[macro_use]
 mod ui;
 mod nvim;
+mod render;
 mod shell;
 mod input;
 mod settings;

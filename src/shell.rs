@@ -30,6 +30,7 @@ use popup_menu::PopupMenu;
 use tabline::Tabline;
 use error;
 use mode;
+use render;
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2";
@@ -592,6 +593,7 @@ fn update_line_metrics(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
 }
 
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
+    render::render(ctx);
     update_line_metrics(state_arc, ctx);
 
     if state_arc.borrow_mut().request_nvim_resize {
