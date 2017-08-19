@@ -829,14 +829,13 @@ fn draw(state: &State, ctx: &cairo::Context) {
                         // > layout.get_context().unwrap().get_metrics();
                         let top_offset = line_height * 0.9;
 
-                        let sp = if let Some(ref sp) = cell.attrs.special {
-                            sp
-                        } else {
-                            &state.sp_color
-                        };
-
-                        ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
                         if cell.attrs.undercurl {
+                            let sp = if let Some(ref sp) = cell.attrs.special {
+                                sp
+                            } else {
+                                &state.sp_color
+                            };
+                            ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
                             ctx.set_dash(&[4.0, 2.0], 0.0);
                             ctx.set_line_width(2.0);
                             ctx.move_to(current_point.0, line_y + top_offset);
@@ -844,6 +843,7 @@ fn draw(state: &State, ctx: &cairo::Context) {
                             ctx.stroke();
                             ctx.set_dash(&[], 0.0);
                         } else if cell.attrs.underline {
+                            ctx.set_source_rgb(fg.0, fg.1, fg.2);
                             ctx.set_line_width(1.0);
                             ctx.move_to(current_point.0, line_y + top_offset);
                             ctx.line_to(current_point.0 + char_width, line_y + top_offset);
