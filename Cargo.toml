@@ -23,6 +23,7 @@ pango = { git = 'https://github.com/gtk-rs/pango' }
 pango-sys = { git = 'https://github.com/gtk-rs/sys' }
 gio = { git = 'https://github.com/gtk-rs/gio' }
 pangocairo = { git = 'https://github.com/RazrFalcon/pangocairo-rs' }
+pangocairo-sys = "0.3.4"
 neovim-lib = "0.4"
 phf = "0.7"
 log = "0.3"

@@ -14,6 +14,8 @@ pub fn render(ctx: &cairo::Context) {
    let items = pango_itemize(&pango_context, &text, 0, len, &attr_list);
    for item in items {
        let mut glyphs = pango::GlyphString::new();
-       pango_shape(&text, len, item.analysis(), &mut glyphs);
+       let analysis = item.analysis();
+       pango_shape(&text, len, &analysis, &mut glyphs);
+       let (ink, logical) = glyphs.extents(&analysis.font());
    }
 }

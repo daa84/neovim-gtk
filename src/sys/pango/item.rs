@@ -6,6 +6,8 @@ use pango_sys;
 use glib_ffi;
 use glib::translate::*;
 
+use super::analysis;
+
 glib_wrapper! {
     pub struct Item(Boxed<pango_sys::PangoItem>);
 
@@ -16,7 +18,7 @@ glib_wrapper! {
 }
 
 impl Item {
-    pub fn analysis(&self) -> &pango_sys::PangoAnalysis {
-        &self.0.analysis
+    pub fn analysis(&self) -> analysis::Analysis {
+        analysis::Analysis::from(&self.0.analysis)
     }
 }
