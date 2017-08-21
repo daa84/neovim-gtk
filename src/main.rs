@@ -10,7 +10,6 @@ extern crate cairo;
 extern crate pango;
 extern crate pango_sys;
 extern crate pangocairo;
-extern crate pangocairo_sys;
 extern crate neovim_lib;
 extern crate phf;
 #[macro_use]

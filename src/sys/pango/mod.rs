@@ -6,8 +6,6 @@ use std::ffi::CStr;
 
 use pango;
 use pango_sys;
-use cairo;
-use pangocairo_sys;
 
 use glib::translate::*;
 
@@ -44,9 +42,5 @@ pub fn pango_shape(
             glyphs.to_glib_none_mut().0,
         );
     }
-}
-
-pub fn pango_cairo_show_glyph_string(ctx: &cairo::Context, font: &pango::Font, glyphs: &pango::GlyphString) {
-    pangocairo_sys::pango_cairo_show_glyph_string();
 }
 
