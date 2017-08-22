@@ -455,7 +455,6 @@ impl Shell {
 
         let ref_state = self.state.clone();
         state.im_context.connect_commit(move |_, ch| {
-            println!("commit");
             ref_state.borrow().im_commit(ch)
         });
 
@@ -530,7 +529,6 @@ impl Deref for Shell {
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
     state.im_context.focus_in();
-    println!("focus in");
     state.cursor.as_mut().unwrap().enter_focus();
     let point = state.model.cur_point();
     state.on_redraw(&RepaintMode::Area(point));
@@ -539,7 +537,6 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
     state.im_context.focus_out();
-    println!("focus out");
     state.cursor.as_mut().unwrap().leave_focus();
     let point = state.model.cur_point();
     state.on_redraw(&RepaintMode::Area(point));
@@ -623,24 +620,31 @@ fn update_line_metrics(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
 }
 
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
-    render::render(ctx);
-    update_line_metrics(state_arc, ctx);
+    //update_line_metrics(state_arc, ctx);
 
-    if state_arc.borrow_mut().request_nvim_resize {
-        try_nvim_resize(state_arc);
-    }
+    //if state_arc.borrow_mut().request_nvim_resize {
+    //    try_nvim_resize(state_arc);
+    //}
 
-    init_nvim(state_arc);
+    //init_nvim(state_arc);
+
+    //let mut state = state_arc.borrow_mut();
+    //if state.nvim.borrow().is_initialized() {
+    //    draw(&*state, ctx);
+    //    request_window_resize(&mut *state);
+    //} else if state.nvim.borrow().is_initializing() {
+    //    draw_initializing(&*state, ctx);
+    //}
 
     let mut state = state_arc.borrow_mut();
-    if state.nvim.borrow().is_initialized() {
-        draw(&*state, ctx);
-        request_window_resize(&mut *state);
-    } else if state.nvim.borrow().is_initializing() {
-        draw_initializing(&*state, ctx);
-    }
-
+    render(&*state, ctx);
     Inhibit(false)
+}
+
+fn render(state: &State, ctx: &cairo::Context) {
+    let font_desc = state.create_pango_font();
+
+    render::render(ctx, font_desc);
 }
 
 fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
