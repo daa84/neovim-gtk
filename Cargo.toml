@@ -23,7 +23,7 @@ gio = "0.2"
 #pango = { git = 'https://github.com/gtk-rs/pango' }
 #pango-sys = { git = 'https://github.com/gtk-rs/sys' }
 #gio = { git = 'https://github.com/gtk-rs/gio' }
-#pangocairo = { git = 'https://github.com/daa84/pangocairo-rs' }
+#pangocairo = { git = 'https://github.com/RazrFalcon/pangocairo-rs' }
 neovim-lib = "0.4"
 phf = "0.7"
 log = "0.3"

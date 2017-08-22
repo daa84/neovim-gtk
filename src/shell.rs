@@ -263,6 +263,26 @@ impl State {
             Continue(false)
         });
     }
+
+    fn set_im_location(&self) {
+        if let Some(line_height) = self.line_height {
+            if let Some(char_width) = self.char_width {
+                let (row, col) = self.model.get_cursor();
+
+                let (x, y, width, height) =
+                    ModelRect::point(col, row).to_area(line_height, char_width);
+
+                self.im_context.set_cursor_location(&gdk::Rectangle {
+                    x,
+                    y,
+                    width,
+                    height,
+                });
+            }
+        }
+
+        self.im_context.reset();
+    }
 }
 
 pub struct UiState {
@@ -421,13 +441,21 @@ impl Shell {
 
         let ref_state = self.state.clone();
         state.drawing_area.connect_realize(move |w| {
-            ref_state.borrow().im_context.set_client_window(
-                w.get_window().as_ref(),
-            )
+            let ref_state = ref_state.clone();
+            let w = w.clone();
+            // sometime set_client_window does not work without idle_add
+            // and looks like not enabled im_context
+            gtk::idle_add(move || {
+                ref_state.borrow().im_context.set_client_window(
+                    w.get_window().as_ref(),
+                );
+                Continue(false)
+            });
         });
 
         let ref_state = self.state.clone();
         state.im_context.connect_commit(move |_, ch| {
+            println!("commit");
             ref_state.borrow().im_commit(ch)
         });
 
@@ -502,6 +530,7 @@ impl Deref for Shell {
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
     state.im_context.focus_in();
+    println!("focus in");
     state.cursor.as_mut().unwrap().enter_focus();
     let point = state.model.cur_point();
     state.on_redraw(&RepaintMode::Area(point));
@@ -510,6 +539,7 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
     state.im_context.focus_out();
+    println!("focus out");
     state.cursor.as_mut().unwrap().leave_focus();
     let point = state.model.cur_point();
     state.on_redraw(&RepaintMode::Area(point));
@@ -882,14 +912,13 @@ fn draw(state: &State, ctx: &cairo::Context) {
                         // > layout.get_context().unwrap().get_metrics();
                         let top_offset = line_height * 0.9;
 
-                        let sp = if let Some(ref sp) = cell.attrs.special {
-                            sp
-                        } else {
-                            &state.sp_color
-                        };
-
-                        ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
                         if cell.attrs.undercurl {
+                            let sp = if let Some(ref sp) = cell.attrs.special {
+                                sp
+                            } else {
+                                &state.sp_color
+                            };
+                            ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
                             ctx.set_dash(&[4.0, 2.0], 0.0);
                             ctx.set_line_width(2.0);
                             ctx.move_to(current_point.0, line_y + top_offset);
@@ -897,6 +926,7 @@ fn draw(state: &State, ctx: &cairo::Context) {
                             ctx.stroke();
                             ctx.set_dash(&[], 0.0);
                         } else if cell.attrs.underline {
+                            ctx.set_source_rgb(fg.0, fg.1, fg.2);
                             ctx.set_line_width(1.0);
                             ctx.move_to(current_point.0, line_y + top_offset);
                             ctx.line_to(current_point.0 + char_width, line_y + top_offset);
@@ -994,7 +1024,9 @@ fn try_nvim_resize(state: &Arc<UiMutex<State>>) {
 
 impl RedrawEvents for State {
     fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
-        RepaintMode::AreaList(self.model.set_cursor(row as usize, col as usize))
+        let repaint_area = self.model.set_cursor(row as usize, col as usize);
+        self.set_im_location();
+        RepaintMode::AreaList(repaint_area)
     }
 
     fn on_put(&mut self, text: &str) -> RepaintMode {
