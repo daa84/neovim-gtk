@@ -19,7 +19,8 @@ use neovim_lib::{Neovim, NeovimApi, Value};
 use neovim_lib::neovim_api::Tabpage;
 
 use settings::{Settings, FontSource};
-use ui_model::{UiModel, Cell, Attrs, Color, ModelRect, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
+use ui_model::{UiModel, Cell, Attrs, ModelRect};
+use color::{Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim;
 use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient};
 use input;

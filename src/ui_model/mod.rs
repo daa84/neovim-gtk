@@ -1,92 +1,17 @@
+mod cell;
+mod line;
+
+pub use self::cell::{Cell, Attrs};
+use self::line::Line;
+
 use std::slice::Iter;
-
-use gdk;
-
-#[derive(Clone, PartialEq)]
-pub struct Color(pub f64, pub f64, pub f64);
-
-pub const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);
-pub const COLOR_WHITE: Color = Color(1.0, 1.0, 1.0);
-pub const COLOR_RED: Color = Color(1.0, 0.0, 0.0);
-
-impl <'a> Into<gdk::RGBA> for &'a Color {
-    fn into(self) -> gdk::RGBA {
-        gdk::RGBA {
-            red: self.0,
-            green: self.1,
-            blue: self.2,
-            alpha: 1.0,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct Attrs {
-    pub italic: bool,
-    pub bold: bool,
-    pub underline: bool,
-    pub undercurl: bool,
-    pub foreground: Option<Color>,
-    pub background: Option<Color>,
-    pub special: Option<Color>,
-    pub reverse: bool,
-    pub double_width: bool,
-}
-
-impl Attrs {
-    pub fn new() -> Attrs {
-        Attrs {
-            foreground: None,
-            background: None,
-            special: None,
-            italic: false,
-            bold: false,
-            underline: false,
-            undercurl: false,
-            reverse: false,
-            double_width: false,
-        }
-    }
-
-    fn clear(&mut self) {
-        self.italic = false;
-        self.bold = false;
-        self.underline = false;
-        self.undercurl = false;
-        self.reverse = false;
-        self.foreground = None;
-        self.background = None;
-        self.special = None;
-        self.double_width = false;
-    }
-}
-
-#[derive(Clone)]
-pub struct Cell {
-    pub ch: char,
-    pub attrs: Attrs,
-}
-
-impl Cell {
-    pub fn new(ch: char) -> Cell {
-        Cell {
-            ch: ch,
-            attrs: Attrs::new(),
-        }
-    }
-
-    fn clear(&mut self) {
-        self.ch = ' ';
-        self.attrs.clear();
-    }
-}
 
 pub struct UiModel {
     pub columns: usize,
     pub rows: usize,
     cur_row: usize,
     cur_col: usize,
-    model: Vec<Vec<Cell>>,
+    model: Box<[Line]>,
     top: usize,
     bot: usize,
     left: usize,
@@ -97,10 +22,7 @@ impl UiModel {
     pub fn new(rows: u64, columns: u64) -> UiModel {
         let mut model = Vec::with_capacity(rows as usize);
         for i in 0..rows as usize {
-            model.push(Vec::with_capacity(columns as usize));
-            for _ in 0..columns as usize {
-                model[i].push(Cell::new(' '));
-            }
+            model.push(Line::new(columns as usize));
         }
 
         UiModel {
@@ -108,7 +30,7 @@ impl UiModel {
             rows: rows as usize,
             cur_row: 0,
             cur_col: 0,
-            model: model,
+            model: model.into_boxed_slice(),
             top: 0,
             bot: (rows - 1) as usize,
             left: 0,
@@ -116,7 +38,7 @@ impl UiModel {
         }
     }
 
-    pub fn model(&self) -> &Vec<Vec<Cell>> {
+    pub fn model(&self) -> &[Line] {
         &self.model
     }
 

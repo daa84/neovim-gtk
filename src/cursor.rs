@@ -1,5 +1,5 @@
 use cairo;
-use ui_model::Color;
+use color::Color;
 use ui::UiMutex;
 use shell;
 use mode;

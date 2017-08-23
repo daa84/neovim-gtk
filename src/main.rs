@@ -24,6 +24,7 @@ extern crate toml;
 
 mod sys;
 
+mod color;
 mod value;
 mod mode;
 mod ui_model;
