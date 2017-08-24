@@ -2,6 +2,7 @@ mod cell;
 mod line;
 
 pub use self::cell::{Cell, Attrs};
+pub use self::line::{Item, StyledLine};
 use self::line::Line;
 
 use std::slice::Iter;
@@ -158,9 +159,7 @@ impl UiModel {
 
     fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize) {
         for row in &mut self.model[top..bot + 1] {
-            for cell in &mut row[left..right + 1] {
-                cell.clear();
-            }
+            row.clear(left, right);
         }
     }
 }
@@ -321,7 +320,7 @@ impl AsRef<ModelRect> for ModelRect {
 pub struct ClipRowIterator<'a> {
     rect: &'a ModelRect,
     pos: usize,
-    iter: Iter<'a, Vec<Cell>>,
+    iter: Iter<'a, Line>,
 }
 
 impl<'a> ClipRowIterator<'a> {
@@ -347,11 +346,11 @@ impl<'a> Iterator for ClipRowIterator<'a> {
 
 pub struct ClipLine<'a> {
     rect: &'a ModelRect,
-    line: &'a [Cell],
+    line: &'a Line,
 }
 
 impl<'a> ClipLine<'a> {
-    pub fn new(model: &'a [Cell], rect: &'a ModelRect) -> ClipLine<'a> {
+    pub fn new(model: &'a Line, rect: &'a ModelRect) -> ClipLine<'a> {
         ClipLine {
             line: model,
             rect: rect,
@@ -366,7 +365,7 @@ impl<'a> ClipLine<'a> {
     }
 
     pub fn get(&self, idx: usize) -> Option<&Cell> {
-        self.line.get(idx)
+        self.line.line.get(idx)
     }
 
     pub fn iter(&self) -> ClipColIterator<'a> {
@@ -381,11 +380,11 @@ pub struct ClipColIterator<'a> {
 }
 
 impl<'a> ClipColIterator<'a> {
-    pub fn new(model: &'a [Cell], rect: &'a ModelRect) -> ClipColIterator<'a> {
+    pub fn new(model: &'a Line, rect: &'a ModelRect) -> ClipColIterator<'a> {
         ClipColIterator {
             rect: rect,
             pos: 0,
-            iter: model[rect.left..rect.right + 1].iter(),
+            iter: model.line[rect.left..rect.right + 1].iter(),
         }
     }
 }
