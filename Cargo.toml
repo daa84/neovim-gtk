@@ -14,6 +14,7 @@ glib-sys = "0.4"
 gdk = "0.6"
 gdk-sys = "0.4"
 gio = "0.2"
+gobject-sys = "0.4"
 #gdk = { git = 'https://github.com/gtk-rs/gdk' }
 #gdk-sys = { git = 'https://github.com/gtk-rs/sys' }
 #glib = { git = 'https://github.com/gtk-rs/glib' }

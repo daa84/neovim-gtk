@@ -22,7 +22,7 @@ pub struct UiModel {
 impl UiModel {
     pub fn new(rows: u64, columns: u64) -> UiModel {
         let mut model = Vec::with_capacity(rows as usize);
-        for i in 0..rows as usize {
+        for _ in 0..rows as usize {
             model.push(Line::new(columns as usize));
         }
 
@@ -41,6 +41,10 @@ impl UiModel {
 
     pub fn model(&self) -> &[Line] {
         &self.model
+    }
+
+    pub fn model_mut(&mut self) -> &mut [Line] {
+        &mut self.model
     }
 
     pub fn limit_to_model(&self, clip: &mut ModelRect) {
@@ -92,7 +96,11 @@ impl UiModel {
 
     pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) -> ModelRect {
         let mut changed_region = self.cur_point();
-        let mut cell = &mut self.model[self.cur_row][self.cur_col];
+        let mut line = &mut self.model[self.cur_row];
+        line.dirty_line = true;
+        line.mark_dirty_cell(self.cur_col);
+
+        let mut cell = &mut line[self.cur_col];
 
         cell.ch = text.chars().last().unwrap_or(' ');
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);

@@ -2,7 +2,6 @@ pub mod item;
 mod analysis;
 
 use std::ptr;
-use std::ffi::CStr;
 
 use pango;
 use pango_sys;
@@ -28,13 +27,17 @@ pub fn pango_itemize(
 
 pub fn pango_shape(
     text: &String,
+    offset: usize,
+    length: usize,
     analysis: &analysis::Analysis,
     glyphs: &mut pango::GlyphString,
 ) {
+    debug_assert!(offset + length <= text.len());
+
     unsafe {
         pango_sys::pango_shape(
-            text.as_ptr() as *const i8,
-            text.len() as i32,
+            (text.as_ptr() as *const i8).offset(offset as isize),
+            length as i32,
             analysis.to_glib_ptr(),
             glyphs.to_glib_none_mut().0,
         );

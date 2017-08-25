@@ -1,26 +1,42 @@
 use std::ops::{Index, IndexMut};
 
 use super::cell::Cell;
+use sys::pango::item as sys_pango;
 use pango;
 
 pub struct Item {
-    item: pango::Item,
-    glyph_string: Option<pango::GlyphString>,
+    pub item: sys_pango::Item,
+    pub glyphs: Option<pango::GlyphString>,
 }
 
 impl Item {
-    pub fn new(item: pango::Item) -> Self {
+    pub fn new(item: sys_pango::Item) -> Self {
         Item {
             item,
-            glyph_string: None,
+            glyphs: None,
         }
+    }
+
+    pub fn update(&mut self, item: sys_pango::Item) {
+        self.item = item;
+        self.glyphs = None;
+    }
+
+    pub fn set_glyphs(&mut self, glyphs: pango::GlyphString) {
+        self.glyphs = Some(glyphs);
     }
 }
 
 pub struct Line {
     pub line: Box<[Cell]>,
-    item_line: Option<Box<[Item]>>,
-    cell_to_item: Box<[usize]>,
+
+    // format of item line is
+    // [Item1, Item2, None, None, Item3]
+    // Item2 take 3 cells and renders as one
+    pub item_line: Box<[Option<Item>]>,
+
+    item_line_empty: bool,
+    pub dirty_line: bool,
 }
 
 impl Line {
@@ -29,11 +45,16 @@ impl Line {
         for _ in 0..columns {
             line.push(Cell::new(' '));
         }
+        let mut item_line = Vec::with_capacity(columns);
+        for _ in 0..columns {
+            item_line.push(None);
+        }
 
         Line {
-            cell_to_item: Vec::with_capacity(line.len()).into_boxed_slice(),
             line: line.into_boxed_slice(),
-            item_line: None,
+            item_line: item_line.into_boxed_slice(),
+            dirty_line: false,
+            item_line_empty: true,
         }
     }
 
@@ -41,7 +62,63 @@ impl Line {
         for cell in &mut self.line[left..right + 1] {
             cell.clear();
         }
+    }
 
+    pub fn merge(&mut self, old_items: &StyledLine, new_items: &[sys_pango::Item]) {
+        for new_item in new_items {
+            let (offset, length, _) = new_item.offset();
+            let start_cell = old_items.cell_to_byte[offset];
+            let end_cell = old_items.cell_to_byte[offset + length - 1];
+
+            // first time initialization
+            // as cell_to_item is to slow in this case
+            if !self.item_line_empty {
+                let start_item = self.cell_to_item(start_cell);
+                let end_item = self.cell_to_item(end_cell);
+
+                // in case different item length was in previous iteration
+                // mark all item as dirty
+                if start_item != end_item {
+                    self.initialize_cells(start_cell, end_cell, new_item);
+                } else {
+                    self.item_line[offset].as_mut().unwrap().update(
+                        new_item.clone(),
+                    );
+                }
+            } else {
+                self.initialize_cells(start_cell, end_cell, new_item);
+            }
+        }
+
+        self.item_line_empty = false;
+    }
+
+    fn initialize_cells(&mut self, start_cell: usize, end_cell: usize, new_item: &sys_pango::Item) {
+        for i in start_cell..end_cell {
+            self.line[i].dirty = true;
+        }
+        for i in start_cell + 1..end_cell {
+            self.item_line[i] = None;
+        }
+        self.item_line[start_cell] = Some(Item::new(new_item.clone()));
+    }
+
+    pub fn mark_dirty_cell(&mut self, idx: usize) {
+        self.line[idx].dirty = true;
+    }
+
+    pub fn get_item_mut(&mut self, cell_idx: usize) -> Option<&mut Item> {
+        self.item_line[ self.cell_to_item(cell_idx) ].as_mut()
+    }
+
+    fn cell_to_item(&self, cell_idx: usize) -> usize {
+        for i in (cell_idx..0).rev() {
+            if self.item_line[i].is_some() {
+                return i;
+            }
+        }
+
+        unreachable!();
     }
 }
 
@@ -80,11 +157,16 @@ impl StyledLine {
             line_str.push(cell.ch);
             let len = line_str.len();
 
-            for i in byte_offset..byte_offset + len {
+            for _ in byte_offset..byte_offset + len {
                 cell_to_byte.push(cell_idx);
             }
 
-            insert_attrs(cell, &attr_list, byte_offset as u32, (byte_offset + len) as u32);
+            insert_attrs(
+                cell,
+                &attr_list,
+                byte_offset as u32,
+                (byte_offset + len) as u32,
+            );
 
             byte_offset += len;
         }

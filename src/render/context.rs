@@ -14,16 +14,14 @@ pub struct Context {
 
 impl Context {
     pub fn new(font_desc: &pango::FontDescription) -> Self {
-        Context { 
-            pango_context: create_pango_context(font_desc),
-        }
+        Context { pango_context: create_pango_context(font_desc) }
     }
 
     pub fn update(&mut self, font_desc: &pango::FontDescription) {
         self.pango_context = create_pango_context(font_desc);
     }
 
-    pub fn itemize(&self, line: &StyledLine)-> Vec<item::Item> {
+    pub fn itemize(&self, line: &StyledLine) -> Vec<item::Item> {
         pango_itemize(&self.pango_context, &line.line_str, &line.attr_list)
     }
 }

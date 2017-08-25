@@ -621,31 +621,30 @@ fn update_line_metrics(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
 }
 
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
-    //update_line_metrics(state_arc, ctx);
+    update_line_metrics(state_arc, ctx);
 
-    //if state_arc.borrow_mut().request_nvim_resize {
-    //    try_nvim_resize(state_arc);
-    //}
+    if state_arc.borrow_mut().request_nvim_resize {
+        try_nvim_resize(state_arc);
+    }
 
-    //init_nvim(state_arc);
-
-    //let mut state = state_arc.borrow_mut();
-    //if state.nvim.borrow().is_initialized() {
-    //    draw(&*state, ctx);
-    //    request_window_resize(&mut *state);
-    //} else if state.nvim.borrow().is_initializing() {
-    //    draw_initializing(&*state, ctx);
-    //}
+    init_nvim(state_arc);
 
     let mut state = state_arc.borrow_mut();
-    render(&*state, ctx);
+    if state.nvim.borrow().is_initialized() {
+        // draw(&*state, ctx);
+        render(&mut *state, ctx);
+        request_window_resize(&mut *state);
+    } else if state.nvim.borrow().is_initializing() {
+        draw_initializing(&*state, ctx);
+    }
+
     Inhibit(false)
 }
 
-fn render(state: &State, ctx: &cairo::Context) {
+fn render(state: &mut State, ctx: &cairo::Context) {
     let font_desc = state.create_pango_font();
 
-    render::render(ctx, font_desc);
+    render::render(ctx, font_desc, &mut state.model);
 }
 
 fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {

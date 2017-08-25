@@ -43,15 +43,17 @@ impl Attrs {
 
 #[derive(Clone)]
 pub struct Cell {
-    pub ch: char,
     pub attrs: Attrs,
+    pub ch: char,
+    pub dirty: bool,
 }
 
 impl Cell {
     pub fn new(ch: char) -> Cell {
         Cell {
-            ch: ch,
             attrs: Attrs::new(),
+            ch: ch,
+            dirty: false,
         }
     }
 
