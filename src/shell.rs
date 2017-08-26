@@ -643,8 +643,10 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
 
 fn render(state: &mut State, ctx: &cairo::Context) {
     let font_desc = state.create_pango_font();
+    let line_height = state.line_height.unwrap();
+    let char_width = state.char_width.unwrap();
 
-    render::render(ctx, font_desc, &mut state.model);
+    render::render(ctx, font_desc, line_height, char_width, &mut state.model);
 }
 
 fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {

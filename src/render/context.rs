@@ -4,7 +4,7 @@ use pangocairo::FontMap;
 use pango::prelude::*;
 use pango;
 
-use sys::pango::*;
+use sys::pango as sys_pango;
 
 use ui_model::StyledLine;
 
@@ -21,8 +21,8 @@ impl Context {
         self.pango_context = create_pango_context(font_desc);
     }
 
-    pub fn itemize(&self, line: &StyledLine) -> Vec<item::Item> {
-        pango_itemize(&self.pango_context, &line.line_str, &line.attr_list)
+    pub fn itemize(&self, line: &StyledLine) -> Vec<sys_pango::Item> {
+        sys_pango::pango_itemize(&self.pango_context, &line.line_str, &line.attr_list)
     }
 }
 

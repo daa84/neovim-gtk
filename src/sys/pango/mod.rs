@@ -1,5 +1,8 @@
-pub mod item;
+mod item;
 mod analysis;
+
+pub use self::item::Item;
+pub use self::analysis::Analysis;
 
 use std::ptr;
 
@@ -12,7 +15,7 @@ pub fn pango_itemize(
     context: &pango::Context,
     text: &String,
     attrs: &pango::AttrList
-) -> Vec<item::Item> {
+) -> Vec<Item> {
     unsafe {
         FromGlibPtrContainer::from_glib_container(pango_sys::pango_itemize(
             context.to_glib_none().0,
@@ -29,7 +32,7 @@ pub fn pango_shape(
     text: &String,
     offset: usize,
     length: usize,
-    analysis: &analysis::Analysis,
+    analysis: &Analysis,
     glyphs: &mut pango::GlyphString,
 ) {
     debug_assert!(offset + length <= text.len());

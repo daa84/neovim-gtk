@@ -1,29 +1,46 @@
 use std::ops::{Index, IndexMut};
 
 use super::cell::Cell;
-use sys::pango::item as sys_pango;
+use sys::pango as sys_pango;
 use pango;
 
 pub struct Item {
     pub item: sys_pango::Item,
     pub glyphs: Option<pango::GlyphString>,
+    pub ink_rect: Option<pango::Rectangle>,
+    font: pango::Font,
 }
 
 impl Item {
     pub fn new(item: sys_pango::Item) -> Self {
         Item {
+            font: item.analysis().font(),
             item,
             glyphs: None,
+            ink_rect: None,
         }
     }
 
     pub fn update(&mut self, item: sys_pango::Item) {
+        self.font = item.analysis().font();
         self.item = item;
         self.glyphs = None;
+        self.ink_rect = None;
     }
 
     pub fn set_glyphs(&mut self, glyphs: pango::GlyphString) {
+        let mut glyphs = glyphs;
+        let (ink_rect, _) = glyphs.extents(&self.font);
+        self.ink_rect = Some(ink_rect);
         self.glyphs = Some(glyphs);
+    }
+
+    pub fn font(&self) -> &pango::Font {
+        &self.font
+    }
+
+    pub fn analysis(&self) -> sys_pango::Analysis {
+        self.item.analysis()
     }
 }
 
@@ -112,7 +129,7 @@ impl Line {
     }
 
     fn cell_to_item(&self, cell_idx: usize) -> usize {
-        for i in (cell_idx..0).rev() {
+        for i in (0..cell_idx + 1).rev() {
             if self.item_line[i].is_some() {
                 return i;
             }
@@ -211,5 +228,25 @@ mod tests {
         assert_eq!(0, styled_line.cell_to_byte[0]);
         assert_eq!(1, styled_line.cell_to_byte[1]);
         assert_eq!(2, styled_line.cell_to_byte[2]);
+    }
+
+    #[test]
+    fn test_line_merge() {
+        let mut line = Line::new(2);
+        line[0].ch = 'a';
+        line[1].ch = 'b';
+        let styled_line = StyledLine::from(&line);
+
+        let mut item1 = sys_pango::Item::new();
+        item1.set_offset(0, 1, 1);
+        let mut item2 = sys_pango::Item::new();
+        item2.set_offset(1, 1, 1);
+
+        let new_items = [item1, item2];
+        line.merge(&styled_line, &new_items);
+
+        assert_eq!(2, line.item_line.len());
+        assert!(line.item_line[0].is_some());
+        assert!(line.item_line[1].is_some());
     }
 }
