@@ -79,21 +79,21 @@ impl Line {
                 // in case different item length was in previous iteration
                 // mark all item as dirty
                 if start_item != end_item {
-                    self.initialize_cells(start_cell, end_cell, new_item);
+                    self.initialize_cell_item(start_cell, end_cell, new_item);
                 } else {
                     self.item_line[offset].as_mut().unwrap().update(
                         new_item.clone(),
                     );
                 }
             } else {
-                self.initialize_cells(start_cell, end_cell, new_item);
+                self.initialize_cell_item(start_cell, end_cell, new_item);
             }
         }
 
         self.item_line_empty = false;
     }
 
-    fn initialize_cells(&mut self, start_cell: usize, end_cell: usize, new_item: &sys_pango::Item) {
+    fn initialize_cell_item(&mut self, start_cell: usize, end_cell: usize, new_item: &sys_pango::Item) {
         for i in start_cell..end_cell {
             self.line[i].dirty = true;
         }
@@ -155,9 +155,9 @@ impl StyledLine {
             }
 
             line_str.push(cell.ch);
-            let len = line_str.len();
+            let len = line_str.len() - byte_offset;
 
-            for _ in byte_offset..byte_offset + len {
+            for _ in 0..len {
                 cell_to_byte.push(cell_idx);
             }
 
@@ -191,5 +191,25 @@ fn insert_attrs(cell: &Cell, attr_list: &pango::AttrList, start_idx: u32, end_id
         attr.set_start_index(start_idx);
         attr.set_end_index(end_idx);
         attr_list.insert(attr);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_styled_line() {
+        let mut line = Line::new(3);
+        line[0].ch = 'a';
+        line[1].ch = 'b';
+        line[2].ch = 'c';
+
+        let styled_line = StyledLine::from(&line);
+        assert_eq!("abc", styled_line.line_str);
+        assert_eq!(3, styled_line.cell_to_byte.len());
+        assert_eq!(0, styled_line.cell_to_byte[0]);
+        assert_eq!(1, styled_line.cell_to_byte[1]);
+        assert_eq!(2, styled_line.cell_to_byte[2]);
     }
 }
