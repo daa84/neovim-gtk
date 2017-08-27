@@ -21,14 +21,16 @@ pub fn render(
     let mut line_y = line_height;
 
     for line in ui_model.model_mut() {
-        ctx.move_to(0.0, line_y);
+        let mut line_x = 0.0;
         for i in 0..line.line.len() {
+            ctx.move_to(line_x, line_y);
             let item = line.item_line[i].as_ref();
             if let Some(item) = item {
                 if let Some(ref glyphs) = item.glyphs {
                     ctx.show_glyph_string(item.font(), glyphs);
                 }
             }
+            line_x += char_width;
         }
         line_y += line_height;
     }
@@ -43,21 +45,22 @@ fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel) {
 
             for i in 0..line.line.len() {
                 if line[i].dirty {
-                    let mut item = line.get_item_mut(i).unwrap();
-                    let mut glyphs = pango::GlyphString::new();
-                    {
-                        let analysis = item.analysis();
-                        let (offset, length, _) = item.item.offset();
-                        pango_shape(
-                            &styled_line.line_str,
-                            offset,
-                            length,
-                            &analysis,
-                            &mut glyphs,
-                        );
-                    }
+                    if let Some(mut item) = line.get_item_mut(i) {
+                        let mut glyphs = pango::GlyphString::new();
+                        {
+                            let analysis = item.analysis();
+                            let (offset, length, _) = item.item.offset();
+                            pango_shape(
+                                &styled_line.line_str,
+                                offset,
+                                length,
+                                &analysis,
+                                &mut glyphs,
+                            );
+                        }
 
-                    item.set_glyphs(glyphs);
+                        item.set_glyphs(glyphs);
+                    }
                 }
 
                 line[i].dirty = false;

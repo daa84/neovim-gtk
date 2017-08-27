@@ -1,3 +1,4 @@
+use std;
 use std::ops::{Index, IndexMut};
 
 use super::cell::Cell;
@@ -51,6 +52,7 @@ pub struct Line {
     // [Item1, Item2, None, None, Item3]
     // Item2 take 3 cells and renders as one
     pub item_line: Box<[Option<Item>]>,
+    cell_to_item: Box<[i32]>,
 
     item_line_empty: bool,
     pub dirty_line: bool,
@@ -70,6 +72,7 @@ impl Line {
         Line {
             line: line.into_boxed_slice(),
             item_line: item_line.into_boxed_slice(),
+            cell_to_item: vec![-1; columns].into_boxed_slice(),
             dirty_line: false,
             item_line_empty: true,
         }
@@ -83,12 +86,13 @@ impl Line {
 
     pub fn merge(&mut self, old_items: &StyledLine, new_items: &[sys_pango::Item]) {
         for new_item in new_items {
+            //FIXME: clear empty cells
             let (offset, length, _) = new_item.offset();
             let start_cell = old_items.cell_to_byte[offset];
             let end_cell = old_items.cell_to_byte[offset + length - 1];
 
             // first time initialization
-            // as cell_to_item is to slow in this case
+            // as cell_to_item points to wrong values
             if !self.item_line_empty {
                 let start_item = self.cell_to_item(start_cell);
                 let end_item = self.cell_to_item(end_cell);
@@ -98,7 +102,7 @@ impl Line {
                 if start_item != end_item {
                     self.initialize_cell_item(start_cell, end_cell, new_item);
                 } else {
-                    self.item_line[offset].as_mut().unwrap().update(
+                    self.item_line[start_cell].as_mut().unwrap().update(
                         new_item.clone(),
                     );
                 }
@@ -110,9 +114,15 @@ impl Line {
         self.item_line_empty = false;
     }
 
-    fn initialize_cell_item(&mut self, start_cell: usize, end_cell: usize, new_item: &sys_pango::Item) {
-        for i in start_cell..end_cell {
+    fn initialize_cell_item(
+        &mut self,
+        start_cell: usize,
+        end_cell: usize,
+        new_item: &sys_pango::Item,
+    ) {
+        for i in start_cell..end_cell + 1 {
             self.line[i].dirty = true;
+            self.cell_to_item[i] = start_cell as i32;
         }
         for i in start_cell + 1..end_cell {
             self.item_line[i] = None;
@@ -125,17 +135,16 @@ impl Line {
     }
 
     pub fn get_item_mut(&mut self, cell_idx: usize) -> Option<&mut Item> {
-        self.item_line[ self.cell_to_item(cell_idx) ].as_mut()
+        let item_idx = self.cell_to_item(cell_idx);
+        if item_idx >= 0 {
+            self.item_line[item_idx as usize].as_mut()
+        } else {
+            None
+        }
     }
 
-    fn cell_to_item(&self, cell_idx: usize) -> usize {
-        for i in (0..cell_idx + 1).rev() {
-            if self.item_line[i].is_some() {
-                return i;
-            }
-        }
-
-        unreachable!();
+    fn cell_to_item(&self, cell_idx: usize) -> i32 {
+        self.cell_to_item[cell_idx]
     }
 }
 
@@ -167,7 +176,7 @@ impl StyledLine {
         let mut byte_offset = 0;
 
         for (cell_idx, cell) in line.line.iter().enumerate() {
-            if cell.attrs.double_width {
+            if cell.attrs.double_width || cell.ch.is_whitespace() {
                 continue;
             }
 
@@ -228,25 +237,5 @@ mod tests {
         assert_eq!(0, styled_line.cell_to_byte[0]);
         assert_eq!(1, styled_line.cell_to_byte[1]);
         assert_eq!(2, styled_line.cell_to_byte[2]);
-    }
-
-    #[test]
-    fn test_line_merge() {
-        let mut line = Line::new(2);
-        line[0].ch = 'a';
-        line[1].ch = 'b';
-        let styled_line = StyledLine::from(&line);
-
-        let mut item1 = sys_pango::Item::new();
-        item1.set_offset(0, 1, 1);
-        let mut item2 = sys_pango::Item::new();
-        item2.set_offset(1, 1, 1);
-
-        let new_items = [item1, item2];
-        line.merge(&styled_line, &new_items);
-
-        assert_eq!(2, line.item_line.len());
-        assert!(line.item_line[0].is_some());
-        assert!(line.item_line[1].is_some());
     }
 }
