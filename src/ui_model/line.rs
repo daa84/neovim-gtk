@@ -1,4 +1,3 @@
-use std;
 use std::ops::{Index, IndexMut};
 
 use super::cell::Cell;
@@ -176,7 +175,7 @@ impl StyledLine {
         let mut byte_offset = 0;
 
         for (cell_idx, cell) in line.line.iter().enumerate() {
-            if cell.attrs.double_width || cell.ch.is_whitespace() {
+            if cell.attrs.double_width {
                 continue;
             }
 
@@ -187,12 +186,14 @@ impl StyledLine {
                 cell_to_byte.push(cell_idx);
             }
 
-            insert_attrs(
-                cell,
-                &attr_list,
-                byte_offset as u32,
-                (byte_offset + len) as u32,
-            );
+            if !cell.ch.is_whitespace() {
+                insert_attrs(
+                    cell,
+                    &attr_list,
+                    byte_offset as u32,
+                    (byte_offset + len) as u32,
+                );
+            }
 
             byte_offset += len;
         }
