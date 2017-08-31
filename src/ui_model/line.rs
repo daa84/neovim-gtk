@@ -53,7 +53,6 @@ pub struct Line {
     pub item_line: Box<[Option<Item>]>,
     cell_to_item: Box<[i32]>,
 
-    item_line_empty: bool,
     pub dirty_line: bool,
 }
 
@@ -72,8 +71,7 @@ impl Line {
             line: line.into_boxed_slice(),
             item_line: item_line.into_boxed_slice(),
             cell_to_item: vec![-1; columns].into_boxed_slice(),
-            dirty_line: false,
-            item_line_empty: true,
+            dirty_line: true,
         }
     }
 
@@ -81,36 +79,85 @@ impl Line {
         for cell in &mut self.line[left..right + 1] {
             cell.clear();
         }
+        self.dirty_line = true;
     }
 
-    pub fn merge(&mut self, old_items: &StyledLine, new_items: &[sys_pango::Item]) {
-        for new_item in new_items {
-            //FIXME: clear empty cells
-            let (offset, length, _) = new_item.offset();
-            let start_cell = old_items.cell_to_byte[offset];
-            let end_cell = old_items.cell_to_byte[offset + length - 1];
+    fn set_cell_to_empty(&mut self, cell_idx: usize) -> bool {
+        if self.item_line[cell_idx].is_some() {
+            self.item_line[cell_idx] = None;
+            self.cell_to_item[cell_idx] = -1;
+            self.line[cell_idx].dirty = true;
+            true
+        } else {
+            false
+        }
+    }
 
-            // first time initialization
-            // as cell_to_item points to wrong values
-            if !self.item_line_empty {
-                let start_item = self.cell_to_item(start_cell);
-                let end_item = self.cell_to_item(end_cell);
+    fn set_cell_to_item(&mut self, pango_item: &PangoItemPosition) -> bool {
+        let start_item = self.cell_to_item(pango_item.start_cell);
+        let end_item = self.cell_to_item(pango_item.end_cell);
+        //FIXME: check start cell
+        //FIXME: check length
+        //FIXME: don't check start_item != end_item
 
-                // in case different item length was in previous iteration
-                // mark all item as dirty
-                if start_item != end_item {
-                    self.initialize_cell_item(start_cell, end_cell, new_item);
-                } else {
-                    self.item_line[start_cell].as_mut().unwrap().update(
-                        new_item.clone(),
-                    );
-                }
+        // in case different item length was in previous iteration
+        // mark all item as dirty
+        if start_item != end_item || start_item == -1 || end_item == -1 {
+            self.initialize_cell_item(pango_item.start_cell, pango_item.end_cell, pango_item.item);
+            true
+        } else {
+            // update only if cell marked as dirty
+            if self.line[pango_item.start_cell..pango_item.end_cell + 1]
+                .iter()
+                .find(|c| c.dirty)
+                .is_some()
+            {
+                self.item_line[pango_item.start_cell]
+                    .as_mut()
+                    .unwrap()
+                    .update(pango_item.item.clone());
+                self.line[pango_item.start_cell].dirty = true;
+                true
             } else {
-                self.initialize_cell_item(start_cell, end_cell, new_item);
+                false
             }
         }
+    }
 
-        self.item_line_empty = false;
+    pub fn merge(&mut self, old_items: &StyledLine, pango_items: &[sys_pango::Item]) {
+        let mut pango_item_iter = pango_items.iter().map(|item| {
+            PangoItemPosition::new(old_items, item)
+        });
+
+        let mut next_item = pango_item_iter.next();
+        let mut move_to_next_item = false;
+
+        let mut cell_idx = 0;
+        while cell_idx < self.line.len() {
+            let dirty = match next_item {
+                None => self.set_cell_to_empty(cell_idx), 
+                Some(ref pango_item) => {
+                    if cell_idx < pango_item.start_cell {
+                        self.set_cell_to_empty(cell_idx)
+                    } else if cell_idx == pango_item.start_cell {
+                        move_to_next_item = true;
+                        self.set_cell_to_item(pango_item)
+                    } else {
+                        false
+                    }
+                }
+            };
+
+            self.dirty_line = self.dirty_line || dirty;
+            if move_to_next_item {
+                let pango_item = next_item.unwrap();
+                cell_idx += pango_item.end_cell - pango_item.start_cell + 1;
+                next_item = pango_item_iter.next();
+                move_to_next_item = false;
+            } else {
+                cell_idx += 1;
+            }
+        }
     }
 
     fn initialize_cell_item(
@@ -158,6 +205,26 @@ impl Index<usize> for Line {
 impl IndexMut<usize> for Line {
     fn index_mut(&mut self, index: usize) -> &mut Cell {
         &mut self.line[index]
+    }
+}
+
+struct PangoItemPosition<'a> {
+    item: &'a sys_pango::Item,
+    start_cell: usize,
+    end_cell: usize,
+}
+
+impl<'a> PangoItemPosition<'a> {
+    pub fn new(styled_line: &StyledLine, item: &'a sys_pango::Item) -> Self {
+        let (offset, length, _) = item.offset();
+        let start_cell = styled_line.cell_to_byte[offset];
+        let end_cell = styled_line.cell_to_byte[offset + length - 1];
+
+        PangoItemPosition {
+            item,
+            start_cell,
+            end_cell,
+        }
     }
 }
 

@@ -1,5 +1,8 @@
 mod context;
 
+pub use self::context::Context;
+
+use color;
 use sys::pango::*;
 use pango;
 use cairo;
@@ -8,25 +11,29 @@ use ui_model;
 
 pub fn render(
     ctx: &cairo::Context,
-    font_desc: pango::FontDescription,
+    ui_model: &ui_model::UiModel,
+    color_model: &color::ColorModel,
     line_height: f64,
     char_width: f64,
-    ui_model: &mut ui_model::UiModel,
 ) {
-    let font_ctx = context::Context::new(&font_desc);
-
-    shape_dirty(&font_ctx, ui_model);
-
+    ctx.set_source_rgb(
+        color_model.bg_color.0,
+        color_model.bg_color.1,
+        color_model.bg_color.2,
+    );
+    ctx.paint();
 
     let mut line_y = line_height;
 
-    for line in ui_model.model_mut() {
+    for line in ui_model.model() {
         let mut line_x = 0.0;
+
         for i in 0..line.line.len() {
             ctx.move_to(line_x, line_y);
-            let item = line.item_line[i].as_ref();
-            if let Some(item) = item {
+            if let Some(item) = line.item_line[i].as_ref() {
                 if let Some(ref glyphs) = item.glyphs {
+                    let (_, fg) = color_model.cell_colors(&line.line[i]);
+                    ctx.set_source_rgb(fg.0, fg.1, fg.2);
                     ctx.show_glyph_string(item.font(), glyphs);
                 }
             }
@@ -36,7 +43,7 @@ pub fn render(
     }
 }
 
-fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel) {
+pub fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel) {
     for line in ui_model.model_mut() {
         if line.dirty_line {
             let styled_line = ui_model::StyledLine::from(line);

@@ -19,8 +19,8 @@ use neovim_lib::{Neovim, NeovimApi, Value};
 use neovim_lib::neovim_api::Tabpage;
 
 use settings::{Settings, FontSource};
-use ui_model::{UiModel, Cell, Attrs, ModelRect};
-use color::{Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
+use ui_model::{UiModel, Attrs, ModelRect};
+use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim;
 use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient};
 use input;
@@ -50,9 +50,7 @@ macro_rules! idle_cb_call {
 
 pub struct State {
     pub model: UiModel,
-    bg_color: Color,
-    fg_color: Color,
-    sp_color: Color,
+    color_model: ColorModel,
     cur_attrs: Option<Attrs>,
     mouse_enabled: bool,
     nvim: Rc<RefCell<NeovimClient>>,
@@ -87,11 +85,9 @@ impl State {
 
         State {
             model: UiModel::new(1, 1),
+            color_model: ColorModel::new(),
             nvim: Rc::new(RefCell::new(NeovimClient::new())),
             cur_attrs: None,
-            bg_color: COLOR_BLACK,
-            fg_color: COLOR_WHITE,
-            sp_color: COLOR_RED,
             mouse_enabled: true,
             font_desc: FontDescription::from_string(DEFAULT_FONT_NAME),
             cursor: None,
@@ -120,11 +116,11 @@ impl State {
     }
 
     pub fn get_foreground(&self) -> &Color {
-        &self.fg_color
+        &self.color_model.fg_color
     }
 
     pub fn get_background(&self) -> &Color {
-        &self.bg_color
+        &self.color_model.bg_color
     }
 
     pub fn nvim(&self) -> RefMut<Neovim> {
@@ -148,25 +144,6 @@ impl State {
 
     fn create_pango_font(&self) -> FontDescription {
         self.font_desc.clone()
-    }
-
-    fn colors<'a>(&'a self, cell: &'a Cell) -> (&'a Color, &'a Color) {
-        let bg = if let Some(ref bg) = cell.attrs.background {
-            bg
-        } else {
-            &self.bg_color
-        };
-        let fg = if let Some(ref fg) = cell.attrs.foreground {
-            fg
-        } else {
-            &self.fg_color
-        };
-
-        if cell.attrs.reverse {
-            (fg, bg)
-        } else {
-            (bg, fg)
-        }
     }
 
     pub fn get_font_desc(&self) -> &FontDescription {
@@ -646,7 +623,16 @@ fn render(state: &mut State, ctx: &cairo::Context) {
     let line_height = state.line_height.unwrap();
     let char_width = state.char_width.unwrap();
 
-    render::render(ctx, font_desc, line_height, char_width, &mut state.model);
+    let font_ctx = render::Context::new(&font_desc);
+
+    render::shape_dirty(&font_ctx, &mut state.model);
+    render::render(
+        ctx,
+        &state.model,
+        &state.color_model,
+        line_height,
+        char_width,
+    );
 }
 
 fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
@@ -756,40 +742,40 @@ fn get_model_clip(
     model_clip
 }
 
-#[inline]
-fn draw_backgound(
-    state: &State,
-    draw_bitmap: &ModelBitamp,
-    ctx: &cairo::Context,
-    line_height: f64,
-    char_width: f64,
-    model_clip: &ModelRect,
-) {
-    let line_x = model_clip.left as f64 * char_width;
-    let mut line_y: f64 = model_clip.top as f64 * line_height;
-
-    for (line_idx, line) in state.model.clip_model(model_clip) {
-        ctx.move_to(line_x, line_y);
-
-        for (col_idx, cell) in line.iter() {
-            let current_point = ctx.get_current_point();
-
-            if !draw_bitmap.get(col_idx, line_idx) {
-                let (bg, _) = state.colors(cell);
-
-                if &state.bg_color != bg {
-                    ctx.set_source_rgb(bg.0, bg.1, bg.2);
-                    ctx.rectangle(current_point.0, current_point.1, char_width, line_height);
-                    ctx.fill();
-                }
-
-            }
-
-            ctx.move_to(current_point.0 + char_width, current_point.1);
-        }
-        line_y += line_height;
-    }
-}
+//#[inline]
+//fn draw_backgound(
+//    state: &State,
+//    draw_bitmap: &ModelBitamp,
+//    ctx: &cairo::Context,
+//    line_height: f64,
+//    char_width: f64,
+//    model_clip: &ModelRect,
+//) {
+//    let line_x = model_clip.left as f64 * char_width;
+//    let mut line_y: f64 = model_clip.top as f64 * line_height;
+//
+//    for (line_idx, line) in state.model.clip_model(model_clip) {
+//        ctx.move_to(line_x, line_y);
+//
+//        for (col_idx, cell) in line.iter() {
+//            let current_point = ctx.get_current_point();
+//
+//            if !draw_bitmap.get(col_idx, line_idx) {
+//                let (bg, _) = state.colors(cell);
+//
+//                if &state.bg_color != bg {
+//                    ctx.set_source_rgb(bg.0, bg.1, bg.2);
+//                    ctx.rectangle(current_point.0, current_point.1, char_width, line_height);
+//                    ctx.fill();
+//                }
+//
+//            }
+//
+//            ctx.move_to(current_point.0 + char_width, current_point.1);
+//        }
+//        line_y += line_height;
+//    }
+//}
 
 fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let layout = ctx.create_pango_layout();
@@ -798,7 +784,11 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let line_height = state.line_height.unwrap();
     let char_width = state.char_width.unwrap();
 
-    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
+    ctx.set_source_rgb(
+        state.color_model.bg_color.0,
+        state.color_model.bg_color.1,
+        state.color_model.bg_color.2,
+    );
     ctx.paint();
 
     layout.set_font_description(&desc);
@@ -809,7 +799,11 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let y = alloc.height as f64 / 2.0 - height as f64 / 2.0;
 
     ctx.move_to(x, y);
-    ctx.set_source_rgb(state.fg_color.0, state.fg_color.1, state.fg_color.2);
+    ctx.set_source_rgb(
+        state.color_model.fg_color.0,
+        state.color_model.fg_color.1,
+        state.color_model.fg_color.2,
+    );
     ctx.update_pango_layout(&layout);
     ctx.show_pango_layout(&layout);
 
@@ -822,145 +816,145 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
         line_height,
         y,
         false,
-        &state.bg_color,
+        &state.color_model.bg_color,
     );
 }
 
-fn draw(state: &State, ctx: &cairo::Context) {
-    let layout = ctx.create_pango_layout();
-    let mut desc = state.create_pango_font();
-    let mut buf = String::with_capacity(4);
+//fn draw(state: &State, ctx: &cairo::Context) {
+//    let layout = ctx.create_pango_layout();
+//    let mut desc = state.create_pango_font();
+//    let mut buf = String::with_capacity(4);
+//
+//    let (row, col) = state.model.get_cursor();
+//
+//    let line_height = state.line_height.unwrap();
+//    let char_width = state.char_width.unwrap();
+//    let mut draw_bitmap = ModelBitamp::new(state.model.columns, state.model.rows);
+//
+//    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
+//    ctx.paint();
+//
+//    let clip_rects = &ctx.copy_clip_rectangle_list().rectangles;
+//    for clip_idx in 0..clip_rects.len() {
+//        let clip = clip_rects.get(clip_idx).unwrap();
+//
+//        let model_clip = get_model_clip(state, line_height, char_width, (
+//            clip.x,
+//            clip.y,
+//            clip.x + clip.width,
+//            clip.y + clip.height,
+//        ));
+//
+//        let line_x = model_clip.left as f64 * char_width;
+//        let mut line_y: f64 = model_clip.top as f64 * line_height;
+//
+//        draw_backgound(
+//            state,
+//            &draw_bitmap,
+//            ctx,
+//            line_height,
+//            char_width,
+//            &model_clip,
+//        );
+//
+//        for (line_idx, line) in state.model.clip_model(&model_clip) {
+//
+//            ctx.move_to(line_x, line_y);
+//
+//            for (col_idx, cell) in line.iter() {
+//                let current_point = ctx.get_current_point();
+//
+//                if !draw_bitmap.get(col_idx, line_idx) {
+//                    let double_width = line.is_double_width(col_idx);
+//
+//                    let (bg, fg) = state.colors(cell);
+//
+//                    if row == line_idx && col == col_idx {
+//                        state.cursor.as_ref().unwrap().draw(
+//                            ctx,
+//                            state,
+//                            char_width,
+//                            line_height,
+//                            line_y,
+//                            double_width,
+//                            bg,
+//                        );
+//
+//                        ctx.move_to(current_point.0, current_point.1);
+//                    }
+//
+//
+//                    if !cell.ch.is_whitespace() {
+//                        update_font_description(&mut desc, &cell.attrs);
+//
+//                        layout.set_font_description(&desc);
+//                        buf.clear();
+//                        buf.push(cell.ch);
+//                        layout.set_text(&buf);
+//
+//                        // correct layout for double_width chars
+//                        if double_width {
+//                            let (dw_width, dw_height) = layout.get_pixel_size();
+//                            let x_offset = (char_width * 2.0 - dw_width as f64) / 2.0;
+//                            let y_offset = (line_height - dw_height as f64) / 2.0;
+//                            ctx.rel_move_to(x_offset, y_offset);
+//                        }
+//
+//                        ctx.set_source_rgb(fg.0, fg.1, fg.2);
+//                        ctx.update_pango_layout(&layout);
+//                        ctx.show_pango_layout(&layout);
+//                    }
+//
+//                    if cell.attrs.underline || cell.attrs.undercurl {
+//                        // [TODO]: Current gtk-rs bindings does not provide fontmetrics access
+//                        // so it is not possible to find right position for underline or undercurl position
+//                        // > update_font_description(&mut desc, &cell.attrs);
+//                        // > layout.get_context().unwrap().get_metrics();
+//                        let top_offset = line_height * 0.9;
+//
+//                        if cell.attrs.undercurl {
+//                            let sp = if let Some(ref sp) = cell.attrs.special {
+//                                sp
+//                            } else {
+//                                &state.sp_color
+//                            };
+//                            ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
+//                            ctx.set_dash(&[4.0, 2.0], 0.0);
+//                            ctx.set_line_width(2.0);
+//                            ctx.move_to(current_point.0, line_y + top_offset);
+//                            ctx.line_to(current_point.0 + char_width, line_y + top_offset);
+//                            ctx.stroke();
+//                            ctx.set_dash(&[], 0.0);
+//                        } else if cell.attrs.underline {
+//                            ctx.set_source_rgb(fg.0, fg.1, fg.2);
+//                            ctx.set_line_width(1.0);
+//                            ctx.move_to(current_point.0, line_y + top_offset);
+//                            ctx.line_to(current_point.0 + char_width, line_y + top_offset);
+//                            ctx.stroke();
+//                        }
+//                    }
+//                }
+//
+//                ctx.move_to(current_point.0 + char_width, current_point.1);
+//            }
+//
+//            line_y += line_height;
+//        }
+//
+//        draw_bitmap.fill_from_model(&model_clip);
+//    }
+//}
 
-    let (row, col) = state.model.get_cursor();
-
-    let line_height = state.line_height.unwrap();
-    let char_width = state.char_width.unwrap();
-    let mut draw_bitmap = ModelBitamp::new(state.model.columns, state.model.rows);
-
-    ctx.set_source_rgb(state.bg_color.0, state.bg_color.1, state.bg_color.2);
-    ctx.paint();
-
-    let clip_rects = &ctx.copy_clip_rectangle_list().rectangles;
-    for clip_idx in 0..clip_rects.len() {
-        let clip = clip_rects.get(clip_idx).unwrap();
-
-        let model_clip = get_model_clip(state, line_height, char_width, (
-            clip.x,
-            clip.y,
-            clip.x + clip.width,
-            clip.y + clip.height,
-        ));
-
-        let line_x = model_clip.left as f64 * char_width;
-        let mut line_y: f64 = model_clip.top as f64 * line_height;
-
-        draw_backgound(
-            state,
-            &draw_bitmap,
-            ctx,
-            line_height,
-            char_width,
-            &model_clip,
-        );
-
-        for (line_idx, line) in state.model.clip_model(&model_clip) {
-
-            ctx.move_to(line_x, line_y);
-
-            for (col_idx, cell) in line.iter() {
-                let current_point = ctx.get_current_point();
-
-                if !draw_bitmap.get(col_idx, line_idx) {
-                    let double_width = line.is_double_width(col_idx);
-
-                    let (bg, fg) = state.colors(cell);
-
-                    if row == line_idx && col == col_idx {
-                        state.cursor.as_ref().unwrap().draw(
-                            ctx,
-                            state,
-                            char_width,
-                            line_height,
-                            line_y,
-                            double_width,
-                            bg,
-                        );
-
-                        ctx.move_to(current_point.0, current_point.1);
-                    }
-
-
-                    if !cell.ch.is_whitespace() {
-                        update_font_description(&mut desc, &cell.attrs);
-
-                        layout.set_font_description(&desc);
-                        buf.clear();
-                        buf.push(cell.ch);
-                        layout.set_text(&buf);
-
-                        // correct layout for double_width chars
-                        if double_width {
-                            let (dw_width, dw_height) = layout.get_pixel_size();
-                            let x_offset = (char_width * 2.0 - dw_width as f64) / 2.0;
-                            let y_offset = (line_height - dw_height as f64) / 2.0;
-                            ctx.rel_move_to(x_offset, y_offset);
-                        }
-
-                        ctx.set_source_rgb(fg.0, fg.1, fg.2);
-                        ctx.update_pango_layout(&layout);
-                        ctx.show_pango_layout(&layout);
-                    }
-
-                    if cell.attrs.underline || cell.attrs.undercurl {
-                        // [TODO]: Current gtk-rs bindings does not provide fontmetrics access
-                        // so it is not possible to find right position for underline or undercurl position
-                        // > update_font_description(&mut desc, &cell.attrs);
-                        // > layout.get_context().unwrap().get_metrics();
-                        let top_offset = line_height * 0.9;
-
-                        if cell.attrs.undercurl {
-                            let sp = if let Some(ref sp) = cell.attrs.special {
-                                sp
-                            } else {
-                                &state.sp_color
-                            };
-                            ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
-                            ctx.set_dash(&[4.0, 2.0], 0.0);
-                            ctx.set_line_width(2.0);
-                            ctx.move_to(current_point.0, line_y + top_offset);
-                            ctx.line_to(current_point.0 + char_width, line_y + top_offset);
-                            ctx.stroke();
-                            ctx.set_dash(&[], 0.0);
-                        } else if cell.attrs.underline {
-                            ctx.set_source_rgb(fg.0, fg.1, fg.2);
-                            ctx.set_line_width(1.0);
-                            ctx.move_to(current_point.0, line_y + top_offset);
-                            ctx.line_to(current_point.0 + char_width, line_y + top_offset);
-                            ctx.stroke();
-                        }
-                    }
-                }
-
-                ctx.move_to(current_point.0 + char_width, current_point.1);
-            }
-
-            line_y += line_height;
-        }
-
-        draw_bitmap.fill_from_model(&model_clip);
-    }
-}
-
-#[inline]
-fn update_font_description(desc: &mut FontDescription, attrs: &Attrs) {
-    desc.unset_fields(pango::FONT_MASK_STYLE | pango::FONT_MASK_WEIGHT);
-    if attrs.italic {
-        desc.set_style(pango::Style::Italic);
-    }
-    if attrs.bold {
-        desc.set_weight(pango::Weight::Bold);
-    }
-}
+//#[inline]
+//fn update_font_description(desc: &mut FontDescription, attrs: &Attrs) {
+//    desc.unset_fields(pango::FONT_MASK_STYLE | pango::FONT_MASK_WEIGHT);
+//    if attrs.italic {
+//        desc.set_style(pango::Style::Italic);
+//    }
+//    if attrs.bold {
+//        desc.set_weight(pango::Weight::Bold);
+//    }
+//}
 
 fn request_window_resize(state: &mut State) {
     if !state.request_resize {
@@ -1111,27 +1105,27 @@ impl RedrawEvents for State {
 
     fn on_update_bg(&mut self, bg: i64) -> RepaintMode {
         if bg >= 0 {
-            self.bg_color = split_color(bg as u64);
+            self.color_model.bg_color = split_color(bg as u64);
         } else {
-            self.bg_color = COLOR_BLACK;
+            self.color_model.bg_color = COLOR_BLACK;
         }
         RepaintMode::Nothing
     }
 
     fn on_update_fg(&mut self, fg: i64) -> RepaintMode {
         if fg >= 0 {
-            self.fg_color = split_color(fg as u64);
+            self.color_model.fg_color = split_color(fg as u64);
         } else {
-            self.fg_color = COLOR_WHITE;
+            self.color_model.fg_color = COLOR_WHITE;
         }
         RepaintMode::Nothing
     }
 
     fn on_update_sp(&mut self, sp: i64) -> RepaintMode {
         if sp >= 0 {
-            self.sp_color = split_color(sp as u64);
+            self.color_model.sp_color = split_color(sp as u64);
         } else {
-            self.sp_color = COLOR_RED;
+            self.color_model.sp_color = COLOR_RED;
         }
         RepaintMode::Nothing
     }

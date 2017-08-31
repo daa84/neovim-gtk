@@ -53,13 +53,14 @@ impl Cell {
         Cell {
             attrs: Attrs::new(),
             ch: ch,
-            dirty: false,
+            dirty: true,
         }
     }
 
     pub fn clear(&mut self) {
         self.ch = ' ';
         self.attrs.clear();
+        self.dirty = true;
     }
 }
 
