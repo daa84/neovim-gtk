@@ -75,6 +75,13 @@ impl Line {
         }
     }
 
+    pub fn copy_to(&self, target: &mut Self, left: usize, right: usize) {
+        target.line[left..right + 1].clone_from_slice(&self.line[left..right + 1]);
+        // don't update items, but mark line as dirty to force item recalculation
+        // all work must be done in merge function
+        target.dirty_line = true;
+    }
+
     pub fn clear(&mut self, left: usize, right: usize) {
         for cell in &mut self.line[left..right + 1] {
             cell.clear();
@@ -93,30 +100,41 @@ impl Line {
         }
     }
 
-    fn set_cell_to_item(&mut self, pango_item: &PangoItemPosition) -> bool {
-        let start_item = self.cell_to_item(pango_item.start_cell);
-        let end_item = self.cell_to_item(pango_item.end_cell);
-        //FIXME: check start cell
-        //FIXME: check length
-        //FIXME: don't check start_item != end_item
+    fn set_cell_to_item(&mut self, new_item: &PangoItemPosition) -> bool {
+        let start_item_idx = self.cell_to_item(new_item.start_cell);
+        let start_item_len = if start_item_idx > 0 {
+            self.item_line[start_item_idx as usize]
+                .as_ref()
+                .unwrap()
+                .item
+                .length()
+        } else {
+            -1
+        };
 
+        let end_item_idx = self.cell_to_item(new_item.end_cell);
+
+        // start_item == idx of item start cell
         // in case different item length was in previous iteration
         // mark all item as dirty
-        if start_item != end_item || start_item == -1 || end_item == -1 {
-            self.initialize_cell_item(pango_item.start_cell, pango_item.end_cell, pango_item.item);
+        if start_item_idx != new_item.start_cell as i32 ||
+            new_item.item.length() != start_item_len || start_item_idx == -1 ||
+            end_item_idx == -1
+        {
+            self.initialize_cell_item(new_item.start_cell, new_item.end_cell, new_item.item);
             true
         } else {
             // update only if cell marked as dirty
-            if self.line[pango_item.start_cell..pango_item.end_cell + 1]
+            if self.line[new_item.start_cell..new_item.end_cell + 1]
                 .iter()
                 .find(|c| c.dirty)
                 .is_some()
             {
-                self.item_line[pango_item.start_cell]
+                self.item_line[new_item.start_cell]
                     .as_mut()
                     .unwrap()
-                    .update(pango_item.item.clone());
-                self.line[pango_item.start_cell].dirty = true;
+                    .update(new_item.item.clone());
+                self.line[new_item.start_cell].dirty = true;
                 true
             } else {
                 false

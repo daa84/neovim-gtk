@@ -52,7 +52,6 @@ pub fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel) {
 
             for i in 0..line.line.len() {
                 if line[i].dirty {
-                    // FIXME: dont shape/render empty items(space cells)
                     if let Some(mut item) = line.get_item_mut(i) {
                         let mut glyphs = pango::GlyphString::new();
                         {

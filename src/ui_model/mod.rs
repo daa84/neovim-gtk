@@ -123,12 +123,24 @@ impl UiModel {
     }
 
     #[inline]
-    fn copy_row(&mut self, row: i64, offset: i64, left: usize, right: usize) {
-        for col in left..right + 1 {
-            let from_row = (row + offset) as usize;
-            let from_cell = self.model[from_row][col].clone();
-            self.model[row as usize][col] = from_cell;
-        }
+    fn copy_row(&mut self, target_row: i64, offset: i64, left_col: usize, right_col: usize) {
+        debug_assert!(offset != 0);
+
+        let from_row = (target_row + offset) as usize;
+
+        let (left, right) = if offset > 0 {
+            self.model.split_at_mut(from_row)
+        } else {
+            self.model.split_at_mut(target_row as usize)
+        };
+
+        let (source_row, target_row) = if offset > 0 {
+            (&right[0], &mut left[target_row as usize])
+        } else {
+            (&left[from_row], &mut right[0])
+        };
+
+        source_row.copy_to(target_row, left_col, right_col);
     }
 
     pub fn scroll(&mut self, count: i64) -> ModelRect {

@@ -13,7 +13,7 @@ use glib::translate::*;
 
 pub fn pango_itemize(
     context: &pango::Context,
-    text: &String,
+    text: &str,
     attrs: &pango::AttrList
 ) -> Vec<Item> {
     unsafe {
@@ -29,7 +29,7 @@ pub fn pango_itemize(
 }
 
 pub fn pango_shape(
-    text: &String,
+    text: &str,
     offset: usize,
     length: usize,
     analysis: &Analysis,

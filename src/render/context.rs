@@ -22,7 +22,7 @@ impl Context {
     }
 
     pub fn itemize(&self, line: &StyledLine) -> Vec<sys_pango::Item> {
-        sys_pango::pango_itemize(&self.pango_context, &line.line_str, &line.attr_list)
+        sys_pango::pango_itemize(&self.pango_context, line.line_str.trim_right(), &line.attr_list)
     }
 }
 
