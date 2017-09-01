@@ -182,6 +182,12 @@ impl UiModel {
             row.clear(left, right);
         }
     }
+
+    pub fn clear_draw_cache(&mut self) {
+        for row in &mut self.model.iter_mut() {
+            row.clear_draw_cache();
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

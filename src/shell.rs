@@ -154,6 +154,7 @@ impl State {
         self.font_desc = FontDescription::from_string(desc);
         self.line_height = None;
         self.char_width = None;
+        self.model.clear_draw_cache();
     }
 
     pub fn open_file(&self, path: &str) {
@@ -608,7 +609,6 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
 
     let mut state = state_arc.borrow_mut();
     if state.nvim.borrow().is_initialized() {
-        // draw(&*state, ctx);
         render(&mut *state, ctx);
         request_window_resize(&mut *state);
     } else if state.nvim.borrow().is_initializing() {
@@ -792,7 +792,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     ctx.paint();
 
     layout.set_font_description(&desc);
-    layout.set_text("Loading..");
+    layout.set_text("Loading->");
     let (width, height) = layout.get_pixel_size();
 
     let x = alloc.width as f64 / 2.0 - width as f64 / 2.0;

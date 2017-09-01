@@ -89,6 +89,14 @@ impl Line {
         self.dirty_line = true;
     }
 
+    pub fn clear_draw_cache(&mut self) {
+        for i in 0..self.item_line.len() {
+            self.item_line[i] = None;
+            self.cell_to_item[i] = -1;
+        }
+        self.dirty_line = true;
+    }
+
     fn set_cell_to_empty(&mut self, cell_idx: usize) -> bool {
         if self.item_line[cell_idx].is_some() {
             self.item_line[cell_idx] = None;
