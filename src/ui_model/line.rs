@@ -195,7 +195,7 @@ impl Line {
             self.line[i].dirty = true;
             self.cell_to_item[i] = start_cell as i32;
         }
-        for i in start_cell + 1..end_cell {
+        for i in start_cell + 1..end_cell + 1 {
             self.item_line[i] = None;
         }
         self.item_line[start_cell] = Some(Item::new(new_item.clone()));
