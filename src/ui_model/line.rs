@@ -110,12 +110,11 @@ impl Line {
 
     fn set_cell_to_item(&mut self, new_item: &PangoItemPosition) -> bool {
         let start_item_idx = self.cell_to_item(new_item.start_cell);
-        let start_item_len = if start_item_idx > 0 {
+        let start_item_len = if start_item_idx >= 0 {
             self.item_line[start_item_idx as usize]
                 .as_ref()
-                .unwrap()
-                .item
-                .length()
+                .map(|item| item.item.length())
+                .unwrap_or(-1)
         } else {
             -1
         };
@@ -162,12 +161,12 @@ impl Line {
         while cell_idx < self.line.len() {
             let dirty = match next_item {
                 None => self.set_cell_to_empty(cell_idx), 
-                Some(ref pango_item) => {
-                    if cell_idx < pango_item.start_cell {
+                Some(ref new_item) => {
+                    if cell_idx < new_item.start_cell {
                         self.set_cell_to_empty(cell_idx)
-                    } else if cell_idx == pango_item.start_cell {
+                    } else if cell_idx == new_item.start_cell {
                         move_to_next_item = true;
-                        self.set_cell_to_item(pango_item)
+                        self.set_cell_to_item(new_item)
                     } else {
                         false
                     }
@@ -176,8 +175,8 @@ impl Line {
 
             self.dirty_line = self.dirty_line || dirty;
             if move_to_next_item {
-                let pango_item = next_item.unwrap();
-                cell_idx += pango_item.end_cell - pango_item.start_cell + 1;
+                let new_item = next_item.unwrap();
+                cell_idx += new_item.end_cell - new_item.start_cell + 1;
                 next_item = pango_item_iter.next();
                 move_to_next_item = false;
             } else {
