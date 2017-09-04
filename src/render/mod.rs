@@ -43,10 +43,14 @@ pub fn render(
     }
 }
 
-pub fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel) {
+pub fn shape_dirty(
+    ctx: &context::Context,
+    ui_model: &mut ui_model::UiModel,
+    color_model: &color::ColorModel,
+) {
     for line in ui_model.model_mut() {
         if line.dirty_line {
-            let styled_line = ui_model::StyledLine::from(line);
+            let styled_line = ui_model::StyledLine::from(line, color_model);
             let items = ctx.itemize(&styled_line);
             line.merge(&styled_line, &items);
 
@@ -77,4 +81,3 @@ pub fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel) {
         }
     }
 }
-

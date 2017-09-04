@@ -1,9 +1,11 @@
 use std::ops::{Index, IndexMut};
 
+use color;
 use super::cell::Cell;
 use sys::pango as sys_pango;
 use pango;
 
+#[derive(Clone)]
 pub struct Item {
     pub item: sys_pango::Item,
     pub glyphs: Option<pango::GlyphString>,
@@ -77,9 +79,9 @@ impl Line {
 
     pub fn copy_to(&self, target: &mut Self, left: usize, right: usize) {
         target.line[left..right + 1].clone_from_slice(&self.line[left..right + 1]);
-        // don't update items, but mark line as dirty to force item recalculation
-        // all work must be done in merge function
-        target.dirty_line = true;
+        target.item_line[left..right + 1].clone_from_slice(&self.item_line[left..right + 1]);
+        target.cell_to_item[left..right + 1].copy_from_slice(&self.cell_to_item[left..right + 1]);
+        target.dirty_line = self.dirty_line;
     }
 
     pub fn clear(&mut self, left: usize, right: usize) {
@@ -260,7 +262,7 @@ pub struct StyledLine {
 }
 
 impl StyledLine {
-    pub fn from(line: &Line) -> Self {
+    pub fn from(line: &Line, color_model: &color::ColorModel) -> Self {
         let mut line_str = String::new();
         let mut cell_to_byte = Vec::new();
         let attr_list = pango::AttrList::new();
@@ -281,6 +283,7 @@ impl StyledLine {
             if !cell.ch.is_whitespace() {
                 insert_attrs(
                     cell,
+                    color_model,
                     &attr_list,
                     byte_offset as u32,
                     (byte_offset + len) as u32,
@@ -298,7 +301,13 @@ impl StyledLine {
     }
 }
 
-fn insert_attrs(cell: &Cell, attr_list: &pango::AttrList, start_idx: u32, end_idx: u32) {
+fn insert_attrs(
+    cell: &Cell,
+    color_model: &color::ColorModel,
+    attr_list: &pango::AttrList,
+    start_idx: u32,
+    end_idx: u32,
+) {
     if cell.attrs.italic {
         let mut attr = pango::Attribute::new_style(pango::Style::Italic).unwrap();
         attr.set_start_index(start_idx);

@@ -625,7 +625,7 @@ fn render(state: &mut State, ctx: &cairo::Context) {
 
     let font_ctx = render::Context::new(&font_desc);
 
-    render::shape_dirty(&font_ctx, &mut state.model);
+    render::shape_dirty(&font_ctx, &mut state.model, &state.color_model);
     render::render(
         ctx,
         &state.model,
