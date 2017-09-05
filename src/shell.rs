@@ -985,13 +985,6 @@ fn request_window_resize(state: &mut State) {
     }
 }
 
-fn split_color(indexed_color: u64) -> Color {
-    let r = ((indexed_color >> 16) & 0xff) as f64;
-    let g = ((indexed_color >> 8) & 0xff) as f64;
-    let b = (indexed_color & 0xff) as f64;
-    Color(r / 255.0, g / 255.0, b / 255.0)
-}
-
 fn try_nvim_resize(state: &Arc<UiMutex<State>>) {
     let mut state_ref = state.borrow_mut();
 
@@ -1074,17 +1067,17 @@ impl RedrawEvents for State {
                 match key {
                     "foreground" => {
                         if let Some(fg) = val.as_u64() {
-                            model_attrs.foreground = Some(split_color(fg));
+                            model_attrs.foreground = Some(Color::from_indexed_color(fg));
                         }
                     }
                     "background" => {
                         if let Some(bg) = val.as_u64() {
-                            model_attrs.background = Some(split_color(bg));
+                            model_attrs.background = Some(Color::from_indexed_color(bg));
                         }
                     }
                     "special" => {
                         if let Some(bg) = val.as_u64() {
-                            model_attrs.special = Some(split_color(bg));
+                            model_attrs.special = Some(Color::from_indexed_color(bg));
                         }
                     }
                     "reverse" => model_attrs.reverse = true,
@@ -1105,7 +1098,7 @@ impl RedrawEvents for State {
 
     fn on_update_bg(&mut self, bg: i64) -> RepaintMode {
         if bg >= 0 {
-            self.color_model.bg_color = split_color(bg as u64);
+            self.color_model.bg_color = Color::from_indexed_color(bg as u64);
         } else {
             self.color_model.bg_color = COLOR_BLACK;
         }
@@ -1114,7 +1107,7 @@ impl RedrawEvents for State {
 
     fn on_update_fg(&mut self, fg: i64) -> RepaintMode {
         if fg >= 0 {
-            self.color_model.fg_color = split_color(fg as u64);
+            self.color_model.fg_color = Color::from_indexed_color(fg as u64);
         } else {
             self.color_model.fg_color = COLOR_WHITE;
         }
@@ -1123,7 +1116,7 @@ impl RedrawEvents for State {
 
     fn on_update_sp(&mut self, sp: i64) -> RepaintMode {
         if sp >= 0 {
-            self.color_model.sp_color = split_color(sp as u64);
+            self.color_model.sp_color = Color::from_indexed_color(sp as u64);
         } else {
             self.color_model.sp_color = COLOR_RED;
         }

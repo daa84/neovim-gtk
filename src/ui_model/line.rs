@@ -314,8 +314,17 @@ fn insert_attrs(
         attr.set_end_index(end_idx);
         attr_list.insert(attr);
     }
+
     if cell.attrs.bold {
         let mut attr = pango::Attribute::new_weight(pango::Weight::Bold).unwrap();
+        attr.set_start_index(start_idx);
+        attr.set_end_index(end_idx);
+        attr_list.insert(attr);
+    }
+
+    if let Some(fg) = color_model.cell_fg(cell) {
+        let (r, g, b) = fg.to_u16();
+        let mut attr = pango::Attribute::new_foreground(r, g, b).unwrap();
         attr.set_start_index(start_idx);
         attr.set_end_index(end_idx);
         attr_list.insert(attr);
@@ -333,7 +342,7 @@ mod tests {
         line[1].ch = 'b';
         line[2].ch = 'c';
 
-        let styled_line = StyledLine::from(&line);
+        let styled_line = StyledLine::from(&line, &color::ColorModel::new());
         assert_eq!("abc", styled_line.line_str);
         assert_eq!(3, styled_line.cell_to_byte.len());
         assert_eq!(0, styled_line.cell_to_byte[0]);
