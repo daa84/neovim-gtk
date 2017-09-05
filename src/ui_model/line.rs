@@ -267,6 +267,7 @@ impl StyledLine {
         let mut cell_to_byte = Vec::new();
         let attr_list = pango::AttrList::new();
         let mut byte_offset = 0;
+        //FIXME: generate single attr for same atttributes values
 
         for (cell_idx, cell) in line.line.iter().enumerate() {
             if cell.attrs.double_width {

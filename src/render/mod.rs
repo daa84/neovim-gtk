@@ -33,6 +33,7 @@ pub fn render(
         for i in 0..line.line.len() {
             let (bg, fg) = color_model.cell_colors(&line.line[i]);
 
+            // FIXME: draw background for all item length
             if let Some(bg) = bg {
                 ctx.set_source_rgb(bg.0, bg.1, bg.2);
                 ctx.rectangle(line_x, line_y, char_width, line_height);
