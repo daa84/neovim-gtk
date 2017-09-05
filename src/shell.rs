@@ -32,6 +32,7 @@ use tabline::Tabline;
 use error;
 use mode;
 use render;
+use render::CellMetrics;
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2";
@@ -54,7 +55,7 @@ pub struct State {
     cur_attrs: Option<Attrs>,
     mouse_enabled: bool,
     nvim: Rc<RefCell<NeovimClient>>,
-    font_desc: FontDescription,
+    font_ctx: render::Context,
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
@@ -67,8 +68,6 @@ pub struct State {
     im_context: gtk::IMMulticontext,
     error_area: error::ErrorArea,
 
-    line_height: Option<f64>,
-    char_width: Option<f64>,
     request_resize: bool,
     request_nvim_resize: bool,
     resize_timer: Option<glib::SourceId>,
@@ -82,6 +81,7 @@ impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> State {
         let drawing_area = gtk::DrawingArea::new();
         let popup_menu = RefCell::new(PopupMenu::new(&drawing_area));
+        let font_ctx = render::Context::new(FontDescription::from_string(DEFAULT_FONT_NAME));
 
         State {
             model: UiModel::new(1, 1),
@@ -89,10 +89,10 @@ impl State {
             nvim: Rc::new(RefCell::new(NeovimClient::new())),
             cur_attrs: None,
             mouse_enabled: true,
-            font_desc: FontDescription::from_string(DEFAULT_FONT_NAME),
+            font_ctx,
             cursor: None,
             popup_menu,
-            settings: settings,
+            settings,
 
             mode: mode::Mode::new(),
 
@@ -103,8 +103,6 @@ impl State {
             im_context: gtk::IMMulticontext::new(),
             error_area: error::ErrorArea::new(),
 
-            line_height: None,
-            char_width: None,
             resize_timer: None,
             request_resize: false,
             request_nvim_resize: false,
@@ -142,18 +140,12 @@ impl State {
         }
     }
 
-    fn create_pango_font(&self) -> FontDescription {
-        self.font_desc.clone()
-    }
-
     pub fn get_font_desc(&self) -> &FontDescription {
-        &self.font_desc
+        self.font_ctx.font_description()
     }
 
     pub fn set_font_desc(&mut self, desc: &str) {
-        self.font_desc = FontDescription::from_string(desc);
-        self.line_height = None;
-        self.char_width = None;
+        self.font_ctx.update(FontDescription::from_string(desc));
         self.model.clear_draw_cache();
     }
 
@@ -183,19 +175,19 @@ impl State {
     }
 
     fn queue_draw_area<M: AsRef<ModelRect>>(&self, rect_list: &[M]) {
-        match (&self.line_height, &self.char_width) {
-            (&Some(line_height), &Some(char_width)) => {
-                for rect in rect_list {
-                    let mut rect = rect.as_ref().clone();
-                    // this need to repain also line under curren line
-                    // in case underscore or 'g' symbol is go here
-                    // right one for italic symbol
-                    rect.extend(0, 1, 0, 1);
-                    let (x, y, width, height) = rect.to_area(line_height, char_width);
-                    self.drawing_area.queue_draw_area(x, y, width, height);
-                }
-            }
-            _ => self.drawing_area.queue_draw(),
+        let &CellMetrics {
+            line_height,
+            char_width,
+            ..
+        } = self.font_ctx.cell_metrics();
+        for rect in rect_list {
+            let mut rect = rect.as_ref().clone();
+            // this need to repain also line under curren line
+            // in case underscore or 'g' symbol is go here
+            // right one for italic symbol
+            rect.extend(0, 1, 0, 1);
+            let (x, y, width, height) = rect.to_area(line_height, char_width);
+            self.drawing_area.queue_draw_area(x, y, width, height);
         }
     }
 
@@ -203,36 +195,17 @@ impl State {
         input::im_input(&mut self.nvim.borrow_mut(), ch);
     }
 
-    fn calc_char_bounds(&self, ctx: &cairo::Context) -> (i32, i32) {
-        let layout = ctx.create_pango_layout();
-
-        let desc = self.create_pango_font();
-        layout.set_font_description(Some(&desc));
-        layout.set_text("A");
-
-        layout.get_pixel_size()
-    }
-
-    fn calc_line_metrics(&mut self, ctx: &cairo::Context) {
-        if self.line_height.is_none() {
-            let (width, height) = self.calc_char_bounds(ctx);
-            self.line_height = Some(height as f64);
-            self.char_width = Some(width as f64);
-        }
-    }
-
-    fn calc_nvim_size(&self) -> Option<(usize, usize)> {
-        if let Some(line_height) = self.line_height {
-            if let Some(char_width) = self.char_width {
-                let alloc = self.drawing_area.get_allocation();
-                return Some((
-                    (alloc.width as f64 / char_width).trunc() as usize,
-                    (alloc.height as f64 / line_height).trunc() as usize,
-                ));
-            }
-        }
-
-        None
+    fn calc_nvim_size(&self) -> (usize, usize) {
+        let &CellMetrics {
+            line_height,
+            char_width,
+            ..
+        } = self.font_ctx.cell_metrics();
+        let alloc = self.drawing_area.get_allocation();
+        (
+            (alloc.width as f64 / char_width).trunc() as usize,
+            (alloc.height as f64 / line_height).trunc() as usize,
+        )
     }
 
     fn show_error_area(&self) {
@@ -244,21 +217,21 @@ impl State {
     }
 
     fn set_im_location(&self) {
-        if let Some(line_height) = self.line_height {
-            if let Some(char_width) = self.char_width {
-                let (row, col) = self.model.get_cursor();
+        let &CellMetrics {
+            line_height,
+            char_width,
+            ..
+        } = self.font_ctx.cell_metrics();
+        let (row, col) = self.model.get_cursor();
 
-                let (x, y, width, height) =
-                    ModelRect::point(col, row).to_area(line_height, char_width);
+        let (x, y, width, height) = ModelRect::point(col, row).to_area(line_height, char_width);
 
-                self.im_context.set_cursor_location(&gdk::Rectangle {
-                    x,
-                    y,
-                    width,
-                    height,
-                });
-            }
-        }
+        self.im_context.set_cursor_location(&gdk::Rectangle {
+            x,
+            y,
+            width,
+            height,
+        });
 
         self.im_context.reset();
     }
@@ -562,19 +535,19 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
 }
 
 fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f64, f64)) {
-    if let Some(line_height) = shell.line_height {
-        if let Some(char_width) = shell.char_width {
-
-            let mut nvim = shell.nvim();
-            let (x, y) = position;
-            let col = (x / char_width).trunc() as u64;
-            let row = (y / line_height).trunc() as u64;
-            let input_str = format!("{}<{},{}>", keyval_to_input_string(input, state), col, row);
-            nvim.input(&input_str).expect(
-                "Can't send mouse input event",
-            );
-        }
-    }
+    let &CellMetrics {
+        line_height,
+        char_width,
+        ..
+    } = shell.font_ctx.cell_metrics();
+    let mut nvim = shell.nvim();
+    let (x, y) = position;
+    let col = (x / char_width).trunc() as u64;
+    let row = (y / line_height).trunc() as u64;
+    let input_str = format!("{}<{},{}>", keyval_to_input_string(input, state), col, row);
+    nvim.input(&input_str).expect(
+        "Can't send mouse input event",
+    );
 }
 
 fn gtk_button_release(ui_state: &mut UiState) -> Inhibit {
@@ -589,18 +562,7 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
     Inhibit(false)
 }
 
-#[inline]
-fn update_line_metrics(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
-    let mut state = state_arc.borrow_mut();
-
-    if state.line_height.is_none() {
-        state.calc_line_metrics(ctx);
-    }
-}
-
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
-    update_line_metrics(state_arc, ctx);
-
     if state_arc.borrow_mut().request_nvim_resize {
         try_nvim_resize(state_arc);
     }
@@ -619,20 +581,8 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
 }
 
 fn render(state: &mut State, ctx: &cairo::Context) {
-    let font_desc = state.create_pango_font();
-    let line_height = state.line_height.unwrap();
-    let char_width = state.char_width.unwrap();
-
-    let font_ctx = render::Context::new(&font_desc);
-
-    render::shape_dirty(&font_ctx, &mut state.model, &state.color_model);
-    render::render(
-        ctx,
-        &state.model,
-        &state.color_model,
-        line_height,
-        char_width,
-    );
+    render::shape_dirty(&state.font_ctx, &mut state.model, &state.color_model);
+    render::render(ctx, &state.font_ctx, &state.model, &state.color_model);
 }
 
 fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
@@ -715,7 +665,7 @@ fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
     if nvim.is_uninitialized() {
         nvim.set_in_progress();
 
-        let (cols, rows) = state.calc_nvim_size().unwrap();
+        let (cols, rows) = state.calc_nvim_size();
 
         let state_arc = state_arc.clone();
         let options = state.options.clone();
@@ -779,10 +729,13 @@ fn get_model_clip(
 
 fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let layout = ctx.create_pango_layout();
-    let desc = state.create_pango_font();
+    let desc = state.get_font_desc();
     let alloc = state.drawing_area.get_allocation();
-    let line_height = state.line_height.unwrap();
-    let char_width = state.char_width.unwrap();
+    let &CellMetrics {
+        line_height,
+        char_width,
+        ..
+    } = state.font_ctx.cell_metrics();
 
     ctx.set_source_rgb(
         state.color_model.bg_color.0,
@@ -791,7 +744,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     );
     ctx.paint();
 
-    layout.set_font_description(&desc);
+    layout.set_font_description(desc);
     layout.set_text("Loading->");
     let (width, height) = layout.get_pixel_size();
 
@@ -964,12 +917,17 @@ fn request_window_resize(state: &mut State) {
         return;
     }
 
+    let &CellMetrics {
+        line_height,
+        char_width,
+        ..
+    } = state.font_ctx.cell_metrics();
     state.request_resize = false;
 
     let width = state.drawing_area.get_allocated_width();
     let height = state.drawing_area.get_allocated_height();
-    let request_height = (state.model.rows as f64 * state.line_height.unwrap()) as i32;
-    let request_width = (state.model.columns as f64 * state.char_width.unwrap()) as i32;
+    let request_height = (state.model.rows as f64 * line_height) as i32;
+    let request_width = (state.model.columns as f64 * char_width) as i32;
 
     if width != request_width || height != request_height {
         let window: gtk::Window = state
@@ -998,21 +956,20 @@ fn try_nvim_resize(state: &Arc<UiMutex<State>>) {
         return;
     }
 
-    if let Some((columns, rows)) = state_ref.calc_nvim_size() {
-        let state = state.clone();
-        state_ref.resize_timer = Some(glib::timeout_add(250, move || {
-            let mut state_ref = state.borrow_mut();
+    let (columns, rows) = state_ref.calc_nvim_size();
+    let state = state.clone();
+    state_ref.resize_timer = Some(glib::timeout_add(250, move || {
+        let mut state_ref = state.borrow_mut();
 
-            state_ref.resize_timer = None;
+        state_ref.resize_timer = None;
 
-            if state_ref.model.rows != rows || state_ref.model.columns != columns {
-                if let Err(err) = state_ref.nvim().ui_try_resize(columns as u64, rows as u64) {
-                    error!("Error trying resize nvim {}", err);
-                }
+        if state_ref.model.rows != rows || state_ref.model.columns != columns {
+            if let Err(err) = state_ref.nvim().ui_try_resize(columns as u64, rows as u64) {
+                error!("Error trying resize nvim {}", err);
             }
-            Continue(false)
-        }));
-    }
+        }
+        Continue(false)
+    }));
 }
 
 impl RedrawEvents for State {
@@ -1149,20 +1106,24 @@ impl RedrawEvents for State {
         row: u64,
         col: u64,
     ) -> RepaintMode {
-        if let (&Some(line_height), &Some(char_width)) = (&self.line_height, &self.char_width) {
-            let point = ModelRect::point(col as usize, row as usize);
-            let (x, y, width, height) = point.to_area(line_height, char_width);
 
-            self.popup_menu.borrow_mut().show(
-                self,
-                menu,
-                selected,
-                x,
-                y,
-                width,
-                height,
-            );
-        }
+        let &CellMetrics {
+            line_height,
+            char_width,
+            ..
+        } = self.font_ctx.cell_metrics();
+        let point = ModelRect::point(col as usize, row as usize);
+        let (x, y, width, height) = point.to_area(line_height, char_width);
+
+        self.popup_menu.borrow_mut().show(
+            self,
+            menu,
+            selected,
+            x,
+            y,
+            width,
+            height,
+        );
 
         RepaintMode::Nothing
     }
