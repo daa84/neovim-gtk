@@ -44,7 +44,7 @@ pub fn render(
                     ctx.rectangle(
                         line_x,
                         line_y,
-                        char_width * line.item_len(i) as f64,
+                        char_width * line.item_len_from_idx(i) as f64,
                         line_height,
                     );
                     ctx.fill();

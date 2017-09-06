@@ -147,6 +147,8 @@ impl State {
     pub fn set_font_desc(&mut self, desc: &str) {
         self.font_ctx.update(FontDescription::from_string(desc));
         self.model.clear_draw_cache();
+        // TODO: rerun itemize/shape
+        // TODO: send repaint event
     }
 
     pub fn open_file(&self, path: &str) {
@@ -180,8 +182,13 @@ impl State {
             char_width,
             ..
         } = self.font_ctx.cell_metrics();
+
+        //TODO: run shape here
+        
         for rect in rect_list {
             let mut rect = rect.as_ref().clone();
+            rect.extend_by_items(&self.model);
+
             // this need to repain also line under curren line
             // in case underscore or 'g' symbol is go here
             // right one for italic symbol

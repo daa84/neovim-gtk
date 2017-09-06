@@ -2,49 +2,9 @@ use std::ops::{Index, IndexMut};
 
 use color;
 use super::cell::Cell;
+use super::item::Item;
 use sys::pango as sys_pango;
 use pango;
-
-#[derive(Clone)]
-pub struct Item {
-    pub item: sys_pango::Item,
-    pub glyphs: Option<pango::GlyphString>,
-    pub ink_rect: Option<pango::Rectangle>,
-    font: pango::Font,
-}
-
-impl Item {
-    pub fn new(item: sys_pango::Item) -> Self {
-        Item {
-            font: item.analysis().font(),
-            item,
-            glyphs: None,
-            ink_rect: None,
-        }
-    }
-
-    pub fn update(&mut self, item: sys_pango::Item) {
-        self.font = item.analysis().font();
-        self.item = item;
-        self.glyphs = None;
-        self.ink_rect = None;
-    }
-
-    pub fn set_glyphs(&mut self, glyphs: pango::GlyphString) {
-        let mut glyphs = glyphs;
-        let (ink_rect, _) = glyphs.extents(&self.font);
-        self.ink_rect = Some(ink_rect);
-        self.glyphs = Some(glyphs);
-    }
-
-    pub fn font(&self) -> &pango::Font {
-        &self.font
-    }
-
-    pub fn analysis(&self) -> sys_pango::Analysis {
-        self.item.analysis()
-    }
-}
 
 pub struct Line {
     pub line: Box<[Cell]>,
@@ -53,7 +13,7 @@ pub struct Line {
     // [Item1, Item2, None, None, Item3]
     // Item2 take 3 cells and renders as one
     pub item_line: Box<[Option<Item>]>,
-    pub cell_to_item: Box<[i32]>,
+    cell_to_item: Box<[i32]>,
 
     pub dirty_line: bool,
 }
@@ -216,18 +176,19 @@ impl Line {
         }
     }
 
-    fn cell_to_item(&self, cell_idx: usize) -> i32 {
+    #[inline]
+    pub fn cell_to_item(&self, cell_idx: usize) -> i32 {
         self.cell_to_item[cell_idx]
     }
 
-    pub fn item_len(&self, mut item_idx: usize) -> usize {
+    pub fn item_len_from_idx(&self, mut start_idx: usize) -> usize {
         let mut len = 1;
-        item_idx += 1;
+        start_idx += 1;
 
-        while item_idx < self.item_line.len() && self.is_binded_to_item(item_idx) &&
-            self.item_line[item_idx].is_none()
+        while start_idx < self.item_line.len() && self.is_binded_to_item(start_idx) &&
+            self.item_line[start_idx].is_none()
         {
-            item_idx += 1;
+            start_idx += 1;
             len += 1;
         }
 
