@@ -53,7 +53,7 @@ pub struct Line {
     // [Item1, Item2, None, None, Item3]
     // Item2 take 3 cells and renders as one
     pub item_line: Box<[Option<Item>]>,
-    cell_to_item: Box<[i32]>,
+    pub cell_to_item: Box<[i32]>,
 
     pub dirty_line: bool,
 }
@@ -219,6 +219,25 @@ impl Line {
     fn cell_to_item(&self, cell_idx: usize) -> i32 {
         self.cell_to_item[cell_idx]
     }
+
+    pub fn item_len(&self, mut item_idx: usize) -> usize {
+        let mut len = 1;
+        item_idx += 1;
+
+        while item_idx < self.item_line.len() && self.is_binded_to_item(item_idx) &&
+            self.item_line[item_idx].is_none()
+        {
+            item_idx += 1;
+            len += 1;
+        }
+
+        len
+    }
+
+    #[inline]
+    pub fn is_binded_to_item(&self, cell_idx: usize) -> bool {
+        self.cell_to_item[cell_idx] >= 0
+    }
 }
 
 impl Index<usize> for Line {
@@ -304,6 +323,7 @@ struct StyleAttr<'c> {
     italic: bool,
     bold: bool,
     foreground: Option<&'c color::Color>,
+    background: Option<&'c color::Color>,
     empty: bool,
 
     start_idx: usize,
@@ -316,6 +336,7 @@ impl<'c> StyleAttr<'c> {
             italic: false,
             bold: false,
             foreground: None,
+            background: None,
             empty: true,
 
             start_idx: 0,
@@ -333,6 +354,7 @@ impl<'c> StyleAttr<'c> {
             italic: cell.attrs.italic,
             bold: cell.attrs.bold,
             foreground: color_model.cell_fg(cell),
+            background: color_model.cell_bg(cell),
             empty: false,
 
             start_idx,
@@ -383,6 +405,14 @@ impl<'c> StyleAttr<'c> {
                 pango::Attribute::new_foreground(r, g, b).unwrap(),
             );
         }
+
+        if let Some(bg) = self.background {
+            let (r, g, b) = bg.to_u16();
+            self.insert_attr(
+                attr_list,
+                pango::Attribute::new_background(r, g, b).unwrap(),
+            );
+        }
     }
 
     #[inline]
@@ -396,7 +426,8 @@ impl<'c> StyleAttr<'c> {
 impl<'c> PartialEq for StyleAttr<'c> {
     fn eq(&self, other: &Self) -> bool {
         self.italic == other.italic && self.bold == other.bold &&
-            self.foreground == other.foreground && self.empty == other.empty
+            self.foreground == other.foreground && self.empty == other.empty &&
+            self.background == other.background
     }
 }
 

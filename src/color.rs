@@ -73,4 +73,12 @@ impl ColorModel {
             cell.attrs.background.as_ref().or(Some(&self.bg_color))
         }
     }
+
+    pub fn cell_bg<'a>(&'a self, cell: &'a Cell) -> Option<&'a Color> {
+        if !cell.attrs.reverse {
+            cell.attrs.background.as_ref()
+        } else {
+            cell.attrs.foreground.as_ref().or(Some(&self.fg_color))
+        }
+    }
 }

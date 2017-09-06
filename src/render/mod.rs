@@ -12,7 +12,7 @@ use ui_model;
 
 pub fn render(
     ctx: &cairo::Context,
-    font_ctx: &context::Context, 
+    font_ctx: &context::Context,
     ui_model: &ui_model::UiModel,
     color_model: &color::ColorModel,
 ) {
@@ -23,7 +23,11 @@ pub fn render(
     );
     ctx.paint();
 
-    let &CellMetrics {line_height, char_width, ..} = font_ctx.cell_metrics();
+    let &CellMetrics {
+        line_height,
+        char_width,
+        ..
+    } = font_ctx.cell_metrics();
     let mut line_y = 0.0;
     let ascent = font_ctx.ascent();
 
@@ -31,20 +35,33 @@ pub fn render(
         let mut line_x = 0.0;
 
         for i in 0..line.line.len() {
-            let (bg, fg) = color_model.cell_colors(&line.line[i]);
-
-            // FIXME: draw background for all item length
-            if let Some(bg) = bg {
-                ctx.set_source_rgb(bg.0, bg.1, bg.2);
-                ctx.rectangle(line_x, line_y, char_width, line_height);
-                ctx.fill();
-            }
 
             if let Some(item) = line.item_line[i].as_ref() {
+                let (bg, fg) = color_model.cell_colors(&line.line[i]);
+
+                if let Some(bg) = bg {
+                    ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                    ctx.rectangle(
+                        line_x,
+                        line_y,
+                        char_width * line.item_len(i) as f64,
+                        line_height,
+                    );
+                    ctx.fill();
+                }
+
                 if let Some(ref glyphs) = item.glyphs {
                     ctx.move_to(line_x, line_y + ascent);
                     ctx.set_source_rgb(fg.0, fg.1, fg.2);
                     ctx.show_glyph_string(item.font(), glyphs);
+                }
+
+            } else if !line.is_binded_to_item(i) {
+                let bg = color_model.cell_bg(&line.line[i]);
+                if let Some(bg) = bg {
+                    ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                    ctx.rectangle(line_x, line_y, char_width, line_height);
+                    ctx.fill();
                 }
             }
             line_x += char_width;
