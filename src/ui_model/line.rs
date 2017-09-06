@@ -267,7 +267,7 @@ impl StyledLine {
         let mut cell_to_byte = Vec::new();
         let attr_list = pango::AttrList::new();
         let mut byte_offset = 0;
-        //FIXME: generate single attr for same atttributes values
+        let mut style_attr = StyleAttr::new();
 
         for (cell_idx, cell) in line.line.iter().enumerate() {
             if cell.attrs.double_width {
@@ -281,18 +281,16 @@ impl StyledLine {
                 cell_to_byte.push(cell_idx);
             }
 
-            if !cell.ch.is_whitespace() {
-                insert_attrs(
-                    cell,
-                    color_model,
-                    &attr_list,
-                    byte_offset as u32,
-                    (byte_offset + len) as u32,
-                );
+            let next = style_attr.next(byte_offset, byte_offset + len, cell, color_model);
+            if let Some(next) = next {
+                style_attr.insert(&attr_list);
+                style_attr = next;
             }
 
             byte_offset += len;
         }
+
+        style_attr.insert(&attr_list);
 
         StyledLine {
             line_str,
@@ -302,33 +300,103 @@ impl StyledLine {
     }
 }
 
-fn insert_attrs(
-    cell: &Cell,
-    color_model: &color::ColorModel,
-    attr_list: &pango::AttrList,
-    start_idx: u32,
-    end_idx: u32,
-) {
-    if cell.attrs.italic {
-        let mut attr = pango::Attribute::new_style(pango::Style::Italic).unwrap();
-        attr.set_start_index(start_idx);
-        attr.set_end_index(end_idx);
-        attr_list.insert(attr);
+struct StyleAttr<'c> {
+    italic: bool,
+    bold: bool,
+    foreground: Option<&'c color::Color>,
+    empty: bool,
+
+    start_idx: usize,
+    end_idx: usize,
+}
+
+impl<'c> StyleAttr<'c> {
+    fn new() -> Self {
+        StyleAttr {
+            italic: false,
+            bold: false,
+            foreground: None,
+            empty: true,
+
+            start_idx: 0,
+            end_idx: 0,
+        }
     }
 
-    if cell.attrs.bold {
-        let mut attr = pango::Attribute::new_weight(pango::Weight::Bold).unwrap();
-        attr.set_start_index(start_idx);
-        attr.set_end_index(end_idx);
-        attr_list.insert(attr);
+    fn from(
+        start_idx: usize,
+        end_idx: usize,
+        cell: &'c Cell,
+        color_model: &'c color::ColorModel,
+    ) -> Self {
+        StyleAttr {
+            italic: cell.attrs.italic,
+            bold: cell.attrs.bold,
+            foreground: color_model.cell_fg(cell),
+            empty: false,
+
+            start_idx,
+            end_idx,
+        }
     }
 
-    if let Some(fg) = color_model.cell_fg(cell) {
-        let (r, g, b) = fg.to_u16();
-        let mut attr = pango::Attribute::new_foreground(r, g, b).unwrap();
-        attr.set_start_index(start_idx);
-        attr.set_end_index(end_idx);
+    fn next(
+        &mut self,
+        start_idx: usize,
+        end_idx: usize,
+        cell: &'c Cell,
+        color_model: &'c color::ColorModel,
+    ) -> Option<StyleAttr<'c>> {
+        let style_attr = Self::from(start_idx, end_idx, cell, color_model);
+
+        if self != &style_attr {
+            Some(style_attr)
+        } else {
+            self.end_idx = end_idx;
+            None
+        }
+    }
+
+    fn insert(&self, attr_list: &pango::AttrList) {
+        if self.empty {
+            return;
+        }
+
+        if self.italic {
+            self.insert_attr(
+                attr_list,
+                pango::Attribute::new_style(pango::Style::Italic).unwrap(),
+            );
+        }
+
+        if self.bold {
+            self.insert_attr(
+                attr_list,
+                pango::Attribute::new_weight(pango::Weight::Bold).unwrap(),
+            );
+        }
+
+        if let Some(fg) = self.foreground {
+            let (r, g, b) = fg.to_u16();
+            self.insert_attr(
+                attr_list,
+                pango::Attribute::new_foreground(r, g, b).unwrap(),
+            );
+        }
+    }
+
+    #[inline]
+    fn insert_attr(&self, attr_list: &pango::AttrList, mut attr: pango::Attribute) {
+        attr.set_start_index(self.start_idx as u32);
+        attr.set_end_index(self.end_idx as u32);
         attr_list.insert(attr);
+    }
+}
+
+impl<'c> PartialEq for StyleAttr<'c> {
+    fn eq(&self, other: &Self) -> bool {
+        self.italic == other.italic && self.bold == other.bold &&
+            self.foreground == other.foreground && self.empty == other.empty
     }
 }
 
