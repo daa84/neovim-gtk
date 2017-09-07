@@ -20,12 +20,14 @@ glib_wrapper! {
 }
 
 impl Item {
+    #[cfg(test)]
     pub fn new() -> Self {
         unsafe {
             from_glib_none(pango_sys::pango_item_new())
         }
     }
 
+    #[cfg(test)]
     pub fn set_offset(&mut self, offset: i32, length: i32, num_chars: i32) {
         self.0.offset = offset;
         self.0.length = length;

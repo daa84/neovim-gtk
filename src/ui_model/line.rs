@@ -60,7 +60,7 @@ impl Line {
     }
 
     fn set_cell_to_empty(&mut self, cell_idx: usize) -> bool {
-        if self.item_line[cell_idx].is_some() {
+        if self.is_binded_to_item(cell_idx) {
             self.item_line[cell_idx] = None;
             self.cell_to_item[cell_idx] = -1;
             self.line[cell_idx].dirty = true;
