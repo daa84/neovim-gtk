@@ -54,7 +54,7 @@ pub struct State {
     cur_attrs: Option<Attrs>,
     mouse_enabled: bool,
     nvim: Rc<RefCell<NeovimClient>>,
-    font_ctx: render::Context,
+    pub font_ctx: render::Context,
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
@@ -182,7 +182,8 @@ impl State {
             let mut rect = rect.as_ref().clone();
             rect.extend_by_items(&self.model);
 
-            let (x, y, width, height) = rect.to_area_extend_ink(&self.model, self.font_ctx.cell_metrics());
+            let (x, y, width, height) =
+                rect.to_area_extend_ink(&self.model, self.font_ctx.cell_metrics());
             self.drawing_area.queue_draw_area(x, y, width, height);
         }
     }
@@ -220,7 +221,8 @@ impl State {
     fn set_im_location(&self) {
         let (row, col) = self.model.get_cursor();
 
-        let (x, y, width, height) = ModelRect::point(col, row).to_area(self.font_ctx.cell_metrics());
+        let (x, y, width, height) =
+            ModelRect::point(col, row).to_area(self.font_ctx.cell_metrics());
 
         self.im_context.set_cursor_location(&gdk::Rectangle {
             x,
@@ -567,7 +569,14 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
 
     let mut state = state_arc.borrow_mut();
     if state.nvim.borrow().is_initialized() {
-        render::render(ctx, &state.font_ctx, &state.model, &state.color_model);
+        render::render(
+            ctx,
+            state.cursor.as_ref().unwrap(),
+            &state.font_ctx,
+            &state.model,
+            &state.color_model,
+            &state.mode,
+        );
         request_window_resize(&mut *state);
     } else if state.nvim.borrow().is_initializing() {
         draw_initializing(&*state, ctx);
@@ -722,11 +731,6 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let layout = ctx.create_pango_layout();
     let desc = state.get_font_desc();
     let alloc = state.drawing_area.get_allocation();
-    let &CellMetrics {
-        line_height,
-        char_width,
-        ..
-    } = state.font_ctx.cell_metrics();
 
     ctx.set_source_rgb(
         state.color_model.bg_color.0,
@@ -755,9 +759,8 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     ctx.move_to(x + width as f64, y);
     state.cursor.as_ref().unwrap().draw(
         ctx,
-        state,
-        char_width,
-        line_height,
+        &state.font_ctx,
+        &state.mode,
         y,
         false,
         &state.color_model.bg_color,
@@ -1153,4 +1156,3 @@ impl GuiApi for State {
         settings.set_font_source(FontSource::Rpc);
     }
 }
-

@@ -6,6 +6,8 @@ use mode;
 use nvim;
 use nvim::{RepaintMode, RedrawEvents};
 use std::sync::{Arc, Weak};
+use render;
+use render::CellMetrics;
 
 use glib;
 
@@ -106,14 +108,15 @@ impl Cursor {
         self.start();
     }
 
-    pub fn draw(&self,
-                ctx: &cairo::Context,
-                shell: &shell::State,
-                char_width: f64,
-                line_height: f64,
-                line_y: f64,
-                double_width: bool,
-                bg: &Color) {
+    pub fn draw(
+        &self,
+        ctx: &cairo::Context,
+        font_ctx: &render::Context,
+        mode: &mode::Mode,
+        line_y: f64,
+        double_width: bool,
+        bg: &Color,
+    ) {
 
         let state = self.state.borrow();
 
@@ -124,8 +127,7 @@ impl Cursor {
         let current_point = ctx.get_current_point();
         ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.6 * state.alpha.0);
 
-        let (y, width, height) =
-            cursor_rect(&shell.mode, char_width, line_height, line_y, double_width);
+        let (y, width, height) = cursor_rect(mode, font_ctx.cell_metrics(), line_y, double_width);
 
         ctx.rectangle(current_point.0, y, width, height);
         if state.anim_phase == AnimPhase::NoFocus {
@@ -136,12 +138,18 @@ impl Cursor {
     }
 }
 
-fn cursor_rect(mode: &mode::Mode,
-               char_width: f64,
-               line_height: f64,
-               line_y: f64,
-               double_width: bool)
-               -> (f64, f64, f64) {
+fn cursor_rect(
+    mode: &mode::Mode,
+    cell_metrics: &CellMetrics,
+    line_y: f64,
+    double_width: bool,
+) -> (f64, f64, f64) {
+    let &CellMetrics {
+        line_height,
+        char_width,
+        ..
+    } = cell_metrics;
+
     if let Some(mode_info) = mode.mode_info() {
         match mode_info.cursor_shape() {
             None |
@@ -258,9 +266,10 @@ mod tests {
     #[test]
     fn test_cursor_rect_horizontal() {
         let mut mode = mode::Mode::new();
-        let mode_info = nvim::ModeInfo::new(&vec![(From::from("cursor_shape"),
-                                                   From::from("horizontal")),
-                                                  (From::from("cell_percentage"), From::from(25))]);
+        let mode_info = nvim::ModeInfo::new(&vec![
+            (From::from("cursor_shape"), From::from("horizontal")),
+            (From::from("cell_percentage"), From::from(25)),
+        ]);
         mode.update("insert", 0);
         mode.set_info(true, vec![mode_info.unwrap()]);
         let char_width = 50.0;
@@ -276,9 +285,10 @@ mod tests {
     #[test]
     fn test_cursor_rect_horizontal_doublewidth() {
         let mut mode = mode::Mode::new();
-        let mode_info = nvim::ModeInfo::new(&vec![(From::from("cursor_shape"),
-                                                   From::from("horizontal")),
-                                                  (From::from("cell_percentage"), From::from(25))]);
+        let mode_info = nvim::ModeInfo::new(&vec![
+            (From::from("cursor_shape"), From::from("horizontal")),
+            (From::from("cell_percentage"), From::from(25)),
+        ]);
         mode.update("insert", 0);
         mode.set_info(true, vec![mode_info.unwrap()]);
         let char_width = 50.0;
@@ -294,9 +304,10 @@ mod tests {
     #[test]
     fn test_cursor_rect_vertical() {
         let mut mode = mode::Mode::new();
-        let mode_info = nvim::ModeInfo::new(&vec![(From::from("cursor_shape"),
-                                                   From::from("vertical")),
-                                                  (From::from("cell_percentage"), From::from(25))]);
+        let mode_info = nvim::ModeInfo::new(&vec![
+            (From::from("cursor_shape"), From::from("vertical")),
+            (From::from("cell_percentage"), From::from(25)),
+        ]);
         mode.update("insert", 0);
         mode.set_info(true, vec![mode_info.unwrap()]);
         let char_width = 50.0;

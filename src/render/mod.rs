@@ -3,22 +3,25 @@ mod context;
 pub use self::context::Context;
 pub use self::context::CellMetrics;
 
+use mode;
 use color;
 use sys::pango::*;
 use pango;
 use cairo;
+use cursor;
 use pangocairo::CairoContextExt;
 use ui_model;
 
 pub fn render(
     ctx: &cairo::Context,
+    cursor: &cursor::Cursor,
     font_ctx: &context::Context,
     ui_model: &ui_model::UiModel,
     color_model: &color::ColorModel,
+    mode: &mode::Mode,
 ) {
     // TODO: underline
     // TODO: undercurl
-    // TODO: cursor
     ctx.set_source_rgb(
         color_model.bg_color.0,
         color_model.bg_color.1,
@@ -33,21 +36,24 @@ pub fn render(
     } = font_ctx.cell_metrics();
     let mut line_y = 0.0;
     let ascent = font_ctx.ascent();
+    let (cursor_row, cursor_col) = ui_model.get_cursor();
 
-    for line in ui_model.model() {
+    for (row, line) in ui_model.model().iter().enumerate() {
         let mut line_x = 0.0;
 
-        for i in 0..line.line.len() {
+        for col in 0..line.line.len() {
+            let cell = &line.line[col];
 
-            if let Some(item) = line.item_line[i].as_ref() {
-                let (bg, fg) = color_model.cell_colors(&line.line[i]);
+            // draw cell
+            if let Some(item) = line.item_line[col].as_ref() {
+                let (bg, fg) = color_model.cell_colors(cell);
 
                 if let Some(bg) = bg {
                     ctx.set_source_rgb(bg.0, bg.1, bg.2);
                     ctx.rectangle(
                         line_x,
                         line_y,
-                        char_width * line.item_len_from_idx(i) as f64,
+                        char_width * line.item_len_from_idx(col) as f64,
                         line_height,
                     );
                     ctx.fill();
@@ -59,14 +65,26 @@ pub fn render(
                     ctx.show_glyph_string(item.font(), glyphs);
                 }
 
-            } else if !line.is_binded_to_item(i) {
-                let bg = color_model.cell_bg(&line.line[i]);
+            } else if !line.is_binded_to_item(col) {
+                let bg = color_model.cell_bg(cell);
                 if let Some(bg) = bg {
                     ctx.set_source_rgb(bg.0, bg.1, bg.2);
                     ctx.rectangle(line_x, line_y, char_width, line_height);
                     ctx.fill();
                 }
             }
+
+            if row == cursor_row && col == cursor_col {
+                cursor.draw(
+                    ctx,
+                    font_ctx,
+                    mode,
+                    line_y,
+                    false, //TODO: double_width,
+                    color_model.actual_cell_bg(cell),
+                );
+            }
+
             line_x += char_width;
         }
         line_y += line_height;
