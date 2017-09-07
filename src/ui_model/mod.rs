@@ -6,7 +6,7 @@ mod model_rect;
 pub use self::cell::{Cell, Attrs};
 pub use self::line::StyledLine;
 pub use self::item::Item;
-pub use self::model_rect::{ModelRect, ModelRectVec, ClipRowIterator};
+pub use self::model_rect::{ModelRect, ModelRectVec};
 use self::line::Line;
 
 
@@ -48,33 +48,6 @@ impl UiModel {
 
     pub fn model_mut(&mut self) -> &mut [Line] {
         &mut self.model
-    }
-
-    pub fn limit_to_model(&self, clip: &mut ModelRect) {
-        clip.left = if clip.left >= self.columns {
-            self.columns - 1
-        } else {
-            clip.left
-        };
-        clip.right = if clip.right >= self.columns {
-            self.columns - 1
-        } else {
-            clip.right
-        };
-        clip.top = if clip.top >= self.rows {
-            self.rows - 1
-        } else {
-            clip.top
-        };
-        clip.bot = if clip.bot >= self.rows {
-            self.rows - 1
-        } else {
-            clip.bot
-        };
-    }
-
-    pub fn clip_model<'a>(&'a self, clip: &'a ModelRect) -> ClipRowIterator<'a> {
-        ClipRowIterator::new(self, clip)
     }
 
     pub fn cur_point(&self) -> ModelRect {
@@ -186,9 +159,9 @@ impl UiModel {
         }
     }
 
-    pub fn clear_draw_cache(&mut self) {
+    pub fn clear_glyphs(&mut self) {
         for row in &mut self.model.iter_mut() {
-            row.clear_draw_cache();
+            row.clear_glyphs();
         }
     }
 }
@@ -255,34 +228,6 @@ mod tests {
 
         list.join(&not_neighbor);
         assert_eq!(2, list.list.len());
-    }
-
-    #[test]
-    fn test_iterator_border() {
-        let model = UiModel::new(10, 20);
-        let rect = ModelRect::new(0, 9, 0, 19);
-
-        assert_eq!(10, model.clip_model(&rect).count());
-        let (_, first_line) = model.clip_model(&rect).nth(0).unwrap();
-        assert_eq!(20, first_line.iter().count());
-
-        let (idx, _) = first_line.iter().nth(19).unwrap();
-        assert_eq!(19, idx);
-    }
-
-    #[test]
-    fn test_iterator() {
-        let model = UiModel::new(10, 20);
-        let rect = ModelRect::new(1, 2, 1, 2);
-
-        assert_eq!(2, model.clip_model(&rect).count());
-        let (idx, first_line) = model.clip_model(&rect).nth(0).unwrap();
-
-        assert_eq!(1, idx);
-        assert_eq!(2, first_line.iter().count());
-
-        let (idx, _) = first_line.iter().nth(0).unwrap();
-        assert_eq!(1, idx);
     }
 
     #[test]

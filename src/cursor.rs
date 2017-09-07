@@ -227,7 +227,7 @@ fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
     };
 
     let shell = mut_state.shell.upgrade().unwrap();
-    let shell = shell.borrow();
+    let mut shell = shell.borrow_mut();
     let point = shell.model.cur_point();
     shell.on_redraw(&RepaintMode::Area(point));
 

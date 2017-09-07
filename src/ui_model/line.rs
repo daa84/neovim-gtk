@@ -51,7 +51,7 @@ impl Line {
         self.dirty_line = true;
     }
 
-    pub fn clear_draw_cache(&mut self) {
+    pub fn clear_glyphs(&mut self) {
         for i in 0..self.item_line.len() {
             self.item_line[i] = None;
             self.cell_to_item[i] = -1;
@@ -171,6 +171,15 @@ impl Line {
         let item_idx = self.cell_to_item(cell_idx);
         if item_idx >= 0 {
             self.item_line[item_idx as usize].as_mut()
+        } else {
+            None
+        }
+    }
+
+    pub fn get_item(&self, cell_idx: usize) -> Option<&Item> {
+        let item_idx = self.cell_to_item(cell_idx);
+        if item_idx >= 0 {
+            self.item_line[item_idx as usize].as_ref()
         } else {
             None
         }

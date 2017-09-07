@@ -6,7 +6,6 @@ use std::thread;
 
 use cairo;
 use pangocairo::CairoContextExt;
-use pango;
 use pango::{LayoutExt, FontDescription};
 use gdk;
 use gdk::{ModifierType, EventButton, EventMotion, EventType, EventScroll};
@@ -146,9 +145,9 @@ impl State {
 
     pub fn set_font_desc(&mut self, desc: &str) {
         self.font_ctx.update(FontDescription::from_string(desc));
-        self.model.clear_draw_cache();
-        // TODO: rerun itemize/shape
-        // TODO: send repaint event
+        self.model.clear_glyphs();
+        self.update_dirty_glyphs();
+        self.on_redraw(&RepaintMode::All);
     }
 
     pub fn open_file(&self, path: &str) {
@@ -176,26 +175,21 @@ impl State {
         }
     }
 
-    fn queue_draw_area<M: AsRef<ModelRect>>(&self, rect_list: &[M]) {
-        let &CellMetrics {
-            line_height,
-            char_width,
-            ..
-        } = self.font_ctx.cell_metrics();
+    fn queue_draw_area<M: AsRef<ModelRect>>(&mut self, rect_list: &[M]) {
+        self.update_dirty_glyphs();
 
-        //TODO: run shape here
-        
         for rect in rect_list {
             let mut rect = rect.as_ref().clone();
             rect.extend_by_items(&self.model);
 
-            // this need to repain also line under curren line
-            // in case underscore or 'g' symbol is go here
-            // right one for italic symbol
-            rect.extend(0, 1, 0, 1);
-            let (x, y, width, height) = rect.to_area(line_height, char_width);
+            let (x, y, width, height) = rect.to_area_extend_ink(&self.model, self.font_ctx.cell_metrics());
             self.drawing_area.queue_draw_area(x, y, width, height);
         }
+    }
+
+    #[inline]
+    fn update_dirty_glyphs(&mut self) {
+        render::shape_dirty(&self.font_ctx, &mut self.model, &self.color_model);
     }
 
     fn im_commit(&self, ch: &str) {
@@ -224,14 +218,9 @@ impl State {
     }
 
     fn set_im_location(&self) {
-        let &CellMetrics {
-            line_height,
-            char_width,
-            ..
-        } = self.font_ctx.cell_metrics();
         let (row, col) = self.model.get_cursor();
 
-        let (x, y, width, height) = ModelRect::point(col, row).to_area(line_height, char_width);
+        let (x, y, width, height) = ModelRect::point(col, row).to_area(self.font_ctx.cell_metrics());
 
         self.im_context.set_cursor_location(&gdk::Rectangle {
             x,
@@ -578,18 +567,13 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
 
     let mut state = state_arc.borrow_mut();
     if state.nvim.borrow().is_initialized() {
-        render(&mut *state, ctx);
+        render::render(ctx, &state.font_ctx, &state.model, &state.color_model);
         request_window_resize(&mut *state);
     } else if state.nvim.borrow().is_initializing() {
         draw_initializing(&*state, ctx);
     }
 
     Inhibit(false)
-}
-
-fn render(state: &mut State, ctx: &cairo::Context) {
-    render::shape_dirty(&state.font_ctx, &mut state.model, &state.color_model);
-    render::render(ctx, &state.font_ctx, &state.model, &state.color_model);
 }
 
 fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
@@ -680,25 +664,25 @@ fn init_nvim(state_arc: &Arc<UiMutex<State>>) {
     }
 }
 
-#[inline]
-fn get_model_clip(
-    state: &State,
-    line_height: f64,
-    char_width: f64,
-    clip: (f64, f64, f64, f64),
-) -> ModelRect {
-    let mut model_clip =
-        ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
-    // in some cases symbols from previous row affect next row
-    // for example underscore symbol or 'g'
-    // also for italic text it is possible that symbol can affect next one
-    // see deference between logical rect and ink rect
-    model_clip.extend(1, 0, 1, 0);
-    state.model.limit_to_model(&mut model_clip);
-
-    model_clip
-}
-
+//#[inline]
+//fn get_model_clip(
+//    state: &State,
+//    line_height: f64,
+//    char_width: f64,
+//    clip: (f64, f64, f64, f64),
+//) -> ModelRect {
+//    let mut model_clip =
+//        ModelRect::from_area(line_height, char_width, clip.0, clip.1, clip.2, clip.3);
+//    // in some cases symbols from previous row affect next row
+//    // for example underscore symbol or 'g'
+//    // also for italic text it is possible that symbol can affect next one
+//    // see deference between logical rect and ink rect
+//    model_clip.extend(1, 0, 1, 0);
+//    state.model.limit_to_model(&mut model_clip);
+//
+//    model_clip
+//}
+//
 //#[inline]
 //fn draw_backgound(
 //    state: &State,
@@ -1005,7 +989,7 @@ impl RedrawEvents for State {
         RepaintMode::All
     }
 
-    fn on_redraw(&self, mode: &RepaintMode) {
+    fn on_redraw(&mut self, mode: &RepaintMode) {
         match *mode {
             RepaintMode::All => self.drawing_area.queue_draw(),
             RepaintMode::Area(ref rect) => self.queue_draw_area(&[rect]),
@@ -1113,14 +1097,8 @@ impl RedrawEvents for State {
         row: u64,
         col: u64,
     ) -> RepaintMode {
-
-        let &CellMetrics {
-            line_height,
-            char_width,
-            ..
-        } = self.font_ctx.cell_metrics();
         let point = ModelRect::point(col as usize, row as usize);
-        let (x, y, width, height) = point.to_area(line_height, char_width);
+        let (x, y, width, height) = point.to_area(self.font_ctx.cell_metrics());
 
         self.popup_menu.borrow_mut().show(
             self,
@@ -1176,52 +1154,3 @@ impl GuiApi for State {
     }
 }
 
-pub struct ModelBitamp {
-    words_for_cols: usize,
-    model: Vec<u64>,
-}
-
-impl ModelBitamp {
-    pub fn new(cols: usize, rows: usize) -> ModelBitamp {
-        let words_for_cols = cols / 64 + 1;
-
-        ModelBitamp {
-            words_for_cols: words_for_cols,
-            model: vec![0; rows * words_for_cols],
-        }
-    }
-
-    fn fill_from_model(&mut self, rect: &ModelRect) {
-        for row in rect.top..rect.bot + 1 {
-            let row_pos = self.words_for_cols * row;
-            for col in rect.left..rect.right + 1 {
-                let col_pos = col / 64;
-                let col_offset = col % 64;
-                self.model[row_pos + col_pos] |= 1 << col_offset;
-            }
-        }
-    }
-
-    #[inline]
-    fn get(&self, col: usize, row: usize) -> bool {
-        let row_pos = self.words_for_cols * row;
-        let col_pos = col / 64;
-        let col_offset = col % 64;
-        self.model[row_pos + col_pos] & (1 << col_offset) != 0
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_bitmap() {
-        let mut bitmap = ModelBitamp::new(80, 24);
-        bitmap.fill_from_model(&ModelRect::new(22, 22, 63, 68));
-
-        assert_eq!(true, bitmap.get(63, 22));
-        assert_eq!(true, bitmap.get(68, 22));
-        assert_eq!(false, bitmap.get(62, 22));
-    }
-}

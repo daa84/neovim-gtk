@@ -25,7 +25,7 @@ pub trait RedrawEvents {
 
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode;
 
-    fn on_redraw(&self, mode: &RepaintMode);
+    fn on_redraw(&mut self, mode: &RepaintMode);
 
     fn on_highlight_set(&mut self, attrs: &[(Value, Value)]) -> RepaintMode;
 

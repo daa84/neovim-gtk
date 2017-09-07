@@ -16,6 +16,9 @@ pub fn render(
     ui_model: &ui_model::UiModel,
     color_model: &color::ColorModel,
 ) {
+    // TODO: underline
+    // TODO: undercurl
+    // TODO: cursor
     ctx.set_source_rgb(
         color_model.bg_color.0,
         color_model.bg_color.1,
