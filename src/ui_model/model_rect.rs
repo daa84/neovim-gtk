@@ -109,6 +109,9 @@ impl ModelRect {
                 right = self.right + len_since_right;
             }
         }
+
+        self.left = left;
+        self.right = right;
     }
 
     pub fn to_area_extend_ink(
@@ -124,58 +127,60 @@ impl ModelRect {
     }
 
     fn extend_left_right_area(&self, model: &UiModel, cell_metrics: &CellMetrics) -> (i32, i32) {
-
-        let mut x = self.left as i32 * cell_metrics.char_width as i32;
+        let x = self.left as i32 * cell_metrics.char_width as i32;
         let mut x2 = (self.right + 1) as i32 * cell_metrics.char_width as i32;
+        let mut min_x_offset = 0;
 
         for row in self.top..self.bot + 1 {
 
+            // FIXME: use original, not extended rect here
             // left
             let line = &model.model[row];
-            if let Some(&Item { ink_rect: Some(ink_rect), .. }) = line.get_item(self.left) {
-                if x > ink_rect.x {
-                    x = ink_rect.x;
+            if let Some(&Item { ink_rect: Some(ref ink_rect), .. }) = line.get_item(self.left) {
+                if ink_rect.x < min_x_offset {
+                    min_x_offset = x;
                 }
             }
 
             // right
             let line = &model.model[row];
-            if let Some(&Item { ink_rect: Some(ink_rect), .. }) = line.get_item(self.right) {
-                let ink_x = ink_rect.x + ink_rect.width;
-                if x2 > ink_x {
+            if let Some(&Item { ink_rect: Some(ref ink_rect), .. }) = line.get_item(self.right) {
+                let ink_x = x + ink_rect.x + ink_rect.width;
+                if x2 < ink_x {
                     x2 = ink_x;
                 }
             }
         }
 
-        (x, x2)
+        (x + min_x_offset, x2)
     }
 
     fn extend_top_bottom_area(&self, model: &UiModel, cell_metrics: &CellMetrics) -> (i32, i32) {
-        let mut y = self.top as i32 * cell_metrics.line_height as i32;
+        let y = self.top as i32 * cell_metrics.line_height as i32;
         let mut y2 = (self.bot + 1) as i32 * cell_metrics.line_height as i32;
+        let mut min_y_offset = 0;
 
         for col in self.left..self.right + 1 {
 
             // top
             let line = &model.model[self.top];
-            if let Some(&Item { ink_rect: Some(ink_rect), .. }) = line.get_item(col) {
-                if y > ink_rect.y {
-                    y = ink_rect.y;
+            if let Some(&Item { ink_rect: Some(ref ink_rect), .. }) = line.get_item(col) {
+                if ink_rect.y < min_y_offset {
+                    min_y_offset = ink_rect.y;
                 }
             }
 
             // bottom
             let line = &model.model[self.bot];
-            if let Some(&Item { ink_rect: Some(ink_rect), .. }) = line.get_item(col) {
-                let ink_y = ink_rect.y + ink_rect.height;
+            if let Some(&Item { ink_rect: Some(ref ink_rect), .. }) = line.get_item(col) {
+                let ink_y = y + ink_rect.y + ink_rect.height;
                 if y2 < ink_y {
                     y2 = ink_y;
                 }
             }
         }
 
-        (y, y2)
+        (y + min_y_offset, y2)
     }
 
     pub fn join(&mut self, rect: &ModelRect) {

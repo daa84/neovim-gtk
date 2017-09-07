@@ -29,6 +29,7 @@ impl Item {
 
     pub fn set_glyphs(&mut self, glyphs: pango::GlyphString) {
         let mut glyphs = glyphs;
+        // FIXME: pango units
         let (ink_rect, _) = glyphs.extents(&self.font);
         self.ink_rect = Some(ink_rect);
         self.glyphs = Some(glyphs);

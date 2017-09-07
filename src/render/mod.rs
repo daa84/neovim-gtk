@@ -75,6 +75,7 @@ pub fn render(
             }
 
             if row == cursor_row && col == cursor_col {
+                ctx.move_to(line_x, line_y);
                 cursor.draw(
                     ctx,
                     font_ctx,

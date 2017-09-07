@@ -176,6 +176,7 @@ impl State {
     }
 
     fn queue_draw_area<M: AsRef<ModelRect>>(&mut self, rect_list: &[M]) {
+        //FIXME: extends by items before, then after
         self.update_dirty_glyphs();
 
         for rect in rect_list {
