@@ -160,7 +160,7 @@ impl Line {
         for i in start_cell + 1..end_cell + 1 {
             self.item_line[i] = None;
         }
-        self.item_line[start_cell] = Some(Item::new(new_item.clone()));
+        self.item_line[start_cell] = Some(Item::new(new_item.clone(), end_cell - start_cell + 1));
     }
 
     pub fn mark_dirty_cell(&mut self, idx: usize) {

@@ -176,11 +176,16 @@ impl State {
     }
 
     fn queue_draw_area<M: AsRef<ModelRect>>(&mut self, rect_list: &[M]) {
-        //FIXME: extends by items before, then after
+        // extends by items before, then after changes
+
+        let rects: Vec<_> = rect_list.iter().map(|rect| rect.as_ref().clone()).map(|mut rect| {
+            rect.extend_by_items(&self.model);
+            rect
+        }).collect();
+
         self.update_dirty_glyphs();
 
-        for rect in rect_list {
-            let mut rect = rect.as_ref().clone();
+        for mut rect in rects {
             rect.extend_by_items(&self.model);
 
             let (x, y, width, height) =

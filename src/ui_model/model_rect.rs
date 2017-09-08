@@ -128,59 +128,73 @@ impl ModelRect {
 
     fn extend_left_right_area(&self, model: &UiModel, cell_metrics: &CellMetrics) -> (i32, i32) {
         let x = self.left as i32 * cell_metrics.char_width as i32;
-        let mut x2 = (self.right + 1) as i32 * cell_metrics.char_width as i32;
-        let mut min_x_offset = 0;
+        let x2 = (self.right + 1) as i32 * cell_metrics.char_width as i32;
+        let mut min_x_offset = 0.0;
+        let mut max_x_offset = 0.0;
 
         for row in self.top..self.bot + 1 {
 
-            // FIXME: use original, not extended rect here
             // left
             let line = &model.model[row];
-            if let Some(&Item { ink_rect: Some(ref ink_rect), .. }) = line.get_item(self.left) {
-                if ink_rect.x < min_x_offset {
-                    min_x_offset = x;
+            if let Some(&Item { ink_overflow: Some(ref overflow), .. }) =
+                line.item_line[self.left].as_ref()
+            {
+                if min_x_offset < overflow.left {
+                    min_x_offset = overflow.left;
                 }
             }
 
             // right
             let line = &model.model[row];
-            if let Some(&Item { ink_rect: Some(ref ink_rect), .. }) = line.get_item(self.right) {
-                let ink_x = x + ink_rect.x + ink_rect.width;
-                if x2 < ink_x {
-                    x2 = ink_x;
+            // check if this item ends here
+            if self.right < model.columns - 1 &&
+                line.cell_to_item(self.right) != line.cell_to_item(self.right + 1)
+            {
+                if let Some(&Item { ink_overflow: Some(ref overflow), .. }) =
+                    line.get_item(self.left)
+                {
+                    if max_x_offset < overflow.right {
+                        max_x_offset = overflow.right;
+                    }
                 }
             }
         }
 
-        (x + min_x_offset, x2)
+        (
+            x - min_x_offset.ceil() as i32,
+            x2 + max_x_offset.ceil() as i32,
+        )
     }
 
     fn extend_top_bottom_area(&self, model: &UiModel, cell_metrics: &CellMetrics) -> (i32, i32) {
         let y = self.top as i32 * cell_metrics.line_height as i32;
-        let mut y2 = (self.bot + 1) as i32 * cell_metrics.line_height as i32;
-        let mut min_y_offset = 0;
+        let y2 = (self.bot + 1) as i32 * cell_metrics.line_height as i32;
+        let mut min_y_offset = 0.0;
+        let mut max_y_offset = 0.0;
 
         for col in self.left..self.right + 1 {
 
             // top
             let line = &model.model[self.top];
-            if let Some(&Item { ink_rect: Some(ref ink_rect), .. }) = line.get_item(col) {
-                if ink_rect.y < min_y_offset {
-                    min_y_offset = ink_rect.y;
+            if let Some(&Item { ink_overflow: Some(ref overflow), .. }) = line.get_item(col) {
+                if min_y_offset < overflow.top {
+                    min_y_offset = overflow.top;
                 }
             }
 
             // bottom
             let line = &model.model[self.bot];
-            if let Some(&Item { ink_rect: Some(ref ink_rect), .. }) = line.get_item(col) {
-                let ink_y = y + ink_rect.y + ink_rect.height;
-                if y2 < ink_y {
-                    y2 = ink_y;
+            if let Some(&Item { ink_overflow: Some(ref overflow), .. }) = line.get_item(col) {
+                if max_y_offset < overflow.top {
+                    max_y_offset = overflow.top;
                 }
             }
         }
 
-        (y + min_y_offset, y2)
+        (
+            y - min_y_offset.ceil() as i32,
+            y2 + max_y_offset.ceil() as i32,
+        )
     }
 
     pub fn join(&mut self, rect: &ModelRect) {

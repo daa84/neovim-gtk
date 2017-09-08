@@ -69,11 +69,17 @@ pub struct CellMetrics {
     pub line_height: f64,
     pub char_width: f64,
     pub ascent: f64,
+    pub pango_ascent: i32,
+    pub pango_descent: i32,
+    pub pango_char_width: i32,
 }
 
 impl CellMetrics {
     fn new(font_metrics: &pango::FontMetrics) -> Self {
         CellMetrics {
+            pango_ascent: font_metrics.get_ascent(),
+            pango_descent: font_metrics.get_descent(),
+            pango_char_width: font_metrics.get_approximate_digit_width(),
             ascent: font_metrics.get_ascent() as f64 / pango::SCALE as f64,
             line_height: (font_metrics.get_ascent() + font_metrics.get_descent()) as f64 /
                 pango::SCALE as f64,

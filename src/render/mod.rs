@@ -119,7 +119,7 @@ pub fn shape_dirty(
                             );
                         }
 
-                        item.set_glyphs(glyphs);
+                        item.set_glyphs(ctx, glyphs);
                     }
                 }
 
