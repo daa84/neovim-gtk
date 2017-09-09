@@ -20,18 +20,9 @@ pub struct Line {
 
 impl Line {
     pub fn new(columns: usize) -> Self {
-        let mut line = Vec::with_capacity(columns);
-        for _ in 0..columns {
-            line.push(Cell::new(' '));
-        }
-        let mut item_line = Vec::with_capacity(columns);
-        for _ in 0..columns {
-            item_line.push(None);
-        }
-
         Line {
-            line: line.into_boxed_slice(),
-            item_line: item_line.into_boxed_slice(),
+            line: vec![Cell::new(' '); columns].into_boxed_slice(),
+            item_line: vec![None; columns].into_boxed_slice(),
             cell_to_item: vec![-1; columns].into_boxed_slice(),
             dirty_line: true,
         }
@@ -47,6 +38,12 @@ impl Line {
     pub fn clear(&mut self, left: usize, right: usize) {
         for cell in &mut self.line[left..right + 1] {
             cell.clear();
+        }
+        for item in &mut self.item_line[left..right + 1] {
+            item.clone_from(&None);
+        }
+        for i in left..right + 1 {
+            self.cell_to_item[i] = -1;
         }
         self.dirty_line = true;
     }

@@ -575,6 +575,7 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
 
     let mut state = state_arc.borrow_mut();
     if state.nvim.borrow().is_initialized() {
+        request_window_resize(&mut *state);
         render::render(
             ctx,
             state.cursor.as_ref().unwrap(),
@@ -583,7 +584,6 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
             &state.color_model,
             &state.mode,
         );
-        request_window_resize(&mut *state);
     } else if state.nvim.borrow().is_initializing() {
         draw_initializing(&*state, ctx);
     }
@@ -995,12 +995,15 @@ impl RedrawEvents for State {
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         self.model = UiModel::new(rows, columns);
         self.request_resize();
-        RepaintMode::All
+        RepaintMode::Nothing
     }
 
     fn on_redraw(&mut self, mode: &RepaintMode) {
         match *mode {
-            RepaintMode::All => self.drawing_area.queue_draw(),
+            RepaintMode::All => {
+                self.update_dirty_glyphs();
+                self.drawing_area.queue_draw();
+            },
             RepaintMode::Area(ref rect) => self.queue_draw_area(&[rect]),
             RepaintMode::AreaList(ref list) => self.queue_draw_area(&list.list),
             RepaintMode::Nothing => (),
