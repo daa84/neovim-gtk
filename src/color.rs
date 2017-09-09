@@ -89,4 +89,9 @@ impl ColorModel {
             cell.attrs.foreground.as_ref().unwrap_or(&self.fg_color)
         }
     }
+
+    #[inline]
+    pub fn actual_cell_sp<'a>(&'a self, cell: &'a Cell) -> &'a Color  {
+        cell.attrs.special.as_ref().unwrap_or(&self.sp_color)
+    }
 }

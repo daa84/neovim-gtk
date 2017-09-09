@@ -20,8 +20,6 @@ pub fn render(
     color_model: &color::ColorModel,
     mode: &mode::Mode,
 ) {
-    // TODO: underline
-    // TODO: undercurl
     ctx.set_source_rgb(
         color_model.bg_color.0,
         color_model.bg_color.1,
@@ -32,6 +30,8 @@ pub fn render(
     let &CellMetrics {
         line_height,
         char_width,
+        underline_position,
+        underline_thickness,
         ..
     } = font_ctx.cell_metrics();
     let mut line_y = 0.0;
@@ -44,9 +44,10 @@ pub fn render(
         for col in 0..line.line.len() {
             let cell = &line.line[col];
 
+            let (bg, fg) = color_model.cell_colors(cell);
+
             // draw cell
             if let Some(item) = line.item_line[col].as_ref() {
-                let (bg, fg) = color_model.cell_colors(cell);
 
                 if let Some(bg) = bg {
                     ctx.set_source_rgb(bg.0, bg.1, bg.2);
@@ -71,6 +72,25 @@ pub fn render(
                     ctx.set_source_rgb(bg.0, bg.1, bg.2);
                     ctx.rectangle(line_x, line_y, char_width, line_height);
                     ctx.fill();
+                }
+            }
+
+            if cell.attrs.underline || cell.attrs.undercurl {
+                if cell.attrs.undercurl {
+                    let sp = color_model.actual_cell_sp(cell);
+                    ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
+                    ctx.set_dash(&[4.0, 2.0], 0.0);
+                    ctx.set_line_width(underline_thickness);
+                    ctx.move_to(line_x, line_y + underline_position);
+                    ctx.line_to(line_x + char_width, line_y + underline_position);
+                    ctx.stroke();
+                    ctx.set_dash(&[], 0.0);
+                } else if cell.attrs.underline {
+                    ctx.set_source_rgb(fg.0, fg.1, fg.2);
+                    ctx.set_line_width(underline_thickness);
+                    ctx.move_to(line_x, line_y + underline_position);
+                    ctx.line_to(line_x + char_width, line_y + underline_position);
+                    ctx.stroke();
                 }
             }
 
