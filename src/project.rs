@@ -182,8 +182,8 @@ impl Projects {
             let uri_value = list_store.get_value(&iter, ProjectViewColumns::Uri as i32);
             let uri: String = uri_value.get().unwrap();
 
-            let mut store = self.store.as_mut().unwrap();
-            if let Some(mut entry) = store.find_mut(&uri) {
+            let store = self.store.as_mut().unwrap();
+            if let Some(entry) = store.find_mut(&uri) {
                 entry.stored = !value;
             }
 

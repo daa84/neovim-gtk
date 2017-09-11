@@ -127,7 +127,7 @@ pub fn shape_dirty(
 
             for i in 0..line.line.len() {
                 if line[i].dirty {
-                    if let Some(mut item) = line.get_item_mut(i) {
+                    if let Some(item) = line.get_item_mut(i) {
                         let mut glyphs = pango::GlyphString::new();
                         {
                             let analysis = item.analysis();

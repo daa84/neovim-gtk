@@ -93,8 +93,7 @@ impl Line {
             // update only if cell marked as dirty
             if self.line[new_item.start_cell..new_item.end_cell + 1]
                 .iter()
-                .find(|c| c.dirty)
-                .is_some()
+                .any(|c| c.dirty)
             {
                 self.item_line[new_item.start_cell]
                     .as_mut()

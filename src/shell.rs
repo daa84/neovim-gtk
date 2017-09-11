@@ -462,7 +462,7 @@ impl Shell {
 
     pub fn edit_save_all(&self) {
         let state = self.state.borrow();
-        let mut nvim = &mut *state.nvim();
+        let nvim = &mut *state.nvim();
         nvim.command(":wa").report_err(nvim);
     }
 
@@ -591,7 +591,7 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     Inhibit(false)
 }
 
-fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
+fn show_nvim_start_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
     let source = err.source();
     let cmd = err.cmd().unwrap().to_owned();
 
@@ -605,7 +605,7 @@ fn show_nvim_start_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>
     });
 }
 
-fn show_nvim_init_error(err: nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
+fn show_nvim_init_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
     let source = err.source();
 
     glib::idle_add(move || {
@@ -628,7 +628,7 @@ fn init_nvim_async(
     let mut nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
         Ok(nvim) => nvim,
         Err(err) => {
-            show_nvim_start_error(err, state_arc);
+            show_nvim_start_error(&err, state_arc);
             return;
         }
     };
@@ -653,7 +653,7 @@ fn init_nvim_async(
             rows as u64,
         )
         {
-            show_nvim_init_error(err, state_arc.clone());
+            show_nvim_init_error(&err, state_arc.clone());
         } else {
             let mut state = state_arc.borrow_mut();
             state.nvim.borrow_mut().set_initialized(nvim);

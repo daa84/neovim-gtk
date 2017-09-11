@@ -72,11 +72,11 @@ impl UiModel {
 
     pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) -> ModelRect {
         let mut changed_region = self.cur_point();
-        let mut line = &mut self.model[self.cur_row];
+        let line = &mut self.model[self.cur_row];
         line.dirty_line = true;
         line.mark_dirty_cell(self.cur_col);
 
-        let mut cell = &mut line[self.cur_col];
+        let cell = &mut line[self.cur_col];
 
         cell.ch = text.chars().last().unwrap_or(' ');
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);
@@ -100,7 +100,7 @@ impl UiModel {
 
     #[inline]
     fn copy_row(&mut self, target_row: i64, offset: i64, left_col: usize, right_col: usize) {
-        debug_assert!(offset != 0);
+        debug_assert_ne!(0, offset);
 
         let from_row = (target_row + offset) as usize;
 
