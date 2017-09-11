@@ -72,8 +72,6 @@ impl Ui {
         }
         self.initialized = true;
 
-        // Only add an application menu if requested by the desktop environment as to avoid an
-        // additional menu bar just for the "About" item
         if app.prefers_app_menu() {
             self.create_main_menu(app);
         }
@@ -89,12 +87,9 @@ impl Ui {
         let window = comps.window.as_ref().unwrap();
 
         // Client side decorations including the toolbar are disabled via NVIM_GTK_NO_HEADERBAR=1
-        let mut use_header_bar = true;
-        if let Ok(opt) = env::var("NVIM_GTK_NO_HEADERBAR") {
-            if opt.trim() == "1" {
-                use_header_bar = false;
-            }
-        }
+        let use_header_bar = env::var("NVIM_GTK_NO_HEADERBAR")
+            .map(|opt| opt.trim() != "1")
+            .unwrap_or(true);
 
         if use_header_bar {
             let header_bar = HeaderBar::new();
