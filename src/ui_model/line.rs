@@ -186,18 +186,17 @@ impl Line {
         self.cell_to_item[cell_idx]
     }
 
-    pub fn item_len_from_idx(&self, mut start_idx: usize) -> usize {
-        let mut len = 1;
-        start_idx += 1;
+    pub fn item_len_from_idx(&self, start_idx: usize) -> usize {
+        debug_assert!(start_idx < self.line.len());
 
-        while start_idx < self.item_line.len() && self.is_binded_to_item(start_idx) &&
-            self.item_line[start_idx].is_none()
-        {
-            start_idx += 1;
-            len += 1;
+        let item_idx = self.cell_to_item(start_idx);
+
+        if item_idx >= 0 {
+            let item_idx = item_idx as usize;
+            self.item_line[item_idx].as_ref().unwrap().cells_count - (start_idx - item_idx)
+        } else {
+            1
         }
-
-        len
     }
 
     #[inline]
