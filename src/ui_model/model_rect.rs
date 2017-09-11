@@ -263,3 +263,19 @@ impl AsRef<ModelRect> for ModelRect {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_repaint_rect() {
+        let rect = ModelRect::point(1, 1);
+        let (x, y, width, height) = rect.to_area(&CellMetrics::new_hw(10.0, 5.0));
+
+        assert_eq!(5, x);
+        assert_eq!(10, y);
+        assert_eq!(5, width);
+        assert_eq!(10, height);
+    }
+}

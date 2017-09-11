@@ -1,4 +1,5 @@
 mod context;
+mod itemize;
 
 pub use self::context::Context;
 pub use self::context::CellMetrics;
@@ -77,6 +78,7 @@ pub fn render(
 
             if cell.attrs.underline || cell.attrs.undercurl {
                 if cell.attrs.undercurl {
+                    // TODO: properly draw undercurl
                     let sp = color_model.actual_cell_sp(cell);
                     ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
                     ctx.set_dash(&[4.0, 2.0], 0.0);

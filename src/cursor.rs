@@ -276,7 +276,12 @@ mod tests {
         let line_height = 30.0;
         let line_y = 0.0;
 
-        let (y, width, height) = cursor_rect(&mode, char_width, line_height, line_y, false);
+        let (y, width, height) = cursor_rect(
+            &mode,
+            &CellMetrics::new_hw(line_height, char_width),
+            line_y,
+            false,
+        );
         assert_eq!(line_y + line_height - line_height / 4.0, y);
         assert_eq!(char_width, width);
         assert_eq!(line_height / 4.0, height);
@@ -295,7 +300,12 @@ mod tests {
         let line_height = 30.0;
         let line_y = 0.0;
 
-        let (y, width, height) = cursor_rect(&mode, char_width, line_height, line_y, true);
+        let (y, width, height) = cursor_rect(
+            &mode,
+            &CellMetrics::new_hw(line_height, char_width),
+            line_y,
+            true,
+        );
         assert_eq!(line_y + line_height - line_height / 4.0, y);
         assert_eq!(char_width * 2.0, width);
         assert_eq!(line_height / 4.0, height);
@@ -314,7 +324,12 @@ mod tests {
         let line_height = 30.0;
         let line_y = 0.0;
 
-        let (y, width, height) = cursor_rect(&mode, char_width, line_height, line_y, false);
+        let (y, width, height) = cursor_rect(
+            &mode,
+            &CellMetrics::new_hw(line_height, char_width),
+            line_y,
+            false,
+        );
         assert_eq!(line_y, y);
         assert_eq!(char_width / 4.0, width);
         assert_eq!(line_height, height);

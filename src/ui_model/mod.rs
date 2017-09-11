@@ -293,17 +293,6 @@ mod tests {
     }
 
     #[test]
-    fn test_repaint_rect() {
-        let rect = ModelRect::point(1, 1);
-        let (x, y, width, height) = rect.to_area(10.0, 5.0);
-
-        assert_eq!(5, x);
-        assert_eq!(10, y);
-        assert_eq!(5, width);
-        assert_eq!(10, height);
-    }
-
-    #[test]
     fn test_put_area() {
         let mut model = UiModel::new(10, 20);
 

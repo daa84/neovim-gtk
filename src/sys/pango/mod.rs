@@ -1,8 +1,10 @@
 mod item;
 mod analysis;
+mod attr_iterator;
 
 pub use self::item::Item;
 pub use self::analysis::Analysis;
+pub use self::attr_iterator::{AttrIterator, AttrIteratorFactory};
 
 use std::ptr;
 
@@ -14,16 +16,19 @@ use glib::translate::*;
 pub fn pango_itemize(
     context: &pango::Context,
     text: &str,
-    attrs: &pango::AttrList
+    start_index: usize,
+    length: usize,
+    attrs: &pango::AttrList,
+    cached_iter: Option<&mut AttrIterator>,
 ) -> Vec<Item> {
     unsafe {
         FromGlibPtrContainer::from_glib_container(pango_sys::pango_itemize(
             context.to_glib_none().0,
             text.as_ptr() as *const i8,
-            0,
-            text.len() as i32,
+            start_index as i32,
+            length as i32,
             attrs.to_glib_none().0,
-            ptr::null_mut(),
+            cached_iter.map(|iter| iter.to_glib_none_mut().0).unwrap_or(ptr::null_mut()),
         ))
     }
 }

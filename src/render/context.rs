@@ -3,8 +3,10 @@ use pango::prelude::*;
 use pango;
 
 use sys::pango as sys_pango;
+use sys::pango::AttrIteratorFactory;
 
 use ui_model::StyledLine;
+use super::itemize::ItemizeIterator;
 
 pub struct Context {
     state: ContextState,
@@ -20,11 +22,20 @@ impl Context {
     }
 
     pub fn itemize(&self, line: &StyledLine) -> Vec<sys_pango::Item> {
-        sys_pango::pango_itemize(
-            &self.state.pango_context,
-            line.line_str.trim_right(),
-            &line.attr_list,
-        )
+        let mut attr_iter = line.attr_list.get_iterator();
+
+        ItemizeIterator::new(&line.line_str)
+            .flat_map(|(offset, len)| {
+                sys_pango::pango_itemize(
+                    &self.state.pango_context,
+                    &line.line_str,
+                    offset,
+                    len,
+                    &line.attr_list,
+                    Some(&mut attr_iter),
+                )
+            })
+            .collect()
     }
 
     #[inline]
@@ -92,6 +103,20 @@ impl CellMetrics {
                 f64 / pango::SCALE as f64,
             underline_thickness: font_metrics.get_underline_thickness() as f64 /
                 pango::SCALE as f64,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn new_hw(line_height: f64, char_width: f64) -> Self {
+        CellMetrics {
+            pango_ascent: 0,
+            pango_descent: 0,
+            pango_char_width: 0,
+            ascent: 0.0,
+            line_height,
+            char_width,
+            underline_position: 0.0,
+            underline_thickness: 0.0,
         }
     }
 }
