@@ -1,8 +1,10 @@
 mod context;
 mod itemize;
+mod model_clip_iterator;
 
 pub use self::context::Context;
 pub use self::context::CellMetrics;
+use self::model_clip_iterator::ModelClipIteratorFactory;
 
 use mode;
 use color;
@@ -36,10 +38,10 @@ pub fn render(
         ascent,
         ..
     } = font_ctx.cell_metrics();
-    let mut line_y = 0.0;
     let (cursor_row, cursor_col) = ui_model.get_cursor();
 
-    for (row, line) in ui_model.model().iter().enumerate() {
+    for (row, line) in ui_model.get_clip_iterator(ctx, font_ctx.cell_metrics()) {
+        let line_y = row as f64 * line_height;
         let mut line_x = 0.0;
 
         for col in 0..line.line.len() {
@@ -78,7 +80,7 @@ pub fn render(
 
             if cell.attrs.underline || cell.attrs.undercurl {
                 if cell.attrs.undercurl {
-                    //FIXME: don't repaint all lines on changes
+                    //FIXME: sometime we don't repaint all undercurl lines
                     let sp = color_model.actual_cell_sp(cell);
                     ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
 
@@ -115,7 +117,6 @@ pub fn render(
 
             line_x += char_width;
         }
-        line_y += line_height;
     }
 }
 

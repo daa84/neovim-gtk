@@ -4,10 +4,9 @@ mod item;
 mod model_rect;
 
 pub use self::cell::{Cell, Attrs};
-pub use self::line::StyledLine;
+pub use self::line::{Line, StyledLine};
 pub use self::item::Item;
 pub use self::model_rect::{ModelRect, ModelRectVec};
-use self::line::Line;
 
 
 pub struct UiModel {
@@ -42,10 +41,12 @@ impl UiModel {
         }
     }
 
+    #[inline]
     pub fn model(&self) -> &[Line] {
         &self.model
     }
 
+    #[inline]
     pub fn model_mut(&mut self) -> &mut [Line] {
         &mut self.model
     }

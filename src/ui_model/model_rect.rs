@@ -240,13 +240,18 @@ impl ModelRect {
     }
 
     pub fn from_area(
-        line_height: f64,
-        char_width: f64,
+        cell_metrics: &CellMetrics,
         x1: f64,
         y1: f64,
         x2: f64,
         y2: f64,
     ) -> ModelRect {
+        let &CellMetrics {
+            char_width,
+            line_height,
+            ..
+        } = cell_metrics;
+
         let x2 = if x2 > 0.0 { x2 - 1.0 } else { x2 };
         let y2 = if y2 > 0.0 { y2 - 1.0 } else { y2 };
         let left = (x1 / char_width) as usize;
