@@ -30,57 +30,37 @@ pub fn render(
     );
     ctx.paint();
 
+    let cell_metrics = font_ctx.cell_metrics();
     let &CellMetrics {
         line_height,
         char_width,
         underline_position,
         underline_thickness,
-        ascent,
         ..
-    } = font_ctx.cell_metrics();
+    } = cell_metrics;
     let (cursor_row, cursor_col) = ui_model.get_cursor();
 
-    for (row, line) in ui_model.get_clip_iterator(ctx, font_ctx.cell_metrics()) {
+    for (row, line) in ui_model.get_clip_iterator(ctx, cell_metrics) {
         let line_y = row as f64 * line_height;
         let mut line_x = 0.0;
 
         for col in 0..line.line.len() {
             let cell = &line.line[col];
 
-            let (bg, fg) = color_model.cell_colors(cell);
 
-            // draw cell
-            if let Some(item) = line.item_line[col].as_ref() {
-
-                if let Some(bg) = bg {
-                    ctx.set_source_rgb(bg.0, bg.1, bg.2);
-                    ctx.rectangle(
-                        line_x,
-                        line_y,
-                        char_width * line.item_len_from_idx(col) as f64,
-                        line_height,
-                    );
-                    ctx.fill();
-                }
-
-                if let Some(ref glyphs) = item.glyphs {
-                    ctx.move_to(line_x, line_y + ascent);
-                    ctx.set_source_rgb(fg.0, fg.1, fg.2);
-                    ctx.show_glyph_string(item.font(), glyphs);
-                }
-
-            } else if !line.is_binded_to_item(col) {
-                let bg = color_model.cell_bg(cell);
-                if let Some(bg) = bg {
-                    ctx.set_source_rgb(bg.0, bg.1, bg.2);
-                    ctx.rectangle(line_x, line_y, char_width, line_height);
-                    ctx.fill();
-                }
-            }
+            draw_cell(
+                ctx,
+                cell_metrics,
+                color_model,
+                line,
+                cell,
+                col,
+                line_x,
+                line_y,
+            );
 
             if cell.attrs.underline || cell.attrs.undercurl {
                 if cell.attrs.undercurl {
-                    //FIXME: sometime we don't repaint all undercurl lines
                     let sp = color_model.actual_cell_sp(cell);
                     ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
 
@@ -88,13 +68,9 @@ pub fn render(
                     let undercurl_height = (underline_thickness * 4.0).min(max_undercurl_height);
                     let undercurl_y = line_y + underline_position - undercurl_height / 2.0;
 
-                    ctx.show_error_underline(
-                        line_x,
-                        undercurl_y,
-                        char_width,
-                        undercurl_height
-                    );
+                    ctx.show_error_underline(line_x, undercurl_y, char_width, undercurl_height);
                 } else if cell.attrs.underline {
+                    let fg = color_model.actual_cell_fg(cell);
                     ctx.set_source_rgb(fg.0, fg.1, fg.2);
                     ctx.set_line_width(underline_thickness);
                     ctx.move_to(line_x, line_y + underline_position);
@@ -116,6 +92,54 @@ pub fn render(
             }
 
             line_x += char_width;
+        }
+    }
+}
+
+fn draw_cell(
+    ctx: &cairo::Context,
+    cell_metrics: &CellMetrics,
+    color_model: &color::ColorModel,
+    line: &ui_model::Line,
+    cell: &ui_model::Cell,
+    col: usize,
+    line_x: f64,
+    line_y: f64,
+) {
+
+    let &CellMetrics {
+        char_width,
+        line_height,
+        ascent,
+        ..
+    } = cell_metrics;
+
+    let (bg, fg) = color_model.cell_colors(cell);
+
+    if let Some(item) = line.item_line[col].as_ref() {
+        if let Some(bg) = bg {
+            ctx.set_source_rgb(bg.0, bg.1, bg.2);
+            ctx.rectangle(
+                line_x,
+                line_y,
+                char_width * line.item_len_from_idx(col) as f64,
+                line_height,
+            );
+            ctx.fill();
+        }
+
+        if let Some(ref glyphs) = item.glyphs {
+            ctx.move_to(line_x, line_y + ascent);
+            ctx.set_source_rgb(fg.0, fg.1, fg.2);
+            ctx.show_glyph_string(item.font(), glyphs);
+        }
+
+    } else if !line.is_binded_to_item(col) {
+        let bg = color_model.cell_bg(cell);
+        if let Some(bg) = bg {
+            ctx.set_source_rgb(bg.0, bg.1, bg.2);
+            ctx.rectangle(line_x, line_y, char_width, line_height);
+            ctx.fill();
         }
     }
 }
