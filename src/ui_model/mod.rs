@@ -74,13 +74,13 @@ impl UiModel {
         let mut changed_region = self.cur_point();
         let line = &mut self.model[self.cur_row];
         line.dirty_line = true;
-        line.mark_dirty_cell(self.cur_col);
 
         let cell = &mut line[self.cur_col];
 
         cell.ch = text.chars().last().unwrap_or(' ');
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);
         cell.attrs.double_width = text.is_empty();
+        cell.dirty = true;
         self.cur_col += 1;
         if self.cur_col >= self.columns {
             self.cur_col -= 1;

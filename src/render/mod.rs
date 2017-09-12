@@ -33,10 +33,10 @@ pub fn render(
         char_width,
         underline_position,
         underline_thickness,
+        ascent,
         ..
     } = font_ctx.cell_metrics();
     let mut line_y = 0.0;
-    let ascent = font_ctx.ascent();
     let (cursor_row, cursor_col) = ui_model.get_cursor();
 
     for (row, line) in ui_model.model().iter().enumerate() {
@@ -78,21 +78,20 @@ pub fn render(
 
             if cell.attrs.underline || cell.attrs.undercurl {
                 if cell.attrs.undercurl {
-                    // TODO: properly draw undercurl
+                    //FIXME: don't repaint all lines on changes
                     let sp = color_model.actual_cell_sp(cell);
                     ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
+
+                    let max_undercurl_height = (line_height - underline_position) * 2.0;
+                    let undercurl_height = (underline_thickness * 4.0).min(max_undercurl_height);
+                    let undercurl_y = line_y + underline_position - undercurl_height / 2.0;
+
                     ctx.show_error_underline(
                         line_x,
-                        line_y + underline_position,
+                        undercurl_y,
                         char_width,
-                        underline_thickness * 5.0,
+                        undercurl_height
                     );
-                //ctx.set_dash(&[4.0, 2.0], 0.0);
-                //ctx.set_line_width(underline_thickness);
-                //ctx.move_to(line_x, line_y + underline_position);
-                //ctx.line_to(line_x + char_width, line_y + underline_position);
-                //ctx.stroke();
-                //ctx.set_dash(&[], 0.0);
                 } else if cell.attrs.underline {
                     ctx.set_source_rgb(fg.0, fg.1, fg.2);
                     ctx.set_line_width(underline_thickness);

@@ -158,10 +158,6 @@ impl Line {
         self.item_line[start_cell] = Some(Item::new(new_item.clone(), end_cell - start_cell + 1));
     }
 
-    pub fn mark_dirty_cell(&mut self, idx: usize) {
-        self.line[idx].dirty = true;
-    }
-
     pub fn get_item_mut(&mut self, cell_idx: usize) -> Option<&mut Item> {
         let item_idx = self.cell_to_item(cell_idx);
         if item_idx >= 0 {

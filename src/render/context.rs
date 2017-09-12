@@ -44,11 +44,6 @@ impl Context {
     }
 
     #[inline]
-    pub fn ascent(&self) -> f64 {
-        self.state.cell_metrics.ascent
-    }
-
-    #[inline]
     pub fn cell_metrics(&self) -> &CellMetrics {
         &self.state.cell_metrics
     }
