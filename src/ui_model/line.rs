@@ -69,11 +69,10 @@ impl Line {
 
     fn set_cell_to_item(&mut self, new_item: &PangoItemPosition) -> bool {
         let start_item_idx = self.cell_to_item(new_item.start_cell);
-        let start_item_len = if start_item_idx >= 0 {
+        let start_item_cells_count = if start_item_idx >= 0 {
             self.item_line[start_item_idx as usize]
                 .as_ref()
-                .map(|item| item.item.length())
-                .unwrap_or(-1)
+                .map_or(-1, |item| item.cells_count as i32)
         } else {
             -1
         };
@@ -84,7 +83,7 @@ impl Line {
         // in case different item length was in previous iteration
         // mark all item as dirty
         if start_item_idx != new_item.start_cell as i32 ||
-            new_item.item.length() != start_item_len || start_item_idx == -1 ||
+            new_item.cells_count() != start_item_cells_count || start_item_idx == -1 ||
             end_item_idx == -1
         {
             self.initialize_cell_item(new_item.start_cell, new_item.end_cell, new_item.item);
@@ -236,6 +235,11 @@ impl<'a> PangoItemPosition<'a> {
             start_cell,
             end_cell,
         }
+    }
+
+    #[inline]
+    fn cells_count(&self) -> i32 {
+        (self.end_cell - self.start_cell) as i32 + 1
     }
 }
 

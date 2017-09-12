@@ -1,11 +1,11 @@
 use std::str::CharIndices;
 
-pub struct ItemizeIterator <'a> {
+pub struct ItemizeIterator<'a> {
     char_iter: CharIndices<'a>,
     line: &'a str,
 }
 
-impl <'a> ItemizeIterator <'a> {
+impl<'a> ItemizeIterator<'a> {
     pub fn new(line: &'a str) -> Self {
         ItemizeIterator {
             char_iter: line.char_indices(),
@@ -14,7 +14,7 @@ impl <'a> ItemizeIterator <'a> {
     }
 }
 
-impl <'a> Iterator for ItemizeIterator<'a> {
+impl<'a> Iterator for ItemizeIterator<'a> {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -26,7 +26,7 @@ impl <'a> Iterator for ItemizeIterator<'a> {
 
                 if start_index.is_none() && !is_whitespace {
                     start_index = Some(index);
-                } 
+                }
                 if start_index.is_some() && is_whitespace {
                     break index;
                 }

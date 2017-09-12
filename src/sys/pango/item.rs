@@ -41,8 +41,4 @@ impl Item {
     pub fn offset(&self) -> (usize, usize, usize) {
         (self.0.offset as usize, self.0.length as usize, self.0.num_chars as usize)
     }
-
-    pub fn length(&self) -> i32 {
-        self.0.length
-    }
 }

@@ -81,12 +81,18 @@ pub fn render(
                     // TODO: properly draw undercurl
                     let sp = color_model.actual_cell_sp(cell);
                     ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
-                    ctx.set_dash(&[4.0, 2.0], 0.0);
-                    ctx.set_line_width(underline_thickness);
-                    ctx.move_to(line_x, line_y + underline_position);
-                    ctx.line_to(line_x + char_width, line_y + underline_position);
-                    ctx.stroke();
-                    ctx.set_dash(&[], 0.0);
+                    ctx.show_error_underline(
+                        line_x,
+                        line_y + underline_position,
+                        char_width,
+                        underline_thickness * 5.0,
+                    );
+                //ctx.set_dash(&[4.0, 2.0], 0.0);
+                //ctx.set_line_width(underline_thickness);
+                //ctx.move_to(line_x, line_y + underline_position);
+                //ctx.line_to(line_x + char_width, line_y + underline_position);
+                //ctx.stroke();
+                //ctx.set_dash(&[], 0.0);
                 } else if cell.attrs.underline {
                     ctx.set_source_rgb(fg.0, fg.1, fg.2);
                     ctx.set_line_width(underline_thickness);
