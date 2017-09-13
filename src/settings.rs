@@ -47,8 +47,10 @@ impl State {
         }
 
         if let Some(ref font_name) =
-            self.gnome_interface_settings
-                .get_string("monospace-font-name") {
+            self.gnome_interface_settings.get_string(
+                "monospace-font-name",
+            )
+        {
             shell.set_font_desc(font_name);
             self.font_source = FontSource::Gnome;
         }
@@ -76,11 +78,15 @@ impl Settings {
     pub fn init(&mut self) {
         let shell = Weak::upgrade(self.shell.as_ref().unwrap()).unwrap();
         let state = self.state.clone();
-        self.state.borrow_mut().update_font(&mut *shell.borrow_mut());
+        self.state.borrow_mut().update_font(
+            &mut *shell.borrow_mut(),
+        );
         self.state
             .borrow()
             .gnome_interface_settings
-            .connect_changed(move |_, _| monospace_font_changed(&mut *shell.borrow_mut(), &mut *state.borrow_mut()));
+            .connect_changed(move |_, _| {
+                monospace_font_changed(&mut *shell.borrow_mut(), &mut *state.borrow_mut())
+            });
     }
 
     #[cfg(target_os = "windows")]

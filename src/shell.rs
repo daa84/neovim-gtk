@@ -1,4 +1,4 @@
-use std::cell::{RefMut, RefCell};
+use std::cell::{RefMut, RefCell, Cell};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::ops::Deref;
@@ -48,6 +48,7 @@ macro_rules! idle_cb_call {
     )
 }
 
+#[derive(Clone, Copy)]
 enum ResizeState {
     RequestNvimResize(glib::SourceId),
     RequestWindowResize,
@@ -73,7 +74,7 @@ pub struct State {
     im_context: gtk::IMMulticontext,
     error_area: error::ErrorArea,
 
-    resize_state: ResizeState,
+    resize_state: Rc<Cell<ResizeState>>,
 
     options: ShellOptions,
 
@@ -106,7 +107,7 @@ impl State {
             im_context: gtk::IMMulticontext::new(),
             error_area: error::ErrorArea::new(),
 
-            resize_state: ResizeState::Wait,
+            resize_state: Rc::new(Cell::new(ResizeState::Wait)),
 
             options,
 
@@ -152,7 +153,7 @@ impl State {
     pub fn set_font_desc(&mut self, desc: &str) {
         self.font_ctx.update(FontDescription::from_string(desc));
         self.model.clear_glyphs();
-        self.update_dirty_glyphs();
+        self.try_nvim_resize();
         self.on_redraw(&RepaintMode::All);
     }
 
@@ -245,8 +246,47 @@ impl State {
         self.im_context.reset();
     }
 
+    fn try_nvim_resize(&self) {
+        match self.resize_state.get() {
+            ResizeState::RequestWindowResize => {
+                self.resize_state.set(ResizeState::Wait);
+                return;
+            }
+            ResizeState::RequestNvimResize(timer) => {
+                glib::source_remove(timer);
+            }
+            ResizeState::Wait => (),
+        }
+
+        if !self.nvim.borrow().is_initialized() {
+            return;
+        }
+
+        let (columns, rows) = self.calc_nvim_size();
+        let resize_state = self.resize_state.clone();
+        let nvim = self.nvim.clone();
+
+
+        if self.model.rows == rows && self.model.columns == columns {
+            return;
+        }
+
+        self.resize_state.set(ResizeState::RequestNvimResize(
+            gtk::timeout_add(250, move || {
+                resize_state.set(ResizeState::Wait);
+
+                let mut nvim = nvim.borrow_mut();
+                if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
+                    error!("Error trying resize nvim {}", err);
+                }
+                Continue(false)
+            }),
+        ));
+
+    }
+
     fn resize_main_window(&mut self) {
-        match self.resize_state {
+        match self.resize_state.get() {
             ResizeState::RequestNvimResize(_) => return,
             _ => (),
         }
@@ -263,7 +303,7 @@ impl State {
         let request_width = (self.model.columns as f64 * char_width) as i32;
 
         if width != request_width || height != request_height {
-            self.resize_state = ResizeState::RequestWindowResize;
+            self.resize_state.set(ResizeState::RequestWindowResize);
 
             let window: gtk::Window = self.drawing_area
                 .get_toplevel()
@@ -453,7 +493,7 @@ impl Shell {
 
         let ref_state = self.state.clone();
         state.drawing_area.connect_configure_event(move |_, _| {
-            try_nvim_resize(&ref_state);
+            ref_state.borrow().try_nvim_resize();
             false
         });
 
@@ -762,42 +802,6 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
     }
 }
 
-fn try_nvim_resize(state: &Arc<UiMutex<State>>) {
-    let mut state_ref = state.borrow_mut();
-
-    match state_ref.resize_state {
-        ResizeState::RequestWindowResize => {
-            state_ref.resize_state = ResizeState::Wait;
-            return;
-        }
-        ResizeState::RequestNvimResize(timer) => {
-            glib::source_remove(timer);
-        }
-        ResizeState::Wait => (),
-    }
-
-    if !state_ref.nvim.borrow().is_initialized() {
-        return;
-    }
-
-    let (columns, rows) = state_ref.calc_nvim_size();
-    let state = state.clone();
-    state_ref.resize_state = ResizeState::RequestNvimResize(gtk::timeout_add(250, move || {
-        let mut state_ref = state.borrow_mut();
-
-        state_ref.resize_state = ResizeState::Wait;
-
-        if state_ref.model.rows != rows || state_ref.model.columns != columns {
-            let nvim = state_ref.nvim();
-            if let Some(mut nvim) = nvim {
-                if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
-                    error!("Error trying resize nvim {}", err);
-                }
-            }
-        }
-        Continue(false)
-    }));
-}
 
 impl RedrawEvents for State {
     fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
@@ -992,6 +996,5 @@ impl GuiApi for State {
         }
 
         self.set_font_desc(font_desc);
-        self.resize_main_window();
     }
 }
