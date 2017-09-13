@@ -4,7 +4,7 @@ mod model_clip_iterator;
 
 pub use self::context::Context;
 pub use self::context::CellMetrics;
-use self::model_clip_iterator::ModelClipIteratorFactory;
+use self::model_clip_iterator::{RowView, ModelClipIteratorFactory};
 
 use mode;
 use color;
@@ -31,62 +31,34 @@ pub fn render(
     ctx.paint();
 
     let cell_metrics = font_ctx.cell_metrics();
-    let &CellMetrics {
-        line_height,
-        char_width,
-        underline_position,
-        underline_thickness,
-        ..
-    } = cell_metrics;
+    let &CellMetrics { char_width, .. } = cell_metrics;
     let (cursor_row, cursor_col) = ui_model.get_cursor();
 
-    for (row, line) in ui_model.get_clip_iterator(ctx, cell_metrics) {
-        let line_y = row as f64 * line_height;
+    for cell_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
         let mut line_x = 0.0;
+        let RowView { line, row, line_y, .. } = cell_view;
 
         for col in 0..line.line.len() {
             let cell = &line.line[col];
 
 
-            draw_cell(
-                ctx,
-                cell_metrics,
-                color_model,
-                line,
-                cell,
-                col,
-                line_x,
-                line_y,
-            );
+            draw_cell(&cell_view, color_model, cell, col, line_x);
 
-            if cell.attrs.underline || cell.attrs.undercurl {
-                if cell.attrs.undercurl {
-                    let sp = color_model.actual_cell_sp(cell);
-                    ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
+            draw_underline(&cell_view, color_model, cell, line_x);
 
-                    let max_undercurl_height = (line_height - underline_position) * 2.0;
-                    let undercurl_height = (underline_thickness * 4.0).min(max_undercurl_height);
-                    let undercurl_y = line_y + underline_position - undercurl_height / 2.0;
-
-                    ctx.show_error_underline(line_x, undercurl_y, char_width, undercurl_height);
-                } else if cell.attrs.underline {
-                    let fg = color_model.actual_cell_fg(cell);
-                    ctx.set_source_rgb(fg.0, fg.1, fg.2);
-                    ctx.set_line_width(underline_thickness);
-                    ctx.move_to(line_x, line_y + underline_position);
-                    ctx.line_to(line_x + char_width, line_y + underline_position);
-                    ctx.stroke();
-                }
-            }
 
             if row == cursor_row && col == cursor_col {
+                let double_width = line.line.get(col + 1).map_or(
+                    false,
+                    |c| c.attrs.double_width,
+                );
                 ctx.move_to(line_x, line_y);
                 cursor.draw(
                     ctx,
                     font_ctx,
                     mode,
                     line_y,
-                    false, //TODO: double_width,
+                    double_width,
                     color_model.actual_cell_bg(cell),
                 );
             }
@@ -96,23 +68,68 @@ pub fn render(
     }
 }
 
-fn draw_cell(
-    ctx: &cairo::Context,
-    cell_metrics: &CellMetrics,
+fn draw_underline(
+    cell_view: &RowView,
     color_model: &color::ColorModel,
-    line: &ui_model::Line,
+    cell: &ui_model::Cell,
+    line_x: f64,
+) {
+
+    if cell.attrs.underline || cell.attrs.undercurl {
+
+        let &RowView {
+            ctx,
+            line_y,
+            cell_metrics: &CellMetrics {
+                line_height,
+                char_width,
+                underline_position,
+                underline_thickness,
+                ..
+            },
+            ..
+        } = cell_view;
+
+        if cell.attrs.undercurl {
+            let sp = color_model.actual_cell_sp(cell);
+            ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
+
+            let max_undercurl_height = (line_height - underline_position) * 2.0;
+            let undercurl_height = (underline_thickness * 4.0).min(max_undercurl_height);
+            let undercurl_y = line_y + underline_position - undercurl_height / 2.0;
+
+            ctx.show_error_underline(line_x, undercurl_y, char_width, undercurl_height);
+        } else if cell.attrs.underline {
+            let fg = color_model.actual_cell_fg(cell);
+            ctx.set_source_rgb(fg.0, fg.1, fg.2);
+            ctx.set_line_width(underline_thickness);
+            ctx.move_to(line_x, line_y + underline_position);
+            ctx.line_to(line_x + char_width, line_y + underline_position);
+            ctx.stroke();
+        }
+    }
+}
+
+fn draw_cell(
+    cell_view: &RowView,
+    color_model: &color::ColorModel,
     cell: &ui_model::Cell,
     col: usize,
     line_x: f64,
-    line_y: f64,
 ) {
 
-    let &CellMetrics {
-        char_width,
-        line_height,
-        ascent,
+    let &RowView {
+        ctx,
+        line,
+        line_y,
+        cell_metrics: &CellMetrics {
+            char_width,
+            line_height,
+            ascent,
+            ..
+        },
         ..
-    } = cell_metrics;
+    } = cell_view;
 
     let (bg, fg) = color_model.cell_colors(cell);
 
