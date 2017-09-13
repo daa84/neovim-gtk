@@ -232,32 +232,6 @@ mod tests {
     }
 
     #[test]
-    fn test_from_area() {
-        let rect = ModelRect::from_area(10.0, 5.0, 3.0, 3.0, 9.0, 17.0);
-
-        assert_eq!(0, rect.top);
-        assert_eq!(0, rect.left);
-        assert_eq!(1, rect.bot);
-        assert_eq!(1, rect.right);
-
-
-        let rect = ModelRect::from_area(10.0, 5.0, 0.0, 0.0, 10.0, 20.0);
-
-        assert_eq!(0, rect.top);
-        assert_eq!(0, rect.left);
-        assert_eq!(1, rect.bot);
-        assert_eq!(1, rect.right);
-
-
-        let rect = ModelRect::from_area(10.0, 5.0, 0.0, 0.0, 11.0, 21.0);
-
-        assert_eq!(0, rect.top);
-        assert_eq!(0, rect.left);
-        assert_eq!(2, rect.bot);
-        assert_eq!(2, rect.right);
-    }
-
-    #[test]
     fn test_cursor_area() {
         let mut model = UiModel::new(10, 20);
 

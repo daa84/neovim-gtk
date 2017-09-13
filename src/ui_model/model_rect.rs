@@ -301,4 +301,32 @@ mod tests {
         assert_eq!(5, width);
         assert_eq!(10, height);
     }
+
+
+    #[test]
+    fn test_from_area() {
+        let rect = ModelRect::from_area(&CellMetrics::new_hw(10.0, 5.0), 3.0, 3.0, 9.0, 17.0);
+
+        assert_eq!(0, rect.top);
+        assert_eq!(0, rect.left);
+        assert_eq!(1, rect.bot);
+        assert_eq!(1, rect.right);
+
+
+        let rect = ModelRect::from_area(&CellMetrics::new_hw(10.0, 5.0), 0.0, 0.0, 10.0, 20.0);
+
+        assert_eq!(0, rect.top);
+        assert_eq!(0, rect.left);
+        assert_eq!(1, rect.bot);
+        assert_eq!(1, rect.right);
+
+
+        let rect = ModelRect::from_area(&CellMetrics::new_hw(10.0, 5.0), 0.0, 0.0, 11.0, 21.0);
+
+        assert_eq!(0, rect.top);
+        assert_eq!(0, rect.left);
+        assert_eq!(2, rect.bot);
+        assert_eq!(2, rect.right);
+    }
+
 }

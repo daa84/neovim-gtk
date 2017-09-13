@@ -47,26 +47,29 @@ pub trait RedrawEvents {
 
     fn on_busy(&mut self, busy: bool) -> RepaintMode;
 
-    fn popupmenu_show(&mut self,
-                      menu: &[Vec<&str>],
-                      selected: i64,
-                      row: u64,
-                      col: u64)
-                      -> RepaintMode;
+    fn popupmenu_show(
+        &mut self,
+        menu: &[Vec<&str>],
+        selected: i64,
+        row: u64,
+        col: u64,
+    ) -> RepaintMode;
 
     fn popupmenu_hide(&mut self) -> RepaintMode;
 
     fn popupmenu_select(&mut self, selected: i64) -> RepaintMode;
 
-    fn tabline_update(&mut self,
-                      selected: Tabpage,
-                      tabs: Vec<(Tabpage, Option<String>)>)
-                      -> RepaintMode;
+    fn tabline_update(
+        &mut self,
+        selected: Tabpage,
+        tabs: Vec<(Tabpage, Option<String>)>,
+    ) -> RepaintMode;
 
-    fn mode_info_set(&mut self,
-                     cursor_style_enabled: bool,
-                     mode_info: Vec<ModeInfo>)
-                     -> RepaintMode;
+    fn mode_info_set(
+        &mut self,
+        cursor_style_enabled: bool,
+        mode_info: Vec<ModeInfo>,
+    ) -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -116,19 +119,19 @@ pub enum CursorShape {
 
 impl CursorShape {
     fn new(shape_code: &Value) -> Result<CursorShape, String> {
-        let str_code = shape_code
-            .as_str()
-            .ok_or_else(|| "Can't convert cursor shape to string".to_owned())?;
+        let str_code = shape_code.as_str().ok_or_else(|| {
+            "Can't convert cursor shape to string".to_owned()
+        })?;
 
         Ok(match str_code {
-               "block" => CursorShape::Block,
-               "horizontal" => CursorShape::Horizontal,
-               "vertical" => CursorShape::Vertical,
-               _ => {
-                   error!("Unknown cursor_shape {}", str_code);
-                   CursorShape::Unknown
-               }
-           })
+            "block" => CursorShape::Block,
+            "horizontal" => CursorShape::Horizontal,
+            "vertical" => CursorShape::Vertical,
+            _ => {
+                error!("Unknown cursor_shape {}", str_code);
+                CursorShape::Unknown
+            }
+        })
     }
 }
 
@@ -155,9 +158,9 @@ impl ModeInfo {
         };
 
         Ok(ModeInfo {
-               cursor_shape,
-               cell_percentage,
-           })
+            cursor_shape,
+            cell_percentage,
+        })
     }
 
     pub fn cursor_shape(&self) -> Option<&CursorShape> {
@@ -177,7 +180,8 @@ pub struct NvimInitError {
 
 impl NvimInitError {
     pub fn new_post_init<E>(error: E) -> NvimInitError
-        where E: Into<Box<error::Error>>
+    where
+        E: Into<Box<error::Error>>,
     {
         NvimInitError {
             cmd: None,
@@ -186,7 +190,8 @@ impl NvimInitError {
     }
 
     pub fn new<E>(cmd: &Command, error: E) -> NvimInitError
-        where E: Into<Box<error::Error>>
+    where
+        E: Into<Box<error::Error>>,
     {
         NvimInitError {
             cmd: Some(format!("{:?}", cmd)),
@@ -219,9 +224,10 @@ impl error::Error for NvimInitError {
     }
 }
 
-pub fn start(shell: Arc<UiMutex<shell::State>>,
-             nvim_bin_path: Option<&String>)
-             -> result::Result<Neovim, NvimInitError> {
+pub fn start(
+    shell: Arc<UiMutex<shell::State>>,
+    nvim_bin_path: Option<&String>,
+) -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
     } else {
@@ -237,11 +243,14 @@ pub fn start(shell: Arc<UiMutex<shell::State>>,
         .stderr(Stdio::inherit());
 
     if let Ok(runtime_path) = env::var("NVIM_GTK_RUNTIME_PATH") {
-        cmd.arg("--cmd")
-            .arg(format!("let &rtp.=',{}'", runtime_path));
+        cmd.arg("--cmd").arg(
+            format!("let &rtp.=',{}'", runtime_path),
+        );
     } else if let Some(prefix) = option_env!("PREFIX") {
-        cmd.arg("--cmd")
-            .arg(format!("let &rtp.=',{}/share/nvim-gtk/runtime'", prefix));
+        cmd.arg("--cmd").arg(format!(
+            "let &rtp.=',{}/share/nvim-gtk/runtime'",
+            prefix
+        ));
     } else {
         cmd.arg("--cmd").arg("let &rtp.=',runtime'");
     }
@@ -255,28 +264,33 @@ pub fn start(shell: Arc<UiMutex<shell::State>>,
 
     let mut nvim = Neovim::new(session);
 
-    nvim.session
-        .start_event_loop_handler(NvimHandler::new(shell));
+    nvim.session.start_event_loop_handler(
+        NvimHandler::new(shell),
+    );
 
     Ok(nvim)
 }
 
-pub fn post_start_init(nvim: &mut Neovim,
-                       open_path: Option<&String>,
-                       cols: u64,
-                       rows: u64)
-                       -> result::Result<(), NvimInitError> {
+pub fn post_start_init(
+    nvim: &mut Neovim,
+    open_path: Option<&String>,
+    cols: u64,
+    rows: u64,
+) -> result::Result<(), NvimInitError> {
     let mut opts = UiAttachOptions::new();
     opts.set_popupmenu_external(false);
     opts.set_tabline_external(true);
-    nvim.ui_attach(cols, rows, opts)
-        .map_err(NvimInitError::new_post_init)?;
-    nvim.command("runtime! ginit.vim")
-        .map_err(NvimInitError::new_post_init)?;
+    nvim.ui_attach(cols, rows, opts).map_err(
+        NvimInitError::new_post_init,
+    )?;
+    nvim.command("runtime! ginit.vim").map_err(
+        NvimInitError::new_post_init,
+    )?;
 
     if let Some(path) = open_path {
-        nvim.command(&format!("e {}", path))
-            .map_err(NvimInitError::new_post_init)?;
+        nvim.command(&format!("e {}", path)).map_err(
+            NvimInitError::new_post_init,
+        )?;
     }
 
     Ok(())
@@ -325,10 +339,10 @@ impl NvimHandler {
                     if let Some(ev_name) = params[0].as_str().map(String::from) {
                         let args = params.iter().skip(1).cloned().collect();
                         self.safe_call(move |ui| {
-                                           call_gui_event(ui, &ev_name, &args)?;
-                                           ui.on_redraw(&RepaintMode::All);
-                                           Ok(())
-                                       });
+                            call_gui_event(ui, &ev_name, &args)?;
+                            ui.on_redraw(&RepaintMode::All);
+                            Ok(())
+                        });
                     } else {
                         println!("Unsupported event {:?}", params);
                     }
@@ -343,15 +357,16 @@ impl NvimHandler {
     }
 
     fn safe_call<F>(&self, cb: F)
-        where F: Fn(&mut shell::State) -> result::Result<(), String> + 'static + Send
+    where
+        F: Fn(&mut shell::State) -> result::Result<(), String> + 'static + Send,
     {
         let shell = self.shell.clone();
         glib::idle_add(move || {
-                           if let Err(msg) = cb(&mut shell.borrow_mut()) {
-                               println!("Error call function: {}", msg);
-                           }
-                           glib::Continue(false)
-                       });
+            if let Err(msg) = cb(&mut shell.borrow_mut()) {
+                println!("Error call function: {}", msg);
+            }
+            glib::Continue(false)
+        });
     }
 }
 
@@ -362,21 +377,24 @@ impl Handler for NvimHandler {
 }
 
 
-fn call_gui_event(ui: &mut shell::State,
-                  method: &str,
-                  args: &Vec<Value>)
-                  -> result::Result<(), String> {
+fn call_gui_event(
+    ui: &mut shell::State,
+    method: &str,
+    args: &Vec<Value>,
+) -> result::Result<(), String> {
     match method {
         "Font" => ui.set_font(try_str!(args[0])),
         "Option" => {
             match try_str!(args[0]) {
                 "Popupmenu" => {
                     ui.nvim()
+                        .unwrap()
                         .set_option(UiOption::ExtPopupmenu(try_uint!(args[1]) == 1))
                         .map_err(|e| e.to_string())?
                 }
                 "Tabline" => {
                     ui.nvim()
+                        .unwrap()
                         .set_option(UiOption::ExtTabline(try_uint!(args[1]) == 1))
                         .map_err(|e| e.to_string())?
                 }
@@ -388,10 +406,11 @@ fn call_gui_event(ui: &mut shell::State,
     Ok(())
 }
 
-fn call(ui: &mut shell::State,
-        method: &str,
-        args: &[Value])
-        -> result::Result<RepaintMode, String> {
+fn call(
+    ui: &mut shell::State,
+    method: &str,
+    args: &[Value],
+) -> result::Result<RepaintMode, String> {
     let repaint_mode = match method {
         "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
         "put" => ui.on_put(try_str!(args[0])),
@@ -407,10 +426,12 @@ fn call(ui: &mut shell::State,
         }
         "eol_clear" => ui.on_eol_clear(),
         "set_scroll_region" => {
-            ui.on_set_scroll_region(try_uint!(args[0]),
-                                    try_uint!(args[1]),
-                                    try_uint!(args[2]),
-                                    try_uint!(args[3]));
+            ui.on_set_scroll_region(
+                try_uint!(args[0]),
+                try_uint!(args[1]),
+                try_uint!(args[2]),
+                try_uint!(args[3]),
+            );
             RepaintMode::Nothing
         }
         "scroll" => ui.on_scroll(try_int!(args[0])),
@@ -424,15 +445,17 @@ fn call(ui: &mut shell::State,
         "busy_stop" => ui.on_busy(false),
         "popupmenu_show" => {
             let menu_items = map_array!(args[0], "Error get menu list array", |item| {
-                map_array!(item,
-                           "Error get menu item array",
-                           |col| col.as_str().ok_or("Error get menu column"))
+                map_array!(item, "Error get menu item array", |col| {
+                    col.as_str().ok_or("Error get menu column")
+                })
             })?;
 
-            ui.popupmenu_show(&menu_items,
-                              try_int!(args[1]),
-                              try_uint!(args[2]),
-                              try_uint!(args[3]))
+            ui.popupmenu_show(
+                &menu_items,
+                try_int!(args[1]),
+                try_uint!(args[2]),
+                try_uint!(args[3]),
+            )
         }
         "popupmenu_hide" => ui.popupmenu_hide(),
         "popupmenu_select" => ui.popupmenu_select(try_int!(args[0])),
@@ -442,9 +465,9 @@ fn call(ui: &mut shell::State,
                     .ok_or_else(|| "Error get map for tab".to_owned())
                     .and_then(|tab_map| tab_map.to_attrs_map())
                     .map(|tab_attrs| {
-                        let name_attr = tab_attrs
-                            .get("name")
-                            .and_then(|n| n.as_str().map(|s| s.to_owned()));
+                        let name_attr = tab_attrs.get("name").and_then(
+                            |n| n.as_str().map(|s| s.to_owned()),
+                        );
                         let tab_attr = tab_attrs
                             .get("tab")
                             .map(|tab_id| Tabpage::new(tab_id.clone()))
@@ -456,13 +479,15 @@ fn call(ui: &mut shell::State,
             ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
         }
         "mode_info_set" => {
-            let mode_info = map_array!(args[1],
-                                       "Error get array key value for mode_info".to_owned(),
-                                       |mi| {
-                                           mi.as_map()
-                                               .ok_or_else(|| "Erro get map for mode_info".to_owned())
-                                               .and_then(|mi_map| ModeInfo::new(mi_map))
-                                       })?;
+            let mode_info = map_array!(
+                args[1],
+                "Error get array key value for mode_info".to_owned(),
+                |mi| {
+                    mi.as_map()
+                        .ok_or_else(|| "Erro get map for mode_info".to_owned())
+                        .and_then(|mi_map| ModeInfo::new(mi_map))
+                }
+            )?;
             ui.mode_info_set(try_bool!(args[0]), mode_info)
         }
         _ => {

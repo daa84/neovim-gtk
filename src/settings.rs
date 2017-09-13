@@ -96,6 +96,5 @@ fn monospace_font_changed(mut shell: &mut Shell, state: &mut State) {
     // rpc is priority for font
     if state.font_source != FontSource::Rpc {
         state.update_font(&mut shell);
-        shell.redraw(&RepaintMode::All);
     }
 }

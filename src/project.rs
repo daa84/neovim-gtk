@@ -245,15 +245,17 @@ impl Projects {
     fn load_oldfiles(&mut self) {
         let shell_borrow = self.shell.borrow();
         let shell_state = shell_borrow.state.borrow_mut();
-        let mut nvim = shell_state.nvim();
 
-        let store = EntryStore::load(&mut nvim);
-        store.populate(&self.get_list_store(), None);
-        self.store = Some(store);
+        let nvim = shell_state.nvim();
+        if let Some(mut nvim) = nvim {
+            let store = EntryStore::load(&mut nvim);
+            store.populate(&self.get_list_store(), None);
+            self.store = Some(store);
+        }
     }
 
     pub fn clear(&mut self) {
-        self.store.take().unwrap().save();
+        self.store.take().map(|s| s.save());
         self.get_list_store().clear();
     }
 

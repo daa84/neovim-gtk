@@ -27,13 +27,6 @@ impl Item {
         }
     }
 
-    #[cfg(test)]
-    pub fn set_offset(&mut self, offset: i32, length: i32, num_chars: i32) {
-        self.0.offset = offset;
-        self.0.length = length;
-        self.0.num_chars = num_chars;
-    }
-
     pub fn analysis(&self) -> analysis::Analysis {
         analysis::Analysis::from(&self.0.analysis)
     }
