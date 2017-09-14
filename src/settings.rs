@@ -1,9 +1,6 @@
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-#[cfg(unix)]
-use nvim::RepaintMode;
-
 use shell::Shell;
 #[cfg(unix)]
 use gio;

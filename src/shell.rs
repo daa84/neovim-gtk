@@ -48,7 +48,7 @@ macro_rules! idle_cb_call {
     )
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum ResizeState {
     RequestNvimResize(glib::SourceId),
     RequestWindowResize,
@@ -313,6 +313,7 @@ impl State {
             let (win_width, win_height) = window.get_size();
             let h_border = win_width - width;
             let v_border = win_height - height;
+            request_width + h_border
             window.resize(request_width + h_border, request_height + v_border);
         }
     }
@@ -824,9 +825,10 @@ impl RedrawEvents for State {
     }
 
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
-        self.model = UiModel::new(rows, columns);
-        self.resize_main_window();
-
+        if self.model.rows != rows as usize && self.model.columns != columns as usize {
+            self.model = UiModel::new(rows, columns);
+            self.resize_main_window();
+        }
         RepaintMode::Nothing
     }
 
