@@ -188,7 +188,7 @@ fn gtk_delete(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
 }
 
 pub struct UiMutex<T: ?Sized> {
-    thread: String,
+    thread: thread::ThreadId,
     data: RefCell<T>,
 }
 
@@ -198,10 +198,7 @@ unsafe impl<T: ?Sized> Sync for UiMutex<T> {}
 impl<T> UiMutex<T> {
     pub fn new(t: T) -> UiMutex<T> {
         UiMutex {
-            thread: thread::current()
-                .name()
-                .expect("Can create UI  only from main thread, current thiread has no name")
-                .to_owned(),
+            thread: thread::current().id(),
             data: RefCell::new(t),
         }
     }
@@ -220,12 +217,8 @@ impl<T: ?Sized> UiMutex<T> {
 
     #[inline]
     fn assert_ui_thread(&self) {
-        match thread::current().name() {
-            Some(name) if name == self.thread => (),
-            Some(name) => {
-                panic!("Can create UI  only from main thread, {}", name);
-            }
-            None => panic!("Can create UI  only from main thread, current thread has no name"),
+        if thread::current().id() != self.thread {
+            panic!("Can access to UI only from main thread");
         }
     }
 }
