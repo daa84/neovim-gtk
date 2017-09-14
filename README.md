@@ -3,6 +3,7 @@ GTK ui for neovim written in rust using gtk-rs bindings. With ligatures support.
 
 # Screenshot
 ![Main Window](/screenshots/neovimgtk-screen.png?raw=true)
+
 For more screenshots and description of basic usage see [wiki](https://github.com/daa84/neovim-gtk/wiki/GUI)
 
 # Configuration
