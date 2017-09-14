@@ -158,15 +158,6 @@ impl Line {
         self.item_line[start_cell] = Some(Item::new(new_item.clone(), end_cell - start_cell + 1));
     }
 
-    pub fn get_item_mut(&mut self, cell_idx: usize) -> Option<&mut Item> {
-        let item_idx = self.cell_to_item(cell_idx);
-        if item_idx >= 0 {
-            self.item_line[item_idx as usize].as_mut()
-        } else {
-            None
-        }
-    }
-
     pub fn get_item(&self, cell_idx: usize) -> Option<&Item> {
         let item_idx = self.cell_to_item(cell_idx);
         if item_idx >= 0 {

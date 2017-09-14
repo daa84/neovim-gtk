@@ -38,9 +38,7 @@ pub fn render(
         let mut line_x = 0.0;
         let RowView { line, row, line_y, .. } = cell_view;
 
-        for col in 0..line.line.len() {
-            let cell = &line.line[col];
-
+        for (col, cell) in line.line.iter().enumerate() {
 
             draw_cell(&cell_view, color_model, cell, col, line_x);
 
@@ -172,9 +170,9 @@ pub fn shape_dirty(
             let items = ctx.itemize(&styled_line);
             line.merge(&styled_line, &items);
 
-            for i in 0..line.line.len() {
-                if line[i].dirty {
-                    if let Some(item) = line.get_item_mut(i) {
+            for (col, cell) in line.line.iter_mut().enumerate() {
+                if cell.dirty {
+                    if let Some(item) = line.item_line[col].as_mut() {
                         let mut glyphs = pango::GlyphString::new();
                         {
                             let analysis = item.analysis();
@@ -192,7 +190,7 @@ pub fn shape_dirty(
                     }
                 }
 
-                line[i].dirty = false;
+                cell.dirty = false;
             }
 
             line.dirty_line = false;
