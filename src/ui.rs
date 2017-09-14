@@ -1,5 +1,5 @@
 use std::cell::{RefCell, Ref, RefMut};
-use std::thread;
+use std::{env, thread};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -25,7 +25,6 @@ pub struct Ui {
 
 pub struct Components {
     window: Option<ApplicationWindow>,
-    header_bar: HeaderBar,
     open_btn: ToolButton,
 }
 
@@ -37,7 +36,6 @@ impl Components {
         Components {
             open_btn: ToolButton::new(Some(&save_image), "Open"),
             window: None,
-            header_bar: HeaderBar::new(),
         }
     }
 
@@ -74,43 +72,53 @@ impl Ui {
         }
         self.initialized = true;
 
-        self.create_main_menu(app);
+        if app.prefers_app_menu() {
+            self.create_main_menu(app);
+        }
 
         let mut settings = self.settings.borrow_mut();
         settings.init();
 
         let mut comps = self.comps.borrow_mut();
 
-        comps.header_bar.set_show_close_button(true);
-
-
-        let projects = self.projects.clone();
-        comps.header_bar.pack_start(&comps.open_btn);
-        comps
-            .open_btn
-            .connect_clicked(move |_| projects.borrow_mut().show());
-
-        let save_image = Image::new_from_icon_name("document-save",
-                                                   gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
-        let save_btn = ToolButton::new(Some(&save_image), "Save");
-
-        let shell = self.shell.clone();
-        save_btn.connect_clicked(move |_| shell.borrow_mut().edit_save_all());
-        comps.header_bar.pack_start(&save_btn);
-
-        let paste_image = Image::new_from_icon_name("edit-paste",
-                                                    gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
-        let paste_btn = ToolButton::new(Some(&paste_image), "Paste");
-        let shell = self.shell.clone();
-        paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
-        comps.header_bar.pack_start(&paste_btn);
-
         self.shell.borrow_mut().init();
 
         comps.window = Some(ApplicationWindow::new(app));
         let window = comps.window.as_ref().unwrap();
 
-        window.set_titlebar(Some(&comps.header_bar));
+        // Client side decorations including the toolbar are disabled via NVIM_GTK_NO_HEADERBAR=1
+        let use_header_bar = env::var("NVIM_GTK_NO_HEADERBAR")
+            .map(|opt| opt.trim() != "1")
+            .unwrap_or(true);
+
+        if use_header_bar {
+            let header_bar = HeaderBar::new();
+
+            let projects = self.projects.clone();
+            header_bar.pack_start(&comps.open_btn);
+            comps
+                .open_btn
+                .connect_clicked(move |_| projects.borrow_mut().show());
+
+            let save_image = Image::new_from_icon_name("document-save",
+                                                       gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+            let save_btn = ToolButton::new(Some(&save_image), "Save");
+
+            let shell = self.shell.clone();
+            save_btn.connect_clicked(move |_| shell.borrow_mut().edit_save_all());
+            header_bar.pack_start(&save_btn);
+
+            let paste_image = Image::new_from_icon_name("edit-paste",
+                                                        gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+            let paste_btn = ToolButton::new(Some(&paste_image), "Paste");
+            let shell = self.shell.clone();
+            paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
+            header_bar.pack_start(&paste_btn);
+            header_bar.set_show_close_button(true);
+
+            window.set_titlebar(Some(&header_bar));
+        }
+
         window.set_default_size(800, 600);
 
         let shell = self.shell.borrow();
@@ -143,7 +151,6 @@ impl Ui {
         menu.append_item(&about);
 
         app.set_app_menu(Some(&menu));
-
 
         let about_action = SimpleAction::new("HelpAbout", None);
         let comps = self.comps.clone();
