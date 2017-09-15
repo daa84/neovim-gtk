@@ -831,12 +831,14 @@ impl RedrawEvents for State {
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         match self.resize_state.get() {
             ResizeState::NvimResizeTimer(..) => (),
+            ResizeState::Wait |
             ResizeState::NvimResizeRequest(..) => {
-                self.resize_state.set(ResizeState::Wait);
-                self.model = UiModel::new(rows, columns);
-                self.resize_main_window();
-            },
-            ResizeState::Wait => unreachable!("Resize event only can be produced by try_nvim_resize"),
+                if self.model.columns != columns as usize || self.model.rows != rows as usize {
+                    self.resize_state.set(ResizeState::Wait);
+                    self.model = UiModel::new(rows, columns);
+                    self.resize_main_window();
+                }
+            }
         }
         RepaintMode::Nothing
     }
