@@ -14,6 +14,7 @@ install-resources:
 	cp -r runtime $(PREFIX)/share/nvim-gtk/ 
 	mkdir -p $(PREFIX)/share/applications/
 	cp desktop/nvim-gtk.desktop $(PREFIX)/share/applications/
+	sed -i "s|Exec=nvim-gtk|Exec=$(PREFIX)/bin/nvim-gtk|" $(PREFIX)/share/applications/nvim-gtk.desktop
 	mkdir -p $(PREFIX)/share/icons/hicolor/128x128/apps/
 	cp desktop/nvim-gtk.png $(PREFIX)/share/icons/hicolor/128x128/apps/
 	mkdir -p $(PREFIX)/share/fonts/
