@@ -165,7 +165,7 @@ fn on_help_about(comps: &Components) {
     about.set_transient_for(comps.window.as_ref());
     about.set_program_name("NeovimGtk");
     about.set_version(env!("CARGO_PKG_VERSION"));
-    about.set_logo(None);
+    about.set_logo_icon_name("nvim-gtk");
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
 
     about.connect_response(|about, _| about.destroy());

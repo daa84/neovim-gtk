@@ -5,4 +5,5 @@ Exec=nvim-gtk -- %F
 Icon=nvim-gtk
 Type=Application
 Terminal=false
-Categories=Utility;TextEditor;
+Categories=GTK;Utility;TextEditor;
+StartupNotify=true
