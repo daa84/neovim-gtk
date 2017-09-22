@@ -2,7 +2,7 @@
 Name=NeovimGtk
 Comment=Gtk GUI for Neovim text editor
 Exec=nvim-gtk -- %F
-Icon=nvim-gtk
+Icon=org.daa.NeovimGtk
 Type=Application
 Terminal=false
 Categories=GTK;Utility;TextEditor;

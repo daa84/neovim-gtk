@@ -71,8 +71,6 @@ fn main() {
         app.connect_open(open);
     }
 
-    gtk::Window::set_default_icon_name("nvim-gtk");
-
     let args: Vec<String> = env::args().collect();
     let argv: Vec<&str> = args.iter()
         .filter(|a| !a.starts_with(BIN_PATH_ARG))
