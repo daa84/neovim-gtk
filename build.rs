@@ -31,6 +31,8 @@ fn main() {
         .entry("Right", "\"Right\"")
         .entry("Up", "\"Up\"")
         .entry("Down", "\"Down\"")
+        .entry("Home", "\"Home\"")
+        .entry("End", "\"End\"")
         .entry("BackSpace", "\"BS\"")
         .entry("Return", "\"CR\"")
         .entry("Escape", "\"Esc\"")
