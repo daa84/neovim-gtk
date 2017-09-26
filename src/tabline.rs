@@ -7,6 +7,8 @@ use gtk::prelude::*;
 
 use glib::signal;
 
+use pango;
+
 use neovim_lib::NeovimApi;
 use neovim_lib::neovim_api::Tabpage;
 
@@ -66,10 +68,12 @@ impl Tabline {
         }
     }
 
-    fn update_state(&self,
-                    nvim: &Rc<RefCell<nvim::NeovimClient>>,
-                    selected: &Tabpage,
-                    tabs: &[(Tabpage, Option<String>)]) {
+    fn update_state(
+        &self,
+        nvim: &Rc<RefCell<nvim::NeovimClient>>,
+        selected: &Tabpage,
+        tabs: &[(Tabpage, Option<String>)],
+    ) {
         let mut state = self.state.borrow_mut();
 
         if state.nvim.is_none() {
@@ -81,10 +85,12 @@ impl Tabline {
         state.data = tabs.iter().map(|item| item.0.clone()).collect();
     }
 
-    pub fn update_tabs(&self,
-                       nvim: &Rc<RefCell<nvim::NeovimClient>>,
-                       selected: &Tabpage,
-                       tabs: &[(Tabpage, Option<String>)]) {
+    pub fn update_tabs(
+        &self,
+        nvim: &Rc<RefCell<nvim::NeovimClient>>,
+        selected: &Tabpage,
+        tabs: &[(Tabpage, Option<String>)],
+    ) {
         if tabs.len() <= 1 {
             self.tabs.hide();
             return;
@@ -102,7 +108,10 @@ impl Tabline {
             for _ in count..tabs.len() {
                 let empty = gtk::Box::new(gtk::Orientation::Vertical, 0);
                 empty.show_all();
-                self.tabs.append_page(&empty, Some(&gtk::Label::new(None)));
+                let title = gtk::Label::new(None);
+                title.set_ellipsize(pango::EllipsizeMode::Middle);
+                title.set_width_chars(25);
+                self.tabs.append_page(&empty, Some(&title));
             }
         } else if count > tabs.len() {
             for _ in tabs.len()..count {
@@ -112,8 +121,12 @@ impl Tabline {
 
         for (idx, tab) in tabs.iter().enumerate() {
             let tab_child = self.tabs.get_nth_page(Some(idx as u32));
-            self.tabs
-                .set_tab_label_text(&tab_child.unwrap(), tab.1.as_ref().unwrap_or(&"??".to_owned()));
+            let tab_label = self.tabs
+                .get_tab_label(&tab_child.unwrap())
+                .unwrap()
+                .downcast::<gtk::Label>()
+                .unwrap();
+            tab_label.set_text(tab.1.as_ref().unwrap_or(&"??".to_owned()));
 
             if *selected == tab.0 {
                 self.tabs.set_current_page(Some(idx as u32));
