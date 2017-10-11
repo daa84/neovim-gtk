@@ -839,7 +839,9 @@ impl RedrawEvents for State {
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         match self.resize_state.get() {
             ResizeState::NvimResizeTimer(..) => {
-                self.model = UiModel::new(rows, columns);
+                if self.model.columns != columns as usize || self.model.rows != rows as usize {
+                    self.model = UiModel::new(rows, columns);
+                }
             }
             ResizeState::Wait |
             ResizeState::NvimResizeRequest(..) => {
