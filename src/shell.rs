@@ -135,7 +135,7 @@ impl State {
         self.nvim.clone()
     }
 
-    pub fn start_init(&self) -> bool {
+    pub fn start_nvim_initialization(&self) -> bool {
         let mut nvim = self.nvim.borrow_mut();
         if nvim.is_uninitialized() {
             nvim.set_in_progress();
@@ -802,7 +802,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
 
 fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
     let mut state = state_ref.borrow_mut();
-    if state.start_init() {
+    if state.start_nvim_initialization() {
         let (cols, rows) = state.calc_nvim_size();
         state.model = UiModel::new(rows as u64, cols as u64);
         state.resize_state.set(
@@ -839,8 +839,8 @@ impl RedrawEvents for State {
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         match self.resize_state.get() {
             ResizeState::NvimResizeTimer(..) => {
-                    self.model = UiModel::new(rows, columns);
-            },
+                self.model = UiModel::new(rows, columns);
+            }
             ResizeState::Wait |
             ResizeState::NvimResizeRequest(..) => {
                 if self.model.columns != columns as usize || self.model.rows != rows as usize {
