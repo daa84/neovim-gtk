@@ -88,7 +88,7 @@ impl State {
         let font_ctx = render::Context::new(FontDescription::from_string(DEFAULT_FONT_NAME));
 
         State {
-            model: UiModel::new(1, 1),
+            model: UiModel::empty(),
             color_model: ColorModel::new(),
             nvim: Rc::new(RefCell::new(NeovimClient::new())),
             cur_attrs: None,
@@ -133,6 +133,16 @@ impl State {
 
     pub fn nvim_clone(&self) -> Rc<RefCell<NeovimClient>> {
         self.nvim.clone()
+    }
+
+    pub fn start_init(&self) -> bool {
+        let mut nvim = self.nvim.borrow_mut();
+        if nvim.is_uninitialized() {
+            nvim.set_in_progress();
+            true
+        } else {
+            false
+        }
     }
 
     pub fn set_detach_cb<F>(&mut self, cb: Option<F>)
@@ -791,12 +801,10 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
 }
 
 fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
-    let state = state_ref.borrow_mut();
-    let mut nvim = state.nvim.borrow_mut();
-    if nvim.is_uninitialized() {
-        nvim.set_in_progress();
-
+    let mut state = state_ref.borrow_mut();
+    if state.start_init() {
         let (cols, rows) = state.calc_nvim_size();
+        state.model = UiModel::new(rows as u64, cols as u64);
         state.resize_state.set(
             ResizeState::NvimResizeRequest(cols, rows),
         );
@@ -830,7 +838,9 @@ impl RedrawEvents for State {
 
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         match self.resize_state.get() {
-            ResizeState::NvimResizeTimer(..) => (),
+            ResizeState::NvimResizeTimer(..) => {
+                    self.model = UiModel::new(rows, columns);
+            },
             ResizeState::Wait |
             ResizeState::NvimResizeRequest(..) => {
                 if self.model.columns != columns as usize || self.model.rows != rows as usize {

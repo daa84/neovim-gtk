@@ -41,6 +41,20 @@ impl UiModel {
         }
     }
 
+    pub fn empty() -> UiModel {
+        UiModel {
+            columns: 0,
+            rows: 0,
+            cur_row: 0,
+            cur_col: 0,
+            model: Box::new([]),
+            top: 0,
+            bot: 0,
+            left: 0,
+            right: 0,
+        }
+    }
+
     #[inline]
     pub fn model(&self) -> &[Line] {
         &self.model
