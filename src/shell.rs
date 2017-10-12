@@ -328,6 +328,20 @@ impl State {
             window.resize(request_width + h_border, request_height + v_border);
         }
     }
+
+    fn edit_paste(&self, clipboard: &str) {
+        let nvim = self.nvim();
+        if let Some(mut nvim) = nvim {
+            let paste_code = if self.mode.is(&mode::NvimMode::Normal) {
+                format!("\"{}p", clipboard)
+            } else {
+                format!("<C-r>{}", clipboard)
+            };
+
+            nvim.input(&paste_code).report_err(&mut *nvim);
+        }
+    }
+
 }
 
 pub struct UiState {
@@ -543,17 +557,7 @@ impl Shell {
     }
 
     pub fn edit_paste(&self) {
-        let state = self.state.borrow();
-        let paste_command = if state.mode.is(&mode::NvimMode::Normal) {
-            "\"*p"
-        } else {
-            "<Esc>\"*pa"
-        };
-
-        let nvim = state.nvim();
-        if let Some(mut nvim) = nvim {
-            nvim.input(paste_command).report_err(&mut *nvim);
-        }
+        self.state.borrow().edit_paste("+");
     }
 
     pub fn edit_save_all(&self) {
@@ -633,6 +637,9 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
         ui_state.mouse_pressed = true;
 
         mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position());
+        if ev.get_button() == 2 {
+            shell.edit_paste("*");
+        }
     }
     Inhibit(false)
 }
