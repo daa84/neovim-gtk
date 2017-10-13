@@ -28,6 +28,7 @@ mod color;
 mod value;
 mod mode;
 mod ui_model;
+mod plug_manager;
 #[macro_use]
 mod ui;
 mod nvim;

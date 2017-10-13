@@ -14,6 +14,7 @@ use settings::Settings;
 use shell::{Shell, ShellOptions};
 use shell_dlg;
 use project::Projects;
+use plug_manager;
 
 pub struct Ui {
     initialized: bool,
@@ -30,8 +31,8 @@ pub struct Components {
 
 impl Components {
     fn new() -> Components {
-        let save_image = Image::new_from_icon_name("document-open",
-                                                   gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+        let save_image =
+            Image::new_from_icon_name("document-open", gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
 
         Components {
             open_btn: ToolButton::new(Some(&save_image), "Open"),
@@ -96,24 +97,41 @@ impl Ui {
 
             let projects = self.projects.clone();
             header_bar.pack_start(&comps.open_btn);
-            comps
-                .open_btn
-                .connect_clicked(move |_| projects.borrow_mut().show());
+            comps.open_btn.connect_clicked(
+                move |_| projects.borrow_mut().show(),
+            );
 
-            let save_image = Image::new_from_icon_name("document-save",
-                                                       gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+            let save_image = Image::new_from_icon_name(
+                "document-save",
+                gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32,
+            );
             let save_btn = ToolButton::new(Some(&save_image), "Save");
 
             let shell = self.shell.clone();
             save_btn.connect_clicked(move |_| shell.borrow_mut().edit_save_all());
             header_bar.pack_start(&save_btn);
 
-            let paste_image = Image::new_from_icon_name("edit-paste",
-                                                        gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+            let paste_image = Image::new_from_icon_name(
+                "edit-paste",
+                gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32,
+            );
             let paste_btn = ToolButton::new(Some(&paste_image), "Paste");
             let shell = self.shell.clone();
             paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
             header_bar.pack_start(&paste_btn);
+
+            let plug_image = Image::new_from_icon_name(
+                "system-software-install",
+                gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32,
+            );
+            let plug_btn = ToolButton::new(Some(&plug_image), "Plug");
+
+            let comps_ref = self.comps.clone();
+            plug_btn.connect_clicked(move |_| {
+                plug_manager::Ui::new().show(comps_ref.borrow().window.as_ref().unwrap())
+            });
+            header_bar.pack_start(&plug_btn);
+
             header_bar.set_show_close_button(true);
 
             window.set_titlebar(Some(&header_bar));
@@ -134,7 +152,7 @@ impl Ui {
         shell.grab_focus();
 
         let comps_ref = self.comps.clone();
-        shell.set_detach_cb(Some(move || { 
+        shell.set_detach_cb(Some(move || {
             let comps_ref = comps_ref.clone();
             gtk::idle_add(move || {
                 comps_ref.borrow().close_window();
@@ -178,13 +196,13 @@ fn gtk_delete(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
     }
 
     Inhibit(if shell_dlg::can_close_window(comps, shell) {
-                let comps = comps.borrow();
-                comps.close_window();
-                shell.borrow_mut().detach_ui();
-                false
-            } else {
-                true
-            })
+        let comps = comps.borrow();
+        comps.close_window();
+        shell.borrow_mut().detach_ui();
+        false
+    } else {
+        true
+    })
 }
 
 pub struct UiMutex<T: ?Sized> {
