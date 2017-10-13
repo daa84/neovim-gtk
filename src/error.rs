@@ -34,9 +34,7 @@ impl ErrorArea {
                                        <span foreground=\"red\"><i>{}</i></span>\n\n\
                                        <big>Possible error reasons:</big>\n\
                                        &#9679; Not supported nvim version (minimum supported version is <b>{}</b>)\n\
-                                       &#9679; Error in configuration file (init.vim or ginit.vim)\n\
-                                       &#9679; Wrong nvim binary path \
-                                       (right path can be passed with <i>--nvim-bin-path=path_here</i>)", 
+                                       &#9679; Error in configuration file (init.vim or ginit.vim)",
                                        encode_minimal(err), shell::MINIMUM_SUPPORTED_NVIM_VERSION));
         self.base.show_all();
     }

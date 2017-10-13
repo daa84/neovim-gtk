@@ -236,6 +236,8 @@ pub fn start(
 
     cmd.arg("--embed")
         .arg("--headless")
+        // Swap files are disabled because it shows message window on start up but frontend can't detect it.
+        .arg("-n")
         .arg("--cmd")
         .arg("set termguicolors")
         .arg("--cmd")
@@ -388,15 +390,19 @@ fn call_gui_event(
             match try_str!(args[0]) {
                 "Popupmenu" => {
                     ui.nvim()
-                        .unwrap()
-                        .set_option(UiOption::ExtPopupmenu(try_uint!(args[1]) == 1))
-                        .map_err(|e| e.to_string())?
+                        .ok_or_else(|| "Nvim not initialized".to_owned())
+                        .and_then(|mut nvim| {
+                            nvim.set_option(UiOption::ExtPopupmenu(try_uint!(args[1]) == 1))
+                                .map_err(|e| e.to_string())
+                        })?
                 }
                 "Tabline" => {
                     ui.nvim()
-                        .unwrap()
-                        .set_option(UiOption::ExtTabline(try_uint!(args[1]) == 1))
-                        .map_err(|e| e.to_string())?
+                        .ok_or_else(|| "Nvim not initialized".to_owned())
+                        .and_then(|mut nvim| {
+                            nvim.set_option(UiOption::ExtTabline(try_uint!(args[1]) == 1))
+                                .map_err(|e| e.to_string())
+                        })?
                 }
                 opt => error!("Unknown option {}", opt),
             }
