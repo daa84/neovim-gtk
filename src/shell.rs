@@ -341,7 +341,6 @@ impl State {
             nvim.input(&paste_code).report_err(&mut *nvim);
         }
     }
-
 }
 
 pub struct UiState {
@@ -432,10 +431,15 @@ impl Shell {
             )
         });
 
+        let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
         state.drawing_area.connect_button_release_event(
-            move |_, _| {
-                gtk_button_release(&mut *ref_ui_state.borrow_mut())
+            move |_, ev| {
+                gtk_button_release(
+                    &mut *ref_state.borrow_mut(),
+                    &mut *ref_ui_state.borrow_mut(),
+                    ev,
+                )
             },
         );
 
@@ -636,9 +640,14 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
     if shell.mouse_enabled {
         ui_state.mouse_pressed = true;
 
-        mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position());
-        if ev.get_button() == 2 {
-            shell.edit_paste("*");
+        match ev.get_button() {
+            1 => mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position()),
+            2 => {
+                mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position());
+                shell.edit_paste("*");
+            }
+            3 => mouse_input(shell, "RightMouse", ev.get_state(), ev.get_position()),
+            _ => (),
         }
     }
     Inhibit(false)
@@ -663,8 +672,18 @@ fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f
     }
 }
 
-fn gtk_button_release(ui_state: &mut UiState) -> Inhibit {
+fn gtk_button_release(shell: &mut State, ui_state: &mut UiState, ev: &EventButton) -> Inhibit {
     ui_state.mouse_pressed = false;
+
+    if shell.mouse_enabled {
+        match ev.get_button() {
+            1 => mouse_input(shell, "LeftRelease", ev.get_state(), ev.get_position()),
+            2 => mouse_input(shell, "MiddleRelease", ev.get_state(), ev.get_position()),
+            3 => mouse_input(shell, "RightRelease", ev.get_state(), ev.get_position()),
+            _ => (),
+        }
+    }
+
     Inhibit(false)
 }
 
