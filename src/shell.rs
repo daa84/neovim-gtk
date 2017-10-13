@@ -332,13 +332,14 @@ impl State {
     fn edit_paste(&self, clipboard: &str) {
         let nvim = self.nvim();
         if let Some(mut nvim) = nvim {
-            let paste_code = if self.mode.is(&mode::NvimMode::Normal) {
-                format!("\"{}p", clipboard)
+            if self.mode.is(&mode::NvimMode::Insert) || self.mode.is(&mode::NvimMode::Normal) {
+                let paste_code = format!("normal! \"{}p", clipboard);
+                nvim.command(&paste_code).report_err(&mut *nvim);
             } else {
-                format!("<C-r>{}", clipboard)
+                let paste_code = format!("<C-r>{}", clipboard);
+                nvim.input(&paste_code).report_err(&mut *nvim);
             };
 
-            nvim.input(&paste_code).report_err(&mut *nvim);
         }
     }
 }
