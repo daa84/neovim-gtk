@@ -766,25 +766,19 @@ fn init_nvim_async(
     });
 
     // attach ui
-    let mut nvim = Some(nvim);
-    glib::idle_add(move || {
-        let mut nvim = nvim.take().unwrap();
-        if let Err(err) = nvim::post_start_init(
-            &mut nvim,
-            options.open_path.as_ref(),
-            cols as u64,
-            rows as u64,
-        )
-        {
-            show_nvim_init_error(&err, state_arc.clone());
-        } else {
-            let mut state = state_arc.borrow_mut();
-            state.nvim.borrow_mut().set_initialized(nvim);
-            state.cursor.as_mut().unwrap().start();
-        }
-
-        Continue(false)
-    });
+    if let Err(err) = nvim::post_start_init(
+        &mut nvim,
+        options.open_path.as_ref(),
+        cols as u64,
+        rows as u64,
+    )
+    {
+        show_nvim_init_error(&err, state_arc.clone());
+    } else {
+        let mut state = state_arc.borrow_mut();
+        state.nvim.borrow_mut().set_initialized(nvim);
+        state.cursor.as_mut().unwrap().start();
+    }
 }
 
 fn draw_initializing(state: &State, ctx: &cairo::Context) {
