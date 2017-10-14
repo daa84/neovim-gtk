@@ -333,7 +333,7 @@ impl State {
         let nvim = self.nvim();
         if let Some(mut nvim) = nvim {
             if self.mode.is(&mode::NvimMode::Insert) || self.mode.is(&mode::NvimMode::Normal) {
-                let paste_code = format!("normal! \"{}p", clipboard);
+                let paste_code = format!("normal! \"{}P", clipboard);
                 nvim.command(&paste_code).report_err(&mut *nvim);
             } else {
                 let paste_code = format!("<C-r>{}", clipboard);
