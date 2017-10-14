@@ -29,19 +29,14 @@ Or to some custom path:
 make PREFIX=/some/custom/path install
 ```
 
-## Ubuntu snap package
-Not usable for now due to some limitation!
-
-This package also includes neovim, so neovim not needed and if present in system - not used. Install command:
+## archlinux
+AUR package for neovim-gtk https://aur.archlinux.org/packages/neovim-gtk-git
+```shell
+git clone https://aur.archlinux.org/neovim-gtk-git.git
+cd neovim-gtk-git 
+makepkg -si
 ```
-sudo snap install nvim-gtk --channel=candidate
-```
-There is some limitation for package: only `/home` directory available for editing and '~' is mapped to snap home directory.
-Config files must be placed in `~/snap/nvim-gtk/common/config/nvim/[g]init.vim` directory
 
-Run command: `nvim-gtk <file_name>` or from dash: `NeovimGtk`.
-
-To run neovim provided by snap package execute: `nvim-gtk.neovim`.
 
 # Build
 ## Linux
