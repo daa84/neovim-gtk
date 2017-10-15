@@ -766,22 +766,27 @@ fn init_nvim_async(
     });
 
     // attach ui
+    if let Err(err) = nvim::post_start_init(
+        &mut nvim,
+        options.open_path.as_ref(),
+        cols as u64,
+        rows as u64,
+    )
+    {
+        show_nvim_init_error(&err, state_arc.clone());
+    } else {
+        set_nvim_initialized(nvim, state_arc);
+    }
+}
+
+fn set_nvim_initialized(nvim: Neovim, state_arc: Arc<UiMutex<State>>) {
     let mut nvim = Some(nvim);
     glib::idle_add(move || {
-        let mut nvim = nvim.take().unwrap();
-        if let Err(err) = nvim::post_start_init(
-            &mut nvim,
-            options.open_path.as_ref(),
-            cols as u64,
-            rows as u64,
-        )
-        {
-            show_nvim_init_error(&err, state_arc.clone());
-        } else {
-            let mut state = state_arc.borrow_mut();
-            state.nvim.borrow_mut().set_initialized(nvim);
-            state.cursor.as_mut().unwrap().start();
-        }
+        let mut state = state_arc.borrow_mut();
+        state.nvim.borrow_mut().set_initialized(
+            nvim.take().unwrap(),
+        );
+        state.cursor.as_mut().unwrap().start();
 
         Continue(false)
     });
