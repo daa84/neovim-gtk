@@ -22,6 +22,7 @@ pub struct Ui {
     settings: Rc<RefCell<Settings>>,
     shell: Rc<RefCell<Shell>>,
     projects: Rc<RefCell<Projects>>,
+    plug_manager: Arc<UiMutex<plug_manager::Manager>>,
 }
 
 pub struct Components {
@@ -57,6 +58,7 @@ impl Ui {
         settings.borrow_mut().set_shell(Rc::downgrade(&shell));
 
         let projects = Projects::new(&comps.borrow().open_btn, shell.clone());
+        let plug_manager = Arc::new(UiMutex::new(plug_manager::Manager::new()));
 
         Ui {
             initialized: false,
@@ -64,6 +66,7 @@ impl Ui {
             shell,
             settings,
             projects,
+            plug_manager,
         }
     }
 
@@ -158,6 +161,12 @@ impl Ui {
                 comps_ref.borrow().close_window();
                 Continue(false)
             });
+        }));
+
+        let state_ref = self.shell.borrow().state.clone();
+        let plug_manager_ref = self.plug_manager.clone();
+        shell.set_nvim_started_cb(Some(move || {
+            plug_manager_ref.borrow_mut().initialize(state_ref.borrow().nvim_clone());
         }));
     }
 
