@@ -1,11 +1,17 @@
 use gtk;
 use gtk::prelude::*;
 
-pub struct Ui {}
+use super::manager;
 
-impl Ui {
-    pub fn new() -> Self {
-        Ui {}
+pub struct Ui <'a> {
+    manager: &'a manager::Manager,
+}
+
+impl <'a> Ui <'a> {
+    pub fn new(manager: &'a manager::Manager) -> Ui<'a> {
+        Ui {
+            manager,
+        }
     }
 
     pub fn show<T: IsA<gtk::Window>>(&self, parent: &T) {

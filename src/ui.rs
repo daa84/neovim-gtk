@@ -130,8 +130,10 @@ impl Ui {
             let plug_btn = ToolButton::new(Some(&plug_image), "Plug");
 
             let comps_ref = self.comps.clone();
+            let plug_manager_ref = self.plug_manager.clone();
             plug_btn.connect_clicked(move |_| {
-                plug_manager::Ui::new().show(comps_ref.borrow().window.as_ref().unwrap())
+                plug_manager::Ui::new(&mut *plug_manager_ref.borrow_mut())
+                    .show(comps_ref.borrow().window.as_ref().unwrap())
             });
             header_bar.pack_start(&plug_btn);
 
@@ -166,7 +168,9 @@ impl Ui {
         let state_ref = self.shell.borrow().state.clone();
         let plug_manager_ref = self.plug_manager.clone();
         shell.set_nvim_started_cb(Some(move || {
-            plug_manager_ref.borrow_mut().initialize(state_ref.borrow().nvim_clone());
+            plug_manager_ref.borrow_mut().initialize(
+                state_ref.borrow().nvim_clone(),
+            );
         }));
     }
 
