@@ -1,19 +1,17 @@
 use std::rc::Rc;
 use std::cell::{RefCell, RefMut};
 
-use neovim_lib::{Neovim, NeovimApi, Value};
+use neovim_lib::{Neovim, NeovimApi};
 
-use nvim::NeovimClient;
+use nvim::{NeovimClient, ErrorReport};
 
 pub struct Manager {
-   nvim: Option<Rc<RefCell<NeovimClient>>>,
+    nvim: Option<Rc<RefCell<NeovimClient>>>,
 }
 
 impl Manager {
     pub fn new() -> Self {
-        Manager { 
-            nvim: None,
-        }
+        Manager { nvim: None }
     }
 
     pub fn initialize(&mut self, nvim: Rc<RefCell<NeovimClient>>) {
@@ -31,10 +29,18 @@ impl Manager {
 
     pub fn get_state(&self) -> State {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command("exists('g:loaded_plug')");
+            let loaded_plug = nvim.eval("exists('g:loaded_plug')");
+            loaded_plug
+                .ok_and_report(&mut *nvim)
+                .and_then(|loaded_plug| loaded_plug.as_i64())
+                .map_or(State::Unknown, |loaded_plug| if loaded_plug > 0 {
+                    State::AlreadyLoaded
+                } else {
+                    State::Unknown
+                })
+        } else {
+            State::Unknown
         }
-        
-        State::Unknown
     }
 }
 

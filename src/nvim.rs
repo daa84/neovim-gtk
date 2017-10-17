@@ -505,16 +505,23 @@ fn call(
     Ok(repaint_mode)
 }
 
-pub trait ErrorReport {
+pub trait ErrorReport<T> {
     fn report_err(&self, nvim: &mut NeovimApi);
+
+    fn ok_and_report(&self, nvim: &mut NeovimApi) -> Option<&T>;
 }
 
-impl<T> ErrorReport for result::Result<T, CallError> {
+impl<T> ErrorReport<T> for result::Result<T, CallError> {
     fn report_err(&self, _: &mut NeovimApi) {
         if let Err(ref err) = *self {
             println!("{}", err);
             //nvim.report_error(&err_msg).expect("Error report error :)");
         }
+    }
+
+    fn ok_and_report(&self, nvim: &mut NeovimApi) -> Option<&T> {
+        self.report_err(nvim);
+        self.as_ref().ok()
     }
 }
 
