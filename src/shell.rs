@@ -643,10 +643,7 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
 
         match ev.get_button() {
             1 => mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position()),
-            2 => {
-                mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position());
-                shell.edit_paste("*");
-            }
+            2 => mouse_input(shell, "MiddleMouse", ev.get_state(), ev.get_position()),
             3 => mouse_input(shell, "RightMouse", ev.get_state(), ev.get_position()),
             _ => (),
         }
