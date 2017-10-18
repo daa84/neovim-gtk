@@ -2,6 +2,7 @@ use gtk;
 use gtk::prelude::*;
 
 use super::manager;
+use super::vim_plug;
 
 pub struct Ui<'a> {
     manager: &'a manager::Manager,
@@ -26,10 +27,10 @@ impl<'a> Ui<'a> {
         let tabs = gtk::Notebook::new();
 
         match self.get_state() {
-            manager::State::AlreadyLoaded => {
+            vim_plug::State::AlreadyLoaded => {
                 let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
                 let warn_lbl = gtk::Label::new(
-                    "Plug manager already loaded.\n\
+                    "vim-plug manager already loaded.\n\
                                                NeovimGtk manages plugins using vim-plug as backend.\n\
                                                To allow NeovimGtk manage plugins please disable vim-plug in your configuration",
                 );
@@ -37,13 +38,14 @@ impl<'a> Ui<'a> {
                 let get_plugins_lbl = gtk::Label::new("Help");
                 tabs.append_page(&get_plugins, Some(&get_plugins_lbl));
             }
-            manager::State::Unknown => {
+            vim_plug::State::Unknown => {
                 let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
                 let get_plugins_lbl = gtk::Label::new("Get Plugins");
                 tabs.append_page(&get_plugins, Some(&get_plugins_lbl));
             }
         }
 
+        self.get_plugs();
         let plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let plugins_lbl = gtk::Label::new("Plugins");
         tabs.append_page(&plugins, Some(&plugins_lbl));
@@ -63,7 +65,11 @@ impl<'a> Ui<'a> {
         dlg.destroy();
     }
 
-    fn get_state(&self) -> manager::State {
-        self.manager.get_state()
+    fn get_state(&self) -> vim_plug::State {
+        self.manager.vim_plug.get_state()
+    }
+
+    fn get_plugs(&self) {
+        self.manager.vim_plug.get_plugs();
     }
 }
