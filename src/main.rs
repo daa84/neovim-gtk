@@ -18,12 +18,14 @@ extern crate log;
 extern crate env_logger;
 extern crate htmlescape;
 
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate toml;
 
 mod sys;
 
+mod dirs;
 mod color;
 mod value;
 mod mode;
