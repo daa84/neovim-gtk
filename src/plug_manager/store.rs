@@ -1,18 +1,45 @@
 use toml;
 
 use settings::SettingsLoader;
+use super::vim_plug;
 
-pub struct Store {}
+pub struct Store {
+    settings: Settings,
+}
 
 impl Store {
-    pub fn new() -> Self {
-        Store {}
+    pub fn load() -> Self {
+        Store { settings: Settings::load() }
+    }
+
+    pub fn load_from_plug(vim_plug: &vim_plug::Manager) -> Self {
+        let settings = match vim_plug.get_plugs() {
+            Err(msg) => {
+                error!("{}", msg);
+                Settings::empty()
+            }
+            Ok(plugs) => {
+                let plugs = plugs
+                    .iter()
+                    .map(|vpi| PlugInfo::new(vpi.name.to_owned(), vpi.uri.to_owned()))
+                    .collect();
+                Settings::new(plugs)
+            }
+        };
+
+        Store { settings }
     }
 }
 
 #[derive(Serialize, Deserialize)]
 struct Settings {
     plugs: Vec<PlugInfo>,
+}
+
+impl Settings {
+    fn new(plugs: Vec<PlugInfo>) -> Self {
+        Settings { plugs }
+    }
 }
 
 impl SettingsLoader for Settings {
