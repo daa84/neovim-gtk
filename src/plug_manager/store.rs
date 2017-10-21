@@ -29,6 +29,10 @@ impl Store {
 
         Store { settings }
     }
+
+    pub fn get_plugs(&self) -> &[PlugInfo] {
+        &self.settings.plugs
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -56,8 +60,8 @@ impl SettingsLoader for Settings {
 
 #[derive(Serialize, Deserialize)]
 pub struct PlugInfo {
-    name: String,
-    url: String,
+    pub name: String,
+    pub url: String,
 }
 
 impl PlugInfo {
