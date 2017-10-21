@@ -33,15 +33,16 @@ impl<'a> Ui<'a> {
             vim_plug::State::AlreadyLoaded => {
                 let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 3);
                 let warn_lbl = gtk::Label::new(None);
-                    warn_lbl.set_markup("<span foreground=\"red\">Note:</span> <b>vim-plug</b> manager already loaded.\n\
-                                               NeovimGtk manages plugins using vim-plug as backend.\n\
-                                               To allow NeovimGtk manage plugins please disable vim-plug in your configuration.\n\
-                                               You can convert vim-plug configuration to NeovimGtk conviguration using button below.\n\
-                                               List of current vim-plug plugins can be found in 'Plugins' tab.",
-                );
+                warn_lbl.set_markup("<span foreground=\"red\">Note:</span> <b>vim-plug</b> manager already loaded!\n\
+                                               NeovimGtk plugins manager will be <b>disabled</b>.\n\
+                                               To enable it please disable vim-plug in your configuration.\n\
+                                               NeovimGtk manages plugins use vim-plug as backend.\n\
+                                               You can convert vim-plug configuration to NeovimGtk configuration using button below.\n\
+                                               List of current vim-plug plugins can be found in 'Plugins' tab.");
                 get_plugins.pack_start(&warn_lbl, true, false, 0);
 
-                let copy_btn = gtk::Button::new_with_label("Copy plugins from current vim-plug configuration");
+                let copy_btn =
+                    gtk::Button::new_with_label("Copy plugins from current vim-plug configuration");
                 get_plugins.pack_start(&copy_btn, false, false, 0);
 
                 let get_plugins_lbl = gtk::Label::new("Help");
@@ -83,6 +84,7 @@ impl<'a> Ui<'a> {
 
         for plug_info in store.get_plugs() {
             let grid = gtk::Grid::new();
+            grid.set_row_spacing(5);
 
             let name_lbl = gtk::Label::new(None);
             name_lbl.set_markup(&format!("<b>{}</b>", plug_info.name.as_str()));
@@ -92,13 +94,17 @@ impl<'a> Ui<'a> {
             grid.attach(&name_lbl, 0, 0, 1, 1);
             grid.attach(&url_lbl, 0, 1, 1, 1);
 
+            let line = gtk::Separator::new(gtk::Orientation::Horizontal);
+            grid.attach(&line, 0, 2, 1, 1);
+
             plugs_panel.insert(&grid, -1);
         }
 
         scroll.add(&plugs_panel);
         panel.pack_start(&scroll, true, true, 0);
 
-        let copy_btn = gtk::Button::new_with_label("Copy plugins from current vim-plug configuration");
+        let copy_btn =
+            gtk::Button::new_with_label("Copy plugins from current vim-plug configuration");
         panel.add(&copy_btn);
     }
 
@@ -106,4 +112,3 @@ impl<'a> Ui<'a> {
         self.manager.vim_plug.get_state()
     }
 }
-
