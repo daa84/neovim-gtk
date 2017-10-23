@@ -1,3 +1,6 @@
+use std::rc::Rc;
+use std::cell::RefCell;
+
 use gtk;
 use gtk::prelude::*;
 
@@ -31,7 +34,7 @@ impl<'a> Ui<'a> {
         let vim_plug_state = self.get_state();
         match vim_plug_state {
             vim_plug::State::AlreadyLoaded => {
-                let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 3);
+                let help = gtk::Box::new(gtk::Orientation::Vertical, 3);
                 let warn_lbl = gtk::Label::new(None);
                 warn_lbl.set_markup("<span foreground=\"red\">Note:</span> <b>vim-plug</b> manager already loaded!\n\
                                                NeovimGtk plugins manager will be <b>disabled</b>.\n\
@@ -39,14 +42,14 @@ impl<'a> Ui<'a> {
                                                NeovimGtk manages plugins use vim-plug as backend.\n\
                                                You can convert vim-plug configuration to NeovimGtk configuration using button below.\n\
                                                List of current vim-plug plugins can be found in 'Plugins' tab.");
-                get_plugins.pack_start(&warn_lbl, true, false, 0);
+                help.pack_start(&warn_lbl, true, false, 0);
 
                 let copy_btn =
                     gtk::Button::new_with_label("Copy plugins from current vim-plug configuration");
-                get_plugins.pack_start(&copy_btn, false, false, 0);
+                help.pack_start(&copy_btn, false, false, 0);
 
                 let get_plugins_lbl = gtk::Label::new("Help");
-                tabs.append_page(&get_plugins, Some(&get_plugins_lbl));
+                tabs.append_page(&help, Some(&get_plugins_lbl));
             }
             vim_plug::State::Unknown => {
                 let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -58,7 +61,8 @@ impl<'a> Ui<'a> {
         let plugins = gtk::Box::new(gtk::Orientation::Vertical, 3);
         let store = self.manager.load_store(&vim_plug_state);
 
-        self.fill_plugin_list(&plugins, &store);
+        let store = Rc::new(RefCell::new(store));
+        Ui::fill_plugin_list(&plugins, &store);
 
         let plugins_lbl = gtk::Label::new("Plugins");
         tabs.append_page(&plugins, Some(&plugins_lbl));
@@ -78,26 +82,42 @@ impl<'a> Ui<'a> {
         dlg.destroy();
     }
 
-    fn fill_plugin_list(&self, panel: &gtk::Box, store: &Store) {
+    fn fill_plugin_list(panel: &gtk::Box, store: &Rc<RefCell<Store>>) {
         let scroll = gtk::ScrolledWindow::new(None, None);
         let plugs_panel = gtk::ListBox::new();
+        plugs_panel.set_selection_mode(gtk::SelectionMode::None);
 
-        for plug_info in store.get_plugs() {
-            let grid = gtk::Grid::new();
-            grid.set_row_spacing(5);
+        for (idx, plug_info) in store.borrow().get_plugs().iter().enumerate() {
+            let row = gtk::ListBoxRow::new();
+            let row_container = gtk::Box::new(gtk::Orientation::Vertical, 5);
+            let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+            let vbox = gtk::Box::new(gtk::Orientation::Vertical, 5);
 
             let name_lbl = gtk::Label::new(None);
             name_lbl.set_markup(&format!("<b>{}</b>", plug_info.name.as_str()));
             name_lbl.set_halign(gtk::Align::Start);
             let url_lbl = gtk::Label::new(Some(plug_info.url.as_str()));
+            url_lbl.set_halign(gtk::Align::Start);
+            let remove_btn = gtk::Button::new_with_label("Remove");
+            remove_btn.set_halign(gtk::Align::End);
 
-            grid.attach(&name_lbl, 0, 0, 1, 1);
-            grid.attach(&url_lbl, 0, 1, 1, 1);
+            let store_ref = store.clone();
+            let panel_ref = panel.clone();
+            let row_ref = row.clone();
+            remove_btn.connect_clicked(move |_| {
+                // store_ref.borrow_mut().remove(idx);
+                panel_ref.remove(&row_ref);
+            });
 
-            let line = gtk::Separator::new(gtk::Orientation::Horizontal);
-            grid.attach(&line, 0, 2, 1, 1);
+            row_container.pack_start(&hbox, true, true, 0);
+            row_container.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), true, true, 0);
+            vbox.pack_start(&name_lbl, true, true, 0);
+            vbox.pack_start(&url_lbl, true, true, 0);
+            hbox.pack_start(&vbox, true, true, 0);
+            hbox.pack_start(&remove_btn, false, true, 0);
 
-            plugs_panel.insert(&grid, -1);
+            row.add(&row_container);
+            plugs_panel.add(&row);
         }
 
         scroll.add(&plugs_panel);
