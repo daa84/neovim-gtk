@@ -132,8 +132,13 @@ impl Ui {
             let comps_ref = self.comps.clone();
             let plug_manager_ref = self.plug_manager.clone();
             plug_btn.connect_clicked(move |_| {
-                plug_manager::Ui::new(&mut *plug_manager_ref.borrow_mut())
-                    .show(comps_ref.borrow().window.as_ref().unwrap())
+                plug_manager::Ui::new(&plug_manager_ref).show(
+                    comps_ref
+                        .borrow()
+                        .window
+                        .as_ref()
+                        .unwrap(),
+                )
             });
             header_bar.pack_start(&plug_btn);
 
@@ -168,7 +173,7 @@ impl Ui {
         let state_ref = self.shell.borrow().state.clone();
         let plug_manager_ref = self.plug_manager.clone();
         shell.set_nvim_started_cb(Some(move || {
-            plug_manager_ref.borrow_mut().initialize(
+            plug_manager_ref.borrow_mut().init_nvim_client(
                 state_ref.borrow().nvim_clone(),
             );
         }));

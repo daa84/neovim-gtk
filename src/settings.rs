@@ -128,10 +128,19 @@ pub trait SettingsLoader: Sized + serde::Serialize {
         }
     }
 
+    fn is_file_exists() -> bool {
+        if let Ok(mut toml_path) = dirs::get_app_config_dir() {
+            toml_path.push(Self::SETTINGS_FILE);
+            toml_path.is_file()
+        } else {
+            false
+        }
+    }
+
     fn save(&self) {
         match save_err(self) {
             Ok(()) => (),
-            Err(e) => println!("{}", e),
+            Err(e) => error!("{}", e),
         }
     }
 }

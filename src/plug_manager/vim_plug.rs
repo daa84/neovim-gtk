@@ -72,19 +72,19 @@ impl Manager {
         }
     }
 
-    pub fn get_state(&self) -> State {
+    pub fn is_loaded(&self) -> bool {
         if let Some(mut nvim) = self.nvim() {
             let loaded_plug = nvim.eval("exists('g:loaded_plug')");
             loaded_plug
                 .ok_and_report(&mut *nvim)
                 .and_then(|loaded_plug| loaded_plug.as_i64())
-                .map_or(State::Unknown, |loaded_plug| if loaded_plug > 0 {
-                    State::AlreadyLoaded
+                .map_or(false, |loaded_plug| if loaded_plug > 0 {
+                    true
                 } else {
-                    State::Unknown
+                    false
                 })
         } else {
-            State::Unknown
+            false
         }
     }
 }
@@ -101,7 +101,3 @@ impl VimPlugInfo {
     }
 }
 
-pub enum State {
-    Unknown,
-    AlreadyLoaded,
-}

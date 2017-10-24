@@ -8,6 +8,10 @@ pub struct Store {
 }
 
 impl Store {
+    pub fn is_config_exists() -> bool {
+        Settings::is_file_exists()
+    }
+
     pub fn load() -> Self {
         Store { settings: Settings::load() }
     }
