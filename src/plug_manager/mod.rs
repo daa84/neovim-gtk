@@ -4,4 +4,4 @@ mod store;
 mod manager;
 
 pub use self::ui::Ui;
-pub use self::manager::Manager;
+pub use self::manager::{Manager, PlugManagerConfigSource};

@@ -66,10 +66,43 @@ impl SettingsLoader for Settings {
 pub struct PlugInfo {
     pub name: String,
     pub url: String,
+    pub removed: bool,
 }
 
 impl PlugInfo {
     pub fn new(name: String, url: String) -> Self {
-        PlugInfo { name, url }
+        PlugInfo {
+            name,
+            url,
+            removed: false,
+        }
+    }
+
+    pub fn get_plug_path(&self) -> String {
+        if self.url.contains("github.com") {
+            let mut path_comps: Vec<&str> = self.url
+                .trim_right_matches(".git")
+                .rsplit('/')
+                .take(2)
+                .collect();
+            path_comps.reverse();
+            path_comps.join("/")
+        } else {
+            self.url.clone()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_plug_path() {
+        let plug = PlugInfo::new(
+            "rust.vim".to_owned(),
+            "https://git::@github.com/rust-lang/rust.vim.git".to_owned(),
+        );
+        assert_eq!("rust-lang/rust.vim".to_owned(), plug.get_plug_path());
     }
 }

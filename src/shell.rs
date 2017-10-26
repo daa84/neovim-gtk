@@ -22,6 +22,7 @@ use ui_model::{UiModel, Attrs, ModelRect};
 use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim;
 use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient};
+use nvim_config::NvimConfig;
 use input;
 use input::keyval_to_input_string;
 use cursor::Cursor;
@@ -77,13 +78,14 @@ pub struct State {
     resize_state: Rc<Cell<ResizeState>>,
 
     options: ShellOptions,
+    nvim_config: NvimConfig,
 
     detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
     nvim_started_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
 }
 
 impl State {
-    pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> State {
+    pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions, nvim_config: NvimConfig) -> State {
         let drawing_area = gtk::DrawingArea::new();
         let popup_menu = RefCell::new(PopupMenu::new(&drawing_area));
         let font_ctx = render::Context::new(FontDescription::from_string(DEFAULT_FONT_NAME));
@@ -111,6 +113,7 @@ impl State {
             resize_state: Rc::new(Cell::new(ResizeState::Wait)),
 
             options,
+            nvim_config,
 
             detach_cb: None,
             nvim_started_cb: None,
@@ -390,9 +393,9 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> Shell {
+    pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions, nvim_config: NvimConfig) -> Shell {
         let shell = Shell {
-            state: Arc::new(UiMutex::new(State::new(settings, options))),
+            state: Arc::new(UiMutex::new(State::new(settings, options, nvim_config))),
             ui_state: Rc::new(RefCell::new(UiState::new())),
 
             widget: gtk::Box::new(gtk::Orientation::Vertical, 0),
@@ -765,11 +768,12 @@ fn show_nvim_init_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>
 fn init_nvim_async(
     state_arc: Arc<UiMutex<State>>,
     options: ShellOptions,
+    nvim_config: NvimConfig,
     cols: usize,
     rows: usize,
 ) {
     // execute nvim
-    let mut nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
+    let mut nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref(), nvim_config) {
         Ok(nvim) => nvim,
         Err(err) => {
             show_nvim_start_error(&err, state_arc);
@@ -864,7 +868,8 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
 
         let state_arc = state_ref.clone();
         let options = state.options.clone();
-        thread::spawn(move || init_nvim_async(state_arc, options, cols, rows));
+        let nvim_config = state.nvim_config.clone();
+        thread::spawn(move || init_nvim_async(state_arc, options, nvim_config, cols, rows));
     }
 }
 

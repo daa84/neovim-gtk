@@ -3,6 +3,7 @@ use std::cell::RefCell;
 
 use super::vim_plug;
 use super::store::Store;
+
 use nvim::NeovimClient;
 
 pub struct Manager {
@@ -18,10 +19,12 @@ impl Manager {
         }
     }
 
-    pub fn generate_plug_config(&mut self) -> Option<String> {
+    pub fn load_config(&mut self) -> Option<PlugManagerConfigSource> {
         if Store::is_config_exists() {
-            self.plug_manage_state = PlugManageState::NvimGtk(Store::load());
-            Some("TODO".to_owned())
+            let store = Store::load();
+            let config = PlugManagerConfigSource::new(&store);
+            self.plug_manage_state = PlugManageState::NvimGtk(store);
+            Some(config)
         } else {
             None
         }
@@ -45,3 +48,23 @@ pub enum PlugManageState {
     Configuration(Store),
     Unknown,
 }
+
+#[derive(Clone)]
+pub struct PlugManagerConfigSource {
+    pub source: String,
+}
+
+impl PlugManagerConfigSource {
+    pub fn new(store: &Store) -> Self {
+        let mut builder = "call plug#begin()".to_owned();
+
+        for plug in store.get_plugs() {
+            builder += &format!("Plug '{}'", plug.get_plug_path());
+        }
+
+        builder += "call plug#end()";
+
+        PlugManagerConfigSource { source: builder }
+    }
+}
+

@@ -13,6 +13,7 @@ use ui::UiMutex;
 use ui_model::{ModelRect, ModelRectVec};
 use shell;
 use glib;
+use nvim_config::NvimConfig;
 
 use value::ValueMapExt;
 
@@ -227,6 +228,7 @@ impl error::Error for NvimInitError {
 pub fn start(
     shell: Arc<UiMutex<shell::State>>,
     nvim_bin_path: Option<&String>,
+    nvim_config: NvimConfig,
 ) -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
@@ -255,6 +257,12 @@ pub fn start(
         ));
     } else {
         cmd.arg("--cmd").arg("let &rtp.=',runtime'");
+    }
+
+    if let Some(nvim_config) = nvim_config.generate_config() {
+        if let Some(path) = nvim_config.path().to_str() {
+            cmd.arg("--cmd").arg(format!("source '{}'", path));
+        }
     }
 
     let session = Session::new_child_cmd(&mut cmd);

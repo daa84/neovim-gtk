@@ -35,6 +35,8 @@ serde = "1.0"
 serde_derive = "1.0"
 toml = "0.4"
 
+tempfile = "2.2.0"
+
 #[dependencies.neovim-lib]
 #git = "https://github.com/daa84/neovim-lib"
 

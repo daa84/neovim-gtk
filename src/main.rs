@@ -23,8 +23,11 @@ extern crate serde;
 extern crate serde_derive;
 extern crate toml;
 
+extern crate tempfile;
+
 mod sys;
 
+mod nvim_config;
 mod dirs;
 mod color;
 mod value;
