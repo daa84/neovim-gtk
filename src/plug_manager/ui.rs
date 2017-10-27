@@ -31,7 +31,12 @@ impl<'a> Ui<'a> {
 
         dlg.set_default_size(800, 600);
         let content = dlg.get_content_area();
+        let top_panel = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+
         let tabs = gtk::Notebook::new();
+        tabs.set_tab_pos(gtk::PositionType::Left);
+
+        let enable_swc = gtk::Switch::new();
 
         match self.manager.borrow_mut().plug_manage_state {
             manager::PlugManageState::Unknown => {
@@ -40,9 +45,6 @@ impl<'a> Ui<'a> {
                 warn_lbl.set_markup("<span foreground=\"red\">Note:</span> NeovimGtk plugin manager <b>disabled</b>!");
                 help.pack_start(&warn_lbl, true, false, 0);
 
-                let enable_btn = gtk::Button::new_with_label("Enable NeovimGtk plugin manager");
-                help.pack_start(&enable_btn, false, false, 0);
-
                 let get_plugins_lbl = gtk::Label::new("Help");
                 tabs.append_page(&help, Some(&get_plugins_lbl));
             }
@@ -50,19 +52,8 @@ impl<'a> Ui<'a> {
                 let help = gtk::Box::new(gtk::Orientation::Vertical, 3);
                 let warn_lbl = gtk::Label::new(None);
                 warn_lbl.set_markup("<span foreground=\"red\">Note:</span> NeovimGtk plugin manager <b>disabled</b>!\n\
-                                               NeovimGtk manages plugins use vim-plug as backend, so enable it disables vim-plug configuration.\n\
-                                               You can convert current vim-plug configuration to NeovimGtk configuration using button below.\n\
-                                               List of current vim-plug plugins can be found in 'Plugins' tab.");
+                                               NeovimGtk manages plugins use vim-plug as backend, so enable it disables vim-plug configuration.");
                 help.pack_start(&warn_lbl, true, false, 0);
-
-                let enable_btn = gtk::Button::new_with_label(
-                    "Enable NeovimGtk plugin manager, empty configuration",
-                );
-                help.pack_start(&enable_btn, false, false, 0);
-
-                let copy_btn =
-                    gtk::Button::new_with_label("Copy plugins from current vim-plug configuration");
-                help.pack_start(&copy_btn, false, false, 0);
 
                 let get_plugins_lbl = gtk::Label::new("Help");
                 tabs.append_page(&help, Some(&get_plugins_lbl));
@@ -80,7 +71,9 @@ impl<'a> Ui<'a> {
         }
 
 
-        tabs.set_tab_pos(gtk::PositionType::Left);
+        top_panel.pack_end(&enable_swc, false, false, 0);
+
+        content.pack_start(&top_panel, false, true, 3);
         content.pack_start(&tabs, true, true, 0);
         content.show_all();
 
@@ -154,13 +147,5 @@ impl<'a> Ui<'a> {
 
         scroll.add(&plugs_panel);
         panel.pack_start(&scroll, true, true, 0);
-
-        let enable_btn =
-            gtk::Button::new_with_label("Enable NeovimGtk plugin manager, empty configuration");
-        panel.add(&enable_btn);
-
-        let copy_btn =
-            gtk::Button::new_with_label("Copy plugins from current vim-plug configuration");
-        panel.add(&copy_btn);
     }
 }

@@ -42,11 +42,12 @@ impl Store {
 #[derive(Serialize, Deserialize)]
 struct Settings {
     plugs: Vec<PlugInfo>,
+    enabled: bool,
 }
 
 impl Settings {
     fn new(plugs: Vec<PlugInfo>) -> Self {
-        Settings { plugs }
+        Settings { plugs, enabled: false }
     }
 }
 
@@ -54,7 +55,7 @@ impl SettingsLoader for Settings {
     const SETTINGS_FILE: &'static str = "plugs.toml";
 
     fn empty() -> Self {
-        Settings { plugs: vec![] }
+        Settings { plugs: vec![], enabled: false }
     }
 
     fn from_str(s: &str) -> Result<Self, String> {
