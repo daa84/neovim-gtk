@@ -107,12 +107,14 @@ impl<'a> Ui<'a> {
 
     fn fill_plugin_list(&self, panel: &gtk::Box, store: &Store) {
         let scroll = gtk::ScrolledWindow::new(None, None);
+        scroll.get_style_context().map(|c| c.add_class("view"));
         let plugs_panel = gtk::ListBox::new();
         plugs_panel.set_selection_mode(gtk::SelectionMode::None);
 
         for (idx, plug_info) in store.get_plugs().iter().enumerate() {
             let row = gtk::ListBoxRow::new();
             let row_container = gtk::Box::new(gtk::Orientation::Vertical, 5);
+            row_container.set_border_width(5);
             let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
             let vbox = gtk::Box::new(gtk::Orientation::Vertical, 5);
 
@@ -138,12 +140,6 @@ impl<'a> Ui<'a> {
             });
 
             row_container.pack_start(&hbox, true, true, 0);
-            row_container.pack_start(
-                &gtk::Separator::new(gtk::Orientation::Horizontal),
-                true,
-                true,
-                0,
-            );
             vbox.pack_start(&name_lbl, true, true, 0);
             vbox.pack_start(&url_lbl, true, true, 0);
             hbox.pack_start(&vbox, true, true, 0);
@@ -167,8 +163,9 @@ struct SettingsPages {
 
 impl SettingsPages {
     pub fn new() -> Self {
-        let content = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 5);
         let categories = gtk::ListBox::new();
+        categories.get_style_context().map(|c| c.add_class("view"));
         let stack = gtk::Stack::new();
         stack.set_transition_type(gtk::StackTransitionType::Crossfade);
         let rows: Rc<RefCell<Vec<(gtk::ListBoxRow, &'static str)>>> =
