@@ -1,4 +1,7 @@
 use std::sync::Arc;
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::ops::Deref;
 
 use ui::UiMutex;
 
@@ -31,12 +34,20 @@ impl<'a> Ui<'a> {
 
         dlg.set_default_size(800, 600);
         let content = dlg.get_content_area();
-        let top_panel = gtk::Box::new(gtk::Orientation::Horizontal, 3);
 
-        let tabs = gtk::Notebook::new();
-        tabs.set_tab_pos(gtk::PositionType::Left);
+        let header_bar = gtk::HeaderBar::new();
 
         let enable_swc = gtk::Switch::new();
+        enable_swc.set_valign(gtk::Align::Center);
+        header_bar.pack_end(&enable_swc);
+
+        header_bar.set_title("Plug");
+        header_bar.set_show_close_button(true);
+        header_bar.show_all();
+
+        dlg.set_titlebar(&header_bar);
+
+        let pages = SettingsPages::new();
 
         match self.manager.borrow_mut().plug_manage_state {
             manager::PlugManageState::Unknown => {
@@ -45,8 +56,8 @@ impl<'a> Ui<'a> {
                 warn_lbl.set_markup("<span foreground=\"red\">Note:</span> NeovimGtk plugin manager <b>disabled</b>!");
                 help.pack_start(&warn_lbl, true, false, 0);
 
-                let get_plugins_lbl = gtk::Label::new("Help");
-                tabs.append_page(&help, Some(&get_plugins_lbl));
+                let help_lbl = gtk::Label::new("Help");
+                pages.add_page(&help_lbl, &help, "help");
             }
             manager::PlugManageState::Configuration(ref store) => {
                 let help = gtk::Box::new(gtk::Orientation::Vertical, 3);
@@ -55,26 +66,23 @@ impl<'a> Ui<'a> {
                                                NeovimGtk manages plugins use vim-plug as backend, so enable it disables vim-plug configuration.");
                 help.pack_start(&warn_lbl, true, false, 0);
 
-                let get_plugins_lbl = gtk::Label::new("Help");
-                tabs.append_page(&help, Some(&get_plugins_lbl));
+                let help_lbl = gtk::Label::new("Help");
+                pages.add_page(&help_lbl, &help, "help");
 
-
-                self.add_plugin_list_tab(&tabs, store);
+                self.add_plugin_list_tab(&pages, store);
             }
             manager::PlugManageState::NvimGtk(ref store) => {
                 let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
+                // TODO:
                 let get_plugins_lbl = gtk::Label::new("Get Plugins");
-                tabs.append_page(&get_plugins, Some(&get_plugins_lbl));
+                pages.add_page(&get_plugins_lbl, &get_plugins, "get_plugins");
 
-                self.add_plugin_list_tab(&tabs, store);
+                self.add_plugin_list_tab(&pages, store);
             }
         }
 
 
-        top_panel.pack_end(&enable_swc, false, false, 0);
-
-        content.pack_start(&top_panel, false, true, 3);
-        content.pack_start(&tabs, true, true, 0);
+        content.pack_start(&*pages, true, true, 0);
         content.show_all();
 
 
@@ -88,13 +96,13 @@ impl<'a> Ui<'a> {
         dlg.destroy();
     }
 
-    fn add_plugin_list_tab(&self, tabs: &gtk::Notebook, store: &Store) {
+    fn add_plugin_list_tab(&self, pages: &SettingsPages, store: &Store) {
         // Plugins
         let plugins = gtk::Box::new(gtk::Orientation::Vertical, 3);
         self.fill_plugin_list(&plugins, store);
 
         let plugins_lbl = gtk::Label::new("Plugins");
-        tabs.append_page(&plugins, Some(&plugins_lbl));
+        pages.add_page(&plugins_lbl, &plugins, "plugins");
     }
 
     fn fill_plugin_list(&self, panel: &gtk::Box, store: &Store) {
@@ -147,5 +155,70 @@ impl<'a> Ui<'a> {
 
         scroll.add(&plugs_panel);
         panel.pack_start(&scroll, true, true, 0);
+    }
+}
+
+struct SettingsPages {
+    categories: gtk::ListBox,
+    stack: gtk::Stack,
+    content: gtk::Box,
+    rows: Rc<RefCell<Vec<(gtk::ListBoxRow, &'static str)>>>,
+}
+
+impl SettingsPages {
+    pub fn new() -> Self {
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+        let categories = gtk::ListBox::new();
+        let stack = gtk::Stack::new();
+        stack.set_transition_type(gtk::StackTransitionType::Crossfade);
+        let rows: Rc<RefCell<Vec<(gtk::ListBoxRow, &'static str)>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        content.pack_start(&categories, false, true, 0);
+        content.pack_start(&stack, true, true, 0);
+
+        let rows_ref = rows.clone();
+        let stack_ref = stack.clone();
+        categories.connect_row_selected(move |_, row| if let &Some(ref row) = row {
+            if let Some(ref r) = rows_ref.borrow().iter().find(|r| r.0 == *row) {
+                if let Some(child) = stack_ref.get_child_by_name(&r.1) {
+                    stack_ref.set_visible_child(&child);
+                }
+
+            }
+        });
+
+        SettingsPages {
+            categories,
+            stack,
+            content,
+            rows,
+        }
+    }
+
+    fn add_page<W: gtk::IsA<gtk::Widget>>(
+        &self,
+        label: &gtk::Label,
+        widget: &W,
+        name: &'static str,
+    ) {
+        let row = gtk::ListBoxRow::new();
+
+        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        hbox.set_border_width(12);
+        hbox.pack_start(label, false, true, 0);
+        row.add(&hbox);
+
+        self.categories.add(&row);
+        self.stack.add_named(widget, name);
+        self.rows.borrow_mut().push((row, name));
+    }
+}
+
+impl Deref for SettingsPages {
+    type Target = gtk::Box;
+
+    fn deref(&self) -> &gtk::Box {
+        &self.content
     }
 }
