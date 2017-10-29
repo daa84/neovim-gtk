@@ -67,6 +67,10 @@ impl Manager {
     pub fn save(&self) {
         self.store().map(|s| s.save());
     }
+
+    pub fn clear_removed(&mut self) {
+        self.store_mut().map(|s| s.clear_removed());
+    }
 }
 
 pub enum PlugManageState {
@@ -85,7 +89,9 @@ impl PlugManagerConfigSource {
         let mut builder = "call plug#begin()\n".to_owned();
 
         for plug in store.get_plugs() {
-            builder += &format!("Plug '{}'\n", plug.get_plug_path());
+            if !plug.removed {
+                builder += &format!("Plug '{}'\n", plug.get_plug_path());
+            }
         }
 
         builder += "call plug#end()\n";

@@ -9,7 +9,7 @@ use gtk;
 use gtk::prelude::*;
 
 use super::manager;
-use super::store::Store;
+use super::store::{Store, PlugInfo};
 
 pub struct Ui<'a> {
     manager: &'a Arc<UiMutex<manager::Manager>>,
@@ -81,9 +81,9 @@ impl<'a> Ui<'a> {
 
 
         enable_swc.connect_state_set(move |_, state| {
-            manager_ref.borrow_mut().store_mut().map(|s| {
-                s.set_enabled(state)
-            });
+            manager_ref.borrow_mut().store_mut().map(
+                |s| s.set_enabled(state),
+            );
             Inhibit(false)
         });
 
@@ -93,7 +93,9 @@ impl<'a> Ui<'a> {
 
         match dlg.run() {
             OK_ID => {
-                self.manager.borrow().save();
+                let mut manager = self.manager.borrow_mut();
+                manager.clear_removed();
+                manager.save();
             }
             _ => (),
         }
@@ -113,49 +115,76 @@ impl<'a> Ui<'a> {
         let scroll = gtk::ScrolledWindow::new(None, None);
         scroll.get_style_context().map(|c| c.add_class("view"));
         let plugs_panel = gtk::ListBox::new();
-        plugs_panel.set_selection_mode(gtk::SelectionMode::None);
 
         for (idx, plug_info) in store.get_plugs().iter().enumerate() {
             let row = gtk::ListBoxRow::new();
             let row_container = gtk::Box::new(gtk::Orientation::Vertical, 5);
             row_container.set_border_width(5);
             let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-            let vbox = gtk::Box::new(gtk::Orientation::Vertical, 5);
+            let label_box = create_plug_label(plug_info);
 
-            let name_lbl = gtk::Label::new(None);
-            name_lbl.set_markup(&format!("<b>{}</b>", plug_info.name.as_str()));
-            name_lbl.set_halign(gtk::Align::Start);
-            let url_lbl = gtk::Label::new(Some(plug_info.url.as_str()));
-            url_lbl.set_halign(gtk::Align::Start);
+
+            let button_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            button_box.set_halign(gtk::Align::End);
+
+            let exists_button_box = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+
             let remove_btn = gtk::Button::new_with_label("Remove");
-            remove_btn.set_halign(gtk::Align::End);
+            exists_button_box.pack_start(&remove_btn, false, true, 0);
 
-            //let store_ref = store.clone();
-            let panel_ref = panel.clone();
-            let row_ref = row.clone();
-            remove_btn.connect_clicked(move |_| {
-                // store_ref.borrow_mut().remove(idx);
-                row_ref.remove(row_ref.get_child().as_ref().unwrap());
-                let undo_btn = gtk::Button::new_with_label("Undo");
-                let row_container = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-                row_container.pack_end(&undo_btn, false, true, 0);
-                row_ref.add(&row_container);
-                row_container.show_all();
-            });
+            let undo_btn = gtk::Button::new_with_label("Undo");
+
 
             row_container.pack_start(&hbox, true, true, 0);
-            vbox.pack_start(&name_lbl, true, true, 0);
-            vbox.pack_start(&url_lbl, true, true, 0);
-            hbox.pack_start(&vbox, true, true, 0);
-            hbox.pack_start(&remove_btn, false, true, 0);
+            hbox.pack_start(&label_box, true, true, 0);
+            button_box.pack_start(&exists_button_box, false, true, 0);
+            hbox.pack_start(&button_box, false, true, 0);
 
             row.add(&row_container);
             plugs_panel.add(&row);
+
+
+            let manager_ref = self.manager.clone();
+            remove_btn.connect_clicked(
+                clone!(label_box, button_box, exists_button_box, undo_btn => move |_| {
+                    label_box.set_sensitive(false);
+                    button_box.remove(&exists_button_box);
+                    button_box.pack_start(&undo_btn, false, true, 0);
+                    button_box.show_all();
+                    manager_ref.borrow_mut().store_mut().map(|s| s.remove_plug(idx));
+                }),
+            );
+
+            let manager_ref = self.manager.clone();
+            undo_btn.connect_clicked(
+                clone!(label_box, button_box, exists_button_box, undo_btn => move |_| {
+                    label_box.set_sensitive(true);
+                    button_box.remove(&undo_btn);
+                    button_box.pack_start(&exists_button_box, false, true, 0);
+                    button_box.show_all();
+                    manager_ref.borrow_mut().store_mut().map(|s| s.restore_plug(idx));
+                }),
+            );
         }
 
         scroll.add(&plugs_panel);
         panel.pack_start(&scroll, true, true, 0);
     }
+}
+
+fn create_plug_label(plug_info: &PlugInfo) -> gtk::Box {
+    let label_box = gtk::Box::new(gtk::Orientation::Vertical, 5);
+
+    let name_lbl = gtk::Label::new(None);
+    name_lbl.set_markup(&format!("<b>{}</b>", plug_info.name));
+    name_lbl.set_halign(gtk::Align::Start);
+    let url_lbl = gtk::Label::new(Some(plug_info.get_plug_path().as_str()));
+    url_lbl.set_halign(gtk::Align::Start);
+
+
+    label_box.pack_start(&name_lbl, true, true, 0);
+    label_box.pack_start(&url_lbl, true, true, 0);
+    label_box
 }
 
 fn add_help_tab(pages: &SettingsPages, markup: &str) {
@@ -188,16 +217,16 @@ impl SettingsPages {
         content.pack_start(&categories, false, true, 0);
         content.pack_start(&stack, true, true, 0);
 
-        let rows_ref = rows.clone();
-        let stack_ref = stack.clone();
-        categories.connect_row_selected(move |_, row| if let &Some(ref row) = row {
-            if let Some(ref r) = rows_ref.borrow().iter().find(|r| r.0 == *row) {
-                if let Some(child) = stack_ref.get_child_by_name(&r.1) {
-                    stack_ref.set_visible_child(&child);
+        categories.connect_row_selected(
+            clone!(stack, rows => move |_, row| if let &Some(ref row) = row {
+            if let Some(ref r) = rows.borrow().iter().find(|r| r.0 == *row) {
+                if let Some(child) = stack.get_child_by_name(&r.1) {
+                    stack.set_visible_child(&child);
                 }
 
             }
-        });
+        }),
+        );
 
         SettingsPages {
             categories,

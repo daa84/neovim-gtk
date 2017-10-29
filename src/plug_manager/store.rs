@@ -46,8 +46,20 @@ impl Store {
         self.settings.enabled = enabled;
     }
 
+    pub fn clear_removed(&mut self) {
+        self.settings.plugs.retain(|p| !p.removed);
+    }
+
     pub fn save(&self) {
         self.settings.save();
+    }
+
+    pub fn remove_plug(&mut self, idx: usize) {
+        self.settings.plugs[idx].removed = true;
+    }
+
+    pub fn restore_plug(&mut self, idx: usize) {
+        self.settings.plugs[idx].removed = false;
     }
 }
 

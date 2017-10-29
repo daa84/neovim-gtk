@@ -60,7 +60,9 @@ impl Ui {
         let plug_manager = Arc::new(UiMutex::new(plug_manager));
         let comps = Arc::new(UiMutex::new(Components::new()));
         let settings = Rc::new(RefCell::new(Settings::new()));
-        let shell = Rc::new(RefCell::new(Shell::new(settings.clone(), options, nvim_config)));
+        let shell = Rc::new(RefCell::new(
+            Shell::new(settings.clone(), options, nvim_config),
+        ));
         settings.borrow_mut().set_shell(Rc::downgrade(&shell));
 
         let projects = Projects::new(&comps.borrow().open_btn, shell.clone());
@@ -262,4 +264,21 @@ impl<T: ?Sized> UiMutex<T> {
             panic!("Can access to UI only from main thread");
         }
     }
+}
+
+macro_rules! clone {
+    (@param _) => ( _ );
+    (@param $x:ident) => ( $x );
+    ($($n:ident),+ => move || $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+                move || $body
+        }
+    );
+    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+                move |$(clone!(@param $p),)+| $body
+        }
+    );
 }

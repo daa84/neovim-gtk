@@ -31,9 +31,9 @@ mod color;
 mod value;
 mod mode;
 mod ui_model;
-mod plug_manager;
 #[macro_use]
 mod ui;
+mod plug_manager;
 mod nvim;
 mod render;
 mod shell;
