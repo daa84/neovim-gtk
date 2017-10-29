@@ -10,6 +10,7 @@ use gtk::prelude::*;
 
 use super::manager;
 use super::store::{Store, PlugInfo};
+use super::plugin_settings_dlg;
 
 pub struct Ui<'a> {
     manager: &'a Arc<UiMutex<manager::Manager>>,
@@ -23,19 +24,25 @@ impl<'a> Ui<'a> {
     }
 
     pub fn show<T: IsA<gtk::Window>>(&mut self, parent: &T) {
-        const OK_ID: i32 = 0;
-
         let dlg = gtk::Dialog::new_with_buttons(
             Some("Plug"),
             Some(parent),
-            gtk::DialogFlags::empty(),
-            &[("Ok", OK_ID)],
+            gtk::DIALOG_DESTROY_WITH_PARENT,
+            &[("Ok", gtk::ResponseType::Ok.into())],
         );
 
         dlg.set_default_size(800, 600);
         let content = dlg.get_content_area();
 
         let header_bar = gtk::HeaderBar::new();
+
+        let add_plug_btn = gtk::Button::new_with_label("Add..");
+        header_bar.pack_end(&add_plug_btn);
+
+        let manager_ref = self.manager.clone();
+        add_plug_btn.connect_clicked(clone!(dlg => move |_| {
+            add_plugin(&dlg, &manager_ref);
+        }));
 
         let enable_swc = gtk::Switch::new();
         enable_swc.set_valign(gtk::Align::Center);
@@ -49,7 +56,11 @@ impl<'a> Ui<'a> {
 
         dlg.set_titlebar(&header_bar);
 
-        let pages = SettingsPages::new();
+        let pages = SettingsPages::new(move |row_name| if row_name == "plugins" {
+            add_plug_btn.show();
+        } else {
+            add_plug_btn.hide();
+        });
 
         match self.manager.borrow_mut().plug_manage_state {
             manager::PlugManageState::Unknown => {
@@ -91,13 +102,10 @@ impl<'a> Ui<'a> {
         content.show_all();
 
 
-        match dlg.run() {
-            OK_ID => {
-                let mut manager = self.manager.borrow_mut();
-                manager.clear_removed();
-                manager.save();
-            }
-            _ => (),
+        if dlg.run() == gtk::ResponseType::Ok.into() {
+            let mut manager = self.manager.borrow_mut();
+            manager.clear_removed();
+            manager.save();
         }
 
         dlg.destroy();
@@ -172,6 +180,10 @@ impl<'a> Ui<'a> {
     }
 }
 
+fn add_plugin<F: IsA<gtk::Window>>(parent: &F, manager: &Arc<UiMutex<manager::Manager>>) {
+    plugin_settings_dlg::Builder::new("Add plugin").show(parent);
+}
+
 fn create_plug_label(plug_info: &PlugInfo) -> gtk::Box {
     let label_box = gtk::Box::new(gtk::Orientation::Vertical, 5);
 
@@ -202,10 +214,11 @@ struct SettingsPages {
     stack: gtk::Stack,
     content: gtk::Box,
     rows: Rc<RefCell<Vec<(gtk::ListBoxRow, &'static str)>>>,
+    row_selected: Box<FnMut(&str)>,
 }
 
 impl SettingsPages {
-    pub fn new() -> Self {
+    pub fn new<F: FnMut(&str) + 'static>(row_selected: F) -> Self {
         let content = gtk::Box::new(gtk::Orientation::Horizontal, 5);
         let categories = gtk::ListBox::new();
         categories.get_style_context().map(|c| c.add_class("view"));
@@ -233,6 +246,7 @@ impl SettingsPages {
             stack,
             content,
             rows,
+            row_selected: Box::new(row_selected),
         }
     }
 
