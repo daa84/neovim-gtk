@@ -260,8 +260,8 @@ pub fn start(
     }
 
     if let Some(nvim_config) = nvim_config.generate_config() {
-        if let Some(path) = nvim_config.path().to_str() {
-            cmd.arg("--cmd").arg(format!("source '{}'", path));
+        if let Some(path) = nvim_config.to_str() {
+            cmd.arg("--cmd").arg(format!("source {}", path));
         }
     }
 

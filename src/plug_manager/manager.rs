@@ -13,7 +13,7 @@ pub struct Manager {
 
 impl Manager {
     pub fn new() -> Self {
-        Manager {  
+        Manager {
             vim_plug: vim_plug::Manager::new(),
             plug_manage_state: PlugManageState::Unknown,
         }
@@ -22,9 +22,14 @@ impl Manager {
     pub fn load_config(&mut self) -> Option<PlugManagerConfigSource> {
         if Store::is_config_exists() {
             let store = Store::load();
-            let config = PlugManagerConfigSource::new(&store);
-            self.plug_manage_state = PlugManageState::NvimGtk(store);
-            Some(config)
+            if store.is_enabled() {
+                let config = PlugManagerConfigSource::new(&store);
+                self.plug_manage_state = PlugManageState::NvimGtk(store);
+                Some(config)
+            } else {
+                self.plug_manage_state = PlugManageState::NvimGtk(store);
+                None
+            }
         } else {
             None
         }
@@ -37,15 +42,36 @@ impl Manager {
     pub fn update_state(&mut self) {
         if self.vim_plug.is_loaded() {
             if let PlugManageState::Unknown = self.plug_manage_state {
-                self.plug_manage_state = PlugManageState::Configuration(Store::load_from_plug(&self.vim_plug));
+                self.plug_manage_state =
+                    PlugManageState::VimPlug(Store::load_from_plug(&self.vim_plug));
             }
         }
+    }
+
+    pub fn store_mut(&mut self) -> Option<&mut Store> {
+        match self.plug_manage_state {
+            PlugManageState::NvimGtk(ref mut store) => Some(store),
+            PlugManageState::VimPlug(ref mut store) => Some(store),
+            PlugManageState::Unknown => None,
+        }
+    }
+
+    pub fn store(&self) -> Option<&Store> {
+        match self.plug_manage_state {
+            PlugManageState::NvimGtk(ref store) => Some(store),
+            PlugManageState::VimPlug(ref store) => Some(store),
+            PlugManageState::Unknown => None,
+        }
+    }
+
+    pub fn save(&self) {
+        self.store().map(|s| s.save());
     }
 }
 
 pub enum PlugManageState {
     NvimGtk(Store),
-    Configuration(Store),
+    VimPlug(Store),
     Unknown,
 }
 
@@ -56,15 +82,14 @@ pub struct PlugManagerConfigSource {
 
 impl PlugManagerConfigSource {
     pub fn new(store: &Store) -> Self {
-        let mut builder = "call plug#begin()".to_owned();
+        let mut builder = "call plug#begin()\n".to_owned();
 
         for plug in store.get_plugs() {
-            builder += &format!("Plug '{}'", plug.get_plug_path());
+            builder += &format!("Plug '{}'\n", plug.get_plug_path());
         }
 
-        builder += "call plug#end()";
+        builder += "call plug#end()\n";
 
         PlugManagerConfigSource { source: builder }
     }
 }
-

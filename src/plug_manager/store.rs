@@ -12,6 +12,10 @@ impl Store {
         Settings::is_file_exists()
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.settings.enabled
+    }
+
     pub fn load() -> Self {
         Store { settings: Settings::load() }
     }
@@ -37,12 +41,20 @@ impl Store {
     pub fn get_plugs(&self) -> &[PlugInfo] {
         &self.settings.plugs
     }
+
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.settings.enabled = enabled;
+    }
+
+    pub fn save(&self) {
+        self.settings.save();
+    }
 }
 
 #[derive(Serialize, Deserialize)]
 struct Settings {
-    plugs: Vec<PlugInfo>,
     enabled: bool,
+    plugs: Vec<PlugInfo>,
 }
 
 impl Settings {

@@ -39,6 +39,8 @@ impl<'a> Ui<'a> {
 
         let enable_swc = gtk::Switch::new();
         enable_swc.set_valign(gtk::Align::Center);
+
+        let manager_ref = self.manager.clone();
         header_bar.pack_end(&enable_swc);
 
         header_bar.set_title("Plug");
@@ -51,27 +53,23 @@ impl<'a> Ui<'a> {
 
         match self.manager.borrow_mut().plug_manage_state {
             manager::PlugManageState::Unknown => {
-                let help = gtk::Box::new(gtk::Orientation::Vertical, 3);
-                let warn_lbl = gtk::Label::new(None);
-                warn_lbl.set_markup("<span foreground=\"red\">Note:</span> NeovimGtk plugin manager <b>disabled</b>!");
-                help.pack_start(&warn_lbl, true, false, 0);
-
-                let help_lbl = gtk::Label::new("Help");
-                pages.add_page(&help_lbl, &help, "help");
+                add_help_tab(
+                    &pages,
+                    "<span foreground=\"red\">Note:</span> NeovimGtk plugin manager <b>disabled</b>!",
+                );
             }
-            manager::PlugManageState::Configuration(ref store) => {
-                let help = gtk::Box::new(gtk::Orientation::Vertical, 3);
-                let warn_lbl = gtk::Label::new(None);
-                warn_lbl.set_markup("<span foreground=\"red\">Note:</span> NeovimGtk plugin manager <b>disabled</b>!\n\
-                                               NeovimGtk manages plugins use vim-plug as backend, so enable it disables vim-plug configuration.");
-                help.pack_start(&warn_lbl, true, false, 0);
-
-                let help_lbl = gtk::Label::new("Help");
-                pages.add_page(&help_lbl, &help, "help");
-
+            manager::PlugManageState::VimPlug(ref store) => {
+                enable_swc.set_state(store.is_enabled());
+                add_help_tab(
+                    &pages,
+                    "<span foreground=\"red\">Note:</span> NeovimGtk plugin manager <b>disabled</b>!\n\
+                                               NeovimGtk manages plugins use vim-plug as backend, so enable it disables vim-plug configuration.\n\
+                                               Current configuration taken from your vim-plug",
+                );
                 self.add_plugin_list_tab(&pages, store);
             }
             manager::PlugManageState::NvimGtk(ref store) => {
+                enable_swc.set_state(store.is_enabled());
                 let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
                 // TODO:
                 let get_plugins_lbl = gtk::Label::new("Get Plugins");
@@ -82,13 +80,20 @@ impl<'a> Ui<'a> {
         }
 
 
+        enable_swc.connect_state_set(move |_, state| {
+            manager_ref.borrow_mut().store_mut().map(|s| {
+                s.set_enabled(state)
+            });
+            Inhibit(false)
+        });
+
         content.pack_start(&*pages, true, true, 0);
         content.show_all();
 
 
         match dlg.run() {
             OK_ID => {
-                println!("TODO:");
+                self.manager.borrow().save();
             }
             _ => (),
         }
@@ -97,7 +102,6 @@ impl<'a> Ui<'a> {
     }
 
     fn add_plugin_list_tab(&self, pages: &SettingsPages, store: &Store) {
-        // Plugins
         let plugins = gtk::Box::new(gtk::Orientation::Vertical, 3);
         self.fill_plugin_list(&plugins, store);
 
@@ -126,7 +130,7 @@ impl<'a> Ui<'a> {
             let remove_btn = gtk::Button::new_with_label("Remove");
             remove_btn.set_halign(gtk::Align::End);
 
-            let store_ref = store.clone();
+            //let store_ref = store.clone();
             let panel_ref = panel.clone();
             let row_ref = row.clone();
             remove_btn.connect_clicked(move |_| {
@@ -152,6 +156,16 @@ impl<'a> Ui<'a> {
         scroll.add(&plugs_panel);
         panel.pack_start(&scroll, true, true, 0);
     }
+}
+
+fn add_help_tab(pages: &SettingsPages, markup: &str) {
+    let help = gtk::Box::new(gtk::Orientation::Vertical, 3);
+    let label = gtk::Label::new(None);
+    label.set_markup(markup);
+    help.pack_start(&label, true, false, 0);
+
+    let help_lbl = gtk::Label::new("Help");
+    pages.add_page(&help_lbl, &help, "help");
 }
 
 struct SettingsPages {
