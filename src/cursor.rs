@@ -89,15 +89,21 @@ impl Cursor {
     }
 
     pub fn reset_state(&mut self) {
-        self.start();
+        if self.state.borrow().anim_phase != AnimPhase::Busy {
+            self.start();
+        }
     }
 
     pub fn enter_focus(&mut self) {
-        self.start();
+        if self.state.borrow().anim_phase != AnimPhase::Busy {
+            self.start();
+        }
     }
 
     pub fn leave_focus(&mut self) {
-        self.state.borrow_mut().reset_to(AnimPhase::NoFocus);
+        if self.state.borrow().anim_phase != AnimPhase::Busy {
+            self.state.borrow_mut().reset_to(AnimPhase::NoFocus);
+        }
     }
 
     pub fn busy_on(&mut self) {
