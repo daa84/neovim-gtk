@@ -53,7 +53,7 @@ impl Components {
 
 impl Ui {
     pub fn new(options: ShellOptions) -> Ui {
-        let mut plug_manager = plug_manager::Manager::new();
+        let plug_manager = plug_manager::Manager::new();
         let plug_config = plug_manager.load_config();
 
         let nvim_config = NvimConfig::new(plug_config);

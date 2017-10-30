@@ -2,34 +2,35 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use super::vim_plug;
-use super::store::Store;
+use super::store::{Store, PlugInfo};
 
 use nvim::NeovimClient;
 
 pub struct Manager {
     vim_plug: vim_plug::Manager,
+    pub store: Store,
     pub plug_manage_state: PlugManageState,
 }
 
 impl Manager {
     pub fn new() -> Self {
+
+        let (plug_manage_state, store) = if Store::is_config_exists() {
+            (PlugManageState::NvimGtk, Store::load())
+        } else {
+            (PlugManageState::Unknown, Store::empty())
+        };
+
         Manager {
             vim_plug: vim_plug::Manager::new(),
-            plug_manage_state: PlugManageState::Unknown,
+            plug_manage_state,
+            store,
         }
     }
 
-    pub fn load_config(&mut self) -> Option<PlugManagerConfigSource> {
-        if Store::is_config_exists() {
-            let store = Store::load();
-            if store.is_enabled() {
-                let config = PlugManagerConfigSource::new(&store);
-                self.plug_manage_state = PlugManageState::NvimGtk(store);
-                Some(config)
-            } else {
-                self.plug_manage_state = PlugManageState::NvimGtk(store);
-                None
-            }
+    pub fn load_config(&self) -> Option<PlugManagerConfigSource> {
+        if self.store.is_enabled() {
+            Some(PlugManagerConfigSource::new(&self.store))
         } else {
             None
         }
@@ -40,42 +41,30 @@ impl Manager {
     }
 
     pub fn update_state(&mut self) {
-        if self.vim_plug.is_loaded() {
-            if let PlugManageState::Unknown = self.plug_manage_state {
-                self.plug_manage_state =
-                    PlugManageState::VimPlug(Store::load_from_plug(&self.vim_plug));
+        if let PlugManageState::Unknown = self.plug_manage_state {
+            if self.vim_plug.is_loaded() {
+                self.store = Store::load_from_plug(&self.vim_plug);
+                self.plug_manage_state = PlugManageState::VimPlug;
             }
         }
     }
 
-    pub fn store_mut(&mut self) -> Option<&mut Store> {
-        match self.plug_manage_state {
-            PlugManageState::NvimGtk(ref mut store) => Some(store),
-            PlugManageState::VimPlug(ref mut store) => Some(store),
-            PlugManageState::Unknown => None,
-        }
-    }
-
-    pub fn store(&self) -> Option<&Store> {
-        match self.plug_manage_state {
-            PlugManageState::NvimGtk(ref store) => Some(store),
-            PlugManageState::VimPlug(ref store) => Some(store),
-            PlugManageState::Unknown => None,
-        }
-    }
-
     pub fn save(&self) {
-        self.store().map(|s| s.save());
+        self.store.save();
     }
 
     pub fn clear_removed(&mut self) {
-        self.store_mut().map(|s| s.clear_removed());
+        self.store.clear_removed();
+    }
+
+    pub fn add_plug(&mut self, plug: PlugInfo) {
+        self.store.add_plug(plug);
     }
 }
 
 pub enum PlugManageState {
-    NvimGtk(Store),
-    VimPlug(Store),
+    NvimGtk,
+    VimPlug,
     Unknown,
 }
 

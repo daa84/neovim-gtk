@@ -20,6 +20,10 @@ impl Store {
         Store { settings: Settings::load() }
     }
 
+    pub fn empty() -> Self {
+        Store { settings: Settings::empty() }
+    }
+
     pub fn load_from_plug(vim_plug: &vim_plug::Manager) -> Self {
         let settings = match vim_plug.get_plugs() {
             Err(msg) => {
@@ -60,6 +64,14 @@ impl Store {
 
     pub fn restore_plug(&mut self, idx: usize) {
         self.settings.plugs[idx].removed = false;
+    }
+
+    pub fn add_plug(&mut self, plug: PlugInfo) {
+        self.settings.plugs.push(plug);
+    }
+
+    pub fn plugs_count(&self) -> usize {
+        self.settings.plugs.len()
     }
 }
 
