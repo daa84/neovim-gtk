@@ -22,13 +22,7 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate toml;
-
-// http request library
-extern crate futures;
-extern crate hyper;
-extern crate tokio_core;
 extern crate serde_json;
-extern crate hyper_tls;
 
 mod sys;
 

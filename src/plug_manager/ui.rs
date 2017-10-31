@@ -11,7 +11,7 @@ use gtk::prelude::*;
 use super::manager;
 use super::store::{Store, PlugInfo};
 use super::plugin_settings_dlg;
-use super::vimawesome::Vimawesome;
+use super::vimawesome;
 
 pub struct Ui<'a> {
     manager: &'a Arc<UiMutex<manager::Manager>>,
@@ -63,6 +63,8 @@ impl<'a> Ui<'a> {
 
         enable_swc.set_state(self.manager.borrow().store.is_enabled());
 
+        let get_plugins = add_get_plugins_tab(&pages);
+
         match self.manager.borrow().plug_manage_state {
             manager::PlugManageState::Unknown => {
                 add_help_tab(
@@ -78,15 +80,7 @@ impl<'a> Ui<'a> {
                                                Current configuration taken from your vim-plug",
                 );
             }
-            manager::PlugManageState::NvimGtk => {
-                let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
-                Vimawesome::new().log();
-
-                let get_plugins_lbl = gtk::Label::new("Get Plugins");
-                pages.add_page(&get_plugins_lbl, &get_plugins, "get_plugins");
-
-            }
+            manager::PlugManageState::NvimGtk => {}
         }
 
         let plugs_panel = self.add_plugin_list_tab(&pages, &self.manager.borrow().store);
@@ -105,9 +99,26 @@ impl<'a> Ui<'a> {
         content.pack_start(&*pages, true, true, 0);
         content.show_all();
 
+        let get_plugins = UiMutex::new(get_plugins);
+        vimawesome::call(move |res| {
+            let panel = get_plugins.borrow();
+            for child in panel.get_children() {
+                panel.remove(&child);
+            }
+            match res {
+                Ok(list) => {
+                    let result = vimawesome::build_result_panel(&list);
+                    panel.pack_start(&result, true, true, 0);
+                }
+                Err(e) => {
+                    panel.pack_start(&gtk::Label::new(format!("{}", e).as_str()), false, true, 0);
+                    error!("{}", e)
+                },
+            }
+        });
 
         let ok: i32 = gtk::ResponseType::Ok.into();
-        if dlg.run()  == ok {
+        if dlg.run() == ok {
             let mut manager = self.manager.borrow_mut();
             manager.clear_removed();
             manager.save();
@@ -224,6 +235,23 @@ fn create_plug_label(plug_info: &PlugInfo) -> gtk::Box {
     label_box.pack_start(&name_lbl, true, true, 0);
     label_box.pack_start(&url_lbl, true, true, 0);
     label_box
+}
+
+fn add_get_plugins_tab(pages: &SettingsPages) -> gtk::Box {
+    let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let spinner = gtk::Spinner::new();
+    let get_plugins_lbl = gtk::Label::new("Get Plugins");
+    pages.add_page(&get_plugins_lbl, &get_plugins, "get_plugins");
+
+    let list_panel = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let link_button = gtk::Label::new(None);
+    link_button.set_markup("Plugins source: <a href=\"https://vimawesome.com\">https://vimawesome.com</a>");
+    get_plugins.pack_start(&link_button, false, true, 15);
+    get_plugins.pack_start(&list_panel, true, true, 0);
+    list_panel.pack_start(&spinner, true, true, 0);
+    spinner.start();
+
+    list_panel
 }
 
 fn add_help_tab(pages: &SettingsPages, markup: &str) {
