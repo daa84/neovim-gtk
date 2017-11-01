@@ -63,7 +63,10 @@ impl<'a> Ui<'a> {
 
         enable_swc.set_state(self.manager.borrow().store.is_enabled());
 
-        let get_plugins = add_get_plugins_tab(&pages);
+        let plugins = gtk::Box::new(gtk::Orientation::Vertical, 3);
+        let plugs_panel = self.fill_plugin_list(&plugins, &self.manager.borrow().store);
+
+        add_vimawesome_tab(&pages, &self.manager, &plugs_panel);
 
         match self.manager.borrow().plug_manage_state {
             manager::PlugManageState::Unknown => {
@@ -83,7 +86,8 @@ impl<'a> Ui<'a> {
             manager::PlugManageState::NvimGtk => {}
         }
 
-        let plugs_panel = self.add_plugin_list_tab(&pages, &self.manager.borrow().store);
+        let plugins_lbl = gtk::Label::new("Plugins");
+        pages.add_page(&plugins_lbl, &plugins, "plugins");
 
         let manager_ref = self.manager.clone();
         enable_swc.connect_state_set(move |_, state| {
@@ -93,29 +97,12 @@ impl<'a> Ui<'a> {
 
         let manager_ref = self.manager.clone();
         add_plug_btn.connect_clicked(clone!(dlg => move |_| {
-            add_plugin(&dlg, &manager_ref, &plugs_panel);
+            show_add_plug_dlg(&dlg, &manager_ref, &plugs_panel);
         }));
 
         content.pack_start(&*pages, true, true, 0);
         content.show_all();
 
-        let get_plugins = UiMutex::new(get_plugins);
-        vimawesome::call(move |res| {
-            let panel = get_plugins.borrow();
-            for child in panel.get_children() {
-                panel.remove(&child);
-            }
-            match res {
-                Ok(list) => {
-                    let result = vimawesome::build_result_panel(&list);
-                    panel.pack_start(&result, true, true, 0);
-                }
-                Err(e) => {
-                    panel.pack_start(&gtk::Label::new(format!("{}", e).as_str()), false, true, 0);
-                    error!("{}", e)
-                },
-            }
-        });
 
         let ok: i32 = gtk::ResponseType::Ok.into();
         if dlg.run() == ok {
@@ -125,15 +112,6 @@ impl<'a> Ui<'a> {
         }
 
         dlg.destroy();
-    }
-
-    fn add_plugin_list_tab(&self, pages: &SettingsPages, store: &Store) -> gtk::ListBox {
-        let plugins = gtk::Box::new(gtk::Orientation::Vertical, 3);
-        let plugs_panel = self.fill_plugin_list(&plugins, store);
-
-        let plugins_lbl = gtk::Label::new("Plugins");
-        pages.add_page(&plugins_lbl, &plugins, "plugins");
-        plugs_panel
     }
 
     fn fill_plugin_list(&self, panel: &gtk::Box, store: &Store) -> gtk::ListBox {
@@ -152,6 +130,34 @@ impl<'a> Ui<'a> {
 
         plugs_panel
     }
+}
+
+fn populate_get_plugins(
+    query: Option<String>,
+    get_plugins: &gtk::Box,
+    manager: Arc<UiMutex<manager::Manager>>,
+    plugs_panel: gtk::ListBox,
+) {
+    let plugs_panel = UiMutex::new(plugs_panel);
+    let get_plugins = UiMutex::new(get_plugins.clone());
+    vimawesome::call(query, move |res| {
+        let panel = get_plugins.borrow();
+        for child in panel.get_children() {
+            panel.remove(&child);
+        }
+        match res {
+            Ok(list) => {
+                let result = vimawesome::build_result_panel(&list, move |new_plug| {
+                    add_plugin(&manager, &*plugs_panel.borrow(), new_plug);
+                });
+                panel.pack_start(&result, true, true, 0);
+            }
+            Err(e) => {
+                panel.pack_start(&gtk::Label::new(format!("{}", e).as_str()), false, true, 0);
+                error!("{}", e)
+            }
+        }
+    });
 }
 
 fn create_plug_row(
@@ -208,17 +214,38 @@ fn create_plug_row(
     row
 }
 
-fn add_plugin<F: IsA<gtk::Window>>(
+fn show_add_plug_dlg<F: IsA<gtk::Window>>(
     parent: &F,
     manager: &Arc<UiMutex<manager::Manager>>,
     plugs_panel: &gtk::ListBox,
 ) {
     if let Some(new_plugin) = plugin_settings_dlg::Builder::new("Add plugin").show(parent) {
-        let row = create_plug_row(manager.borrow().store.plugs_count(), &new_plugin, manager);
+        add_plugin(manager, plugs_panel, new_plugin);
+    }
+}
+
+fn add_plugin(
+    manager: &Arc<UiMutex<manager::Manager>>,
+    plugs_panel: &gtk::ListBox,
+    new_plugin: PlugInfo,
+) -> bool {
+    let row = create_plug_row(manager.borrow().store.plugs_count(), &new_plugin, manager);
+
+    if manager.borrow_mut().add_plug(new_plugin) {
         row.show_all();
         plugs_panel.add(&row);
-
-        manager.borrow_mut().add_plug(new_plugin);
+        true
+    } else {
+        let dlg = gtk::MessageDialog::new(
+            None::<&gtk::Window>,
+            gtk::DialogFlags::empty(),
+            gtk::MessageType::Error,
+            gtk::ButtonsType::Ok,
+            "Plugin with this name or path already exists",
+        );
+        dlg.run();
+        dlg.destroy();
+        false
     }
 }
 
@@ -237,7 +264,11 @@ fn create_plug_label(plug_info: &PlugInfo) -> gtk::Box {
     label_box
 }
 
-fn add_get_plugins_tab(pages: &SettingsPages) -> gtk::Box {
+fn add_vimawesome_tab(
+    pages: &SettingsPages,
+    manager: &Arc<UiMutex<manager::Manager>>,
+    plugs_panel: &gtk::ListBox,
+) {
     let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let spinner = gtk::Spinner::new();
     let get_plugins_lbl = gtk::Label::new("Get Plugins");
@@ -245,13 +276,30 @@ fn add_get_plugins_tab(pages: &SettingsPages) -> gtk::Box {
 
     let list_panel = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let link_button = gtk::Label::new(None);
-    link_button.set_markup("Plugins source: <a href=\"https://vimawesome.com\">https://vimawesome.com</a>");
-    get_plugins.pack_start(&link_button, false, true, 15);
+    link_button.set_markup(
+        "Plugins are taken from: <a href=\"https://vimawesome.com\">https://vimawesome.com</a>",
+    );
+    let search_entry = gtk::Entry::new();
+    search_entry.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, "edit-find");
+
+    get_plugins.pack_start(&link_button, false, true, 10);
+    get_plugins.pack_start(&search_entry, false, true, 5);
     get_plugins.pack_start(&list_panel, true, true, 0);
     list_panel.pack_start(&spinner, true, true, 0);
     spinner.start();
 
-    list_panel
+    search_entry.connect_activate(clone!(list_panel, manager, plugs_panel => move |se| {
+        let spinner = gtk::Spinner::new();
+        list_panel.pack_start(&spinner, false, true, 5);
+        spinner.show();
+        spinner.start();
+        populate_get_plugins(se.get_text(), &list_panel, manager.clone(), plugs_panel.clone());
+    }));
+
+    gtk::idle_add(clone!(manager, plugs_panel => move || {
+        populate_get_plugins(None, &list_panel, manager.clone(), plugs_panel.clone());
+        Continue(false)
+    }));
 }
 
 fn add_help_tab(pages: &SettingsPages, markup: &str) {

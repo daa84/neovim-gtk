@@ -66,8 +66,13 @@ impl Store {
         self.settings.plugs[idx].removed = false;
     }
 
-    pub fn add_plug(&mut self, plug: PlugInfo) {
+    pub fn add_plug(&mut self, plug: PlugInfo) -> bool {
+        let path = plug.get_plug_path();
+        if self.settings.plugs.iter().any(|p| p.get_plug_path() == path || p.name == plug.name) {
+            return false;
+        }
         self.settings.plugs.push(plug);
+        true
     }
 
     pub fn plugs_count(&self) -> usize {

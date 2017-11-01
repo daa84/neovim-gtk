@@ -57,8 +57,8 @@ impl Manager {
         self.store.clear_removed();
     }
 
-    pub fn add_plug(&mut self, plug: PlugInfo) {
-        self.store.add_plug(plug);
+    pub fn add_plug(&mut self, plug: PlugInfo) -> bool {
+        self.store.add_plug(plug)
     }
 }
 

@@ -1,5 +1,6 @@
 use std::io;
 use std::thread;
+use std::rc::Rc;
 use std::process::{Command, Stdio};
 
 use serde_json;
@@ -8,23 +9,28 @@ use gtk;
 use gtk::prelude::*;
 use glib;
 
-pub fn call<F>(cb: F)
+use super::store::PlugInfo;
+
+pub fn call<F>(query: Option<String>, cb: F)
 where
     F: FnOnce(io::Result<DescriptionList>) + Send + 'static,
 {
     thread::spawn(move || {
         let mut cb = Some(cb);
         glib::idle_add(move || {
-            cb.take().unwrap()(request());
-            glib::Continue(false)
+            cb.take().unwrap()(request(query.as_ref().map(|s| s.as_ref())));
+            Continue(false)
         })
     });
 }
 
-fn request() -> io::Result<DescriptionList> {
+fn request(query: Option<&str>) -> io::Result<DescriptionList> {
     let child = Command::new("curl")
         .arg("-s")
-        .arg("https://vimawesome.com/api/plugins?query=&page=1")
+        .arg(format!(
+            "https://vimawesome.com/api/plugins?query={}&page=1",
+            query.unwrap_or("")
+        ))
         .stdout(Stdio::piped())
         .spawn()?;
 
@@ -49,13 +55,17 @@ fn request() -> io::Result<DescriptionList> {
     }
 }
 
-pub fn build_result_panel(list: &DescriptionList) -> gtk::ScrolledWindow {
+pub fn build_result_panel<F: Fn(PlugInfo) + 'static>(
+    list: &DescriptionList,
+    add_cb: F,
+) -> gtk::ScrolledWindow {
     let scroll = gtk::ScrolledWindow::new(None, None);
     scroll.get_style_context().map(|c| c.add_class("view"));
     let panel = gtk::ListBox::new();
 
+    let cb_ref = Rc::new(add_cb);
     for plug in list.plugins.iter() {
-        let row = create_plug_row(plug);
+        let row = create_plug_row(plug, cb_ref.clone());
 
         panel.add(&row);
     }
@@ -65,7 +75,10 @@ pub fn build_result_panel(list: &DescriptionList) -> gtk::ScrolledWindow {
     scroll
 }
 
-fn create_plug_row(plug: &Description) -> gtk::ListBoxRow {
+fn create_plug_row<F: Fn(PlugInfo) + 'static>(
+    plug: &Description,
+    add_cb: Rc<F>,
+) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     let row_container = gtk::Box::new(gtk::Orientation::Vertical, 5);
     row_container.set_border_width(5);
@@ -86,7 +99,12 @@ fn create_plug_row(plug: &Description) -> gtk::ListBoxRow {
     row.add(&row_container);
 
 
-    add_btn.connect_clicked(clone!(button_box => move |_| { }));
+    add_btn.connect_clicked(clone!(plug => move |btn| {
+        if let Some(ref github_url) = plug.github_url {
+            btn.set_sensitive(false);
+            add_cb(PlugInfo::new(plug.name.clone(), github_url.clone()));
+        }
+    }));
 
     row
 }
@@ -116,12 +134,12 @@ fn create_plug_label(plug: &Description) -> gtk::Box {
     label_box
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct DescriptionList {
     pub plugins: Box<[Description]>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Description {
     pub name: String,
     pub github_url: Option<String>,
