@@ -40,7 +40,32 @@ impl Manager {
         self.vim_plug.initialize(nvim);
     }
 
-    pub fn update_state(&mut self) {
+    pub fn reload_store(&mut self) {
+        match self.plug_manage_state {
+            PlugManageState::Unknown => {
+                if self.vim_plug.is_loaded() {
+                    self.store = Store::load_from_plug(&self.vim_plug);
+                    self.plug_manage_state = PlugManageState::VimPlug;
+                } else {
+                    self.store = Store::empty();
+                }
+            }
+            PlugManageState::NvimGtk => {
+                if Store::is_config_exists() {
+                    self.store = Store::load();
+                } else {
+                    self.store = Store::empty();
+                }
+            }
+            PlugManageState::VimPlug => {
+                 if Store::is_config_exists() {
+                    self.store = Store::load();
+                    self.plug_manage_state = PlugManageState::NvimGtk;
+                } else {
+                    self.store = Store::empty();
+                }
+           }
+        }
         if let PlugManageState::Unknown = self.plug_manage_state {
             if self.vim_plug.is_loaded() {
                 self.store = Store::load_from_plug(&self.vim_plug);
@@ -59,6 +84,10 @@ impl Manager {
 
     pub fn add_plug(&mut self, plug: PlugInfo) -> bool {
         self.store.add_plug(plug)
+    }
+
+    pub fn move_item(&mut self, idx: usize, offset: i32) {
+        self.store.move_item(idx, offset);
     }
 }
 

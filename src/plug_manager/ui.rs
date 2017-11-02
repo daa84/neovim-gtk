@@ -7,6 +7,7 @@ use ui::UiMutex;
 
 use gtk;
 use gtk::prelude::*;
+use gtk_sys;
 
 use super::manager;
 use super::store::{Store, PlugInfo};
@@ -19,7 +20,7 @@ pub struct Ui<'a> {
 
 impl<'a> Ui<'a> {
     pub fn new(manager: &'a Arc<UiMutex<manager::Manager>>) -> Ui<'a> {
-        manager.borrow_mut().update_state();
+        manager.borrow_mut().reload_store();
 
         Ui { manager }
     }
@@ -29,7 +30,10 @@ impl<'a> Ui<'a> {
             Some("Plug"),
             Some(parent),
             gtk::DIALOG_DESTROY_WITH_PARENT,
-            &[("Ok", gtk::ResponseType::Ok.into())],
+            &[
+                ("Cancel", gtk::ResponseType::Cancel.into()),
+                ("Ok", gtk::ResponseType::Ok.into()),
+            ],
         );
 
         dlg.set_default_size(800, 600);
@@ -68,26 +72,24 @@ impl<'a> Ui<'a> {
 
         add_vimawesome_tab(&pages, &self.manager, &plugs_panel);
 
-        match self.manager.borrow().plug_manage_state {
-            manager::PlugManageState::Unknown => {
-                add_help_tab(
-                    &pages,
-                    "<span foreground=\"red\">Note:</span> NeovimGtk plugin manager <b>disabled</b>!",
-                );
-            }
-            manager::PlugManageState::VimPlug => {
-                add_help_tab(
-                    &pages,
-                    "<span foreground=\"red\">Note:</span> NeovimGtk plugin manager <b>disabled</b>!\n\
-                                               NeovimGtk manages plugins use vim-plug as backend, so enable it disables vim-plug configuration.\n\
-                                               Current configuration taken from your vim-plug",
-                );
-            }
-            manager::PlugManageState::NvimGtk => {}
-        }
 
         let plugins_lbl = gtk::Label::new("Plugins");
         pages.add_page(&plugins_lbl, &plugins, "plugins");
+
+        add_help_tab(
+            &pages,
+            &format!("NeovimGtk plugin manager is a GUI for vim-plug.\n\
+            It can load plugins from vim-plug configuration if vim-plug sarted and self settings is empty.\n\
+            When enabled it generate and load vim-plug as simple vim file at startup before init.vim is processed.\n\
+            So after enabling this manager <b>you must disable vim-plug</b> configuration in init.vim.\n\
+            This manager currently only manage vim-plug configuration and do not any actions on plugin management.\n\
+            So you must call all vim-plug (PlugInstall, PlugUpdate, PlugClean) commands manually.\n\
+            Current configuration source is <b>{}</b>", match self.manager.borrow().plug_manage_state {
+                manager::PlugManageState::NvimGtk => "config file",
+                manager::PlugManageState::VimPlug => "loaded from vim-plug",
+                manager::PlugManageState::Unknown => "Unknown",
+            }),
+        );
 
         let manager_ref = self.manager.clone();
         enable_swc.connect_state_set(move |_, state| {
@@ -126,10 +128,59 @@ impl<'a> Ui<'a> {
         }
 
         scroll.add(&plugs_panel);
-        panel.pack_start(&scroll, true, true, 0);
+        panel.pack_start(&scroll, true, true, 5);
+
+        panel.pack_start(
+            &create_up_down_btns(&plugs_panel, &self.manager),
+            false,
+            true,
+            0,
+        );
 
         plugs_panel
     }
+}
+
+fn create_up_down_btns(
+    plugs_panel: &gtk::ListBox,
+    manager: &Arc<UiMutex<manager::Manager>>,
+) -> gtk::Box {
+    let buttons_panel = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+    let up_btn = gtk::Button::new_from_icon_name("go-up", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
+    let down_btn = gtk::Button::new_from_icon_name("go-down", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
+
+    up_btn.connect_clicked(clone!(plugs_panel, manager => move |_| {
+            if let Some(row) = plugs_panel.get_selected_row() {
+                let idx = row.get_index();
+                if idx > 0 {
+                    plugs_panel.unselect_row(&row);
+                    plugs_panel.remove(&row);
+                    plugs_panel.insert(&row, idx - 1);
+                    plugs_panel.select_row(&row);
+                    manager.borrow_mut().move_item(idx as usize, -1);
+                }
+            }
+        }));
+
+
+    down_btn.connect_clicked(clone!(plugs_panel, manager => move |_| {
+            if let Some(row) = plugs_panel.get_selected_row() {
+                let idx = row.get_index();
+                let mut manager = manager.borrow_mut();
+                if idx >= 0 && idx < manager.store.plugs_count() as i32 {
+                    plugs_panel.unselect_row(&row);
+                    plugs_panel.remove(&row);
+                    plugs_panel.insert(&row, idx + 1);
+                    plugs_panel.select_row(&row);
+                    manager.move_item(idx as usize, 1);
+                }
+            }
+        }));
+
+    buttons_panel.pack_start(&up_btn, false, true, 0);
+    buttons_panel.pack_start(&down_btn, false, true, 0);
+
+    buttons_panel
 }
 
 fn populate_get_plugins(

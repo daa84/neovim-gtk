@@ -78,6 +78,11 @@ impl Store {
     pub fn plugs_count(&self) -> usize {
         self.settings.plugs.len()
     }
+
+    pub fn move_item(&mut self, idx: usize, offset: i32) {
+        let plug = self.settings.plugs.remove(idx);
+        self.settings.plugs.insert((idx as i32 + offset) as usize, plug);
+    }
 }
 
 #[derive(Serialize, Deserialize)]
