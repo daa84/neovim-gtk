@@ -13,6 +13,7 @@ use super::manager;
 use super::store::{Store, PlugInfo};
 use super::plugin_settings_dlg;
 use super::vimawesome;
+use nvim_config::NvimConfig;
 
 pub struct Ui<'a> {
     manager: &'a Arc<UiMutex<manager::Manager>>,
@@ -78,17 +79,20 @@ impl<'a> Ui<'a> {
 
         add_help_tab(
             &pages,
-            &format!("NeovimGtk plugin manager is a GUI for vim-plug.\n\
+            &format!(
+                "NeovimGtk plugin manager is a GUI for vim-plug.\n\
             It can load plugins from vim-plug configuration if vim-plug sarted and self settings is empty.\n\
             When enabled it generate and load vim-plug as simple vim file at startup before init.vim is processed.\n\
             So after enabling this manager <b>you must disable vim-plug</b> configuration in init.vim.\n\
             This manager currently only manage vim-plug configuration and do not any actions on plugin management.\n\
             So you must call all vim-plug (PlugInstall, PlugUpdate, PlugClean) commands manually.\n\
-            Current configuration source is <b>{}</b>", match self.manager.borrow().plug_manage_state {
-                manager::PlugManageState::NvimGtk => "config file",
-                manager::PlugManageState::VimPlug => "loaded from vim-plug",
-                manager::PlugManageState::Unknown => "Unknown",
-            }),
+            Current configuration source is <b>{}</b>",
+                match self.manager.borrow().plug_manage_state {
+                    manager::PlugManageState::NvimGtk => "config file",
+                    manager::PlugManageState::VimPlug => "loaded from vim-plug",
+                    manager::PlugManageState::Unknown => "Unknown",
+                }
+            ),
         );
 
         let manager_ref = self.manager.clone();
@@ -111,6 +115,11 @@ impl<'a> Ui<'a> {
             let mut manager = self.manager.borrow_mut();
             manager.clear_removed();
             manager.save();
+            if let Some(config_path) = NvimConfig::new(manager.load_config()).generate_config() {
+                if let Some(path) = config_path.to_str() {
+                    manager.vim_plug.reload(path);
+                }
+            }
         }
 
         dlg.destroy();

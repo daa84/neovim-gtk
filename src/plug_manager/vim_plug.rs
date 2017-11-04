@@ -87,6 +87,12 @@ impl Manager {
             false
         }
     }
+
+    pub fn reload(&self, path: &str) {
+        if let Some(mut nvim) = self.nvim() {
+            nvim.command(&format!("source {}", path)).report_err(&mut *nvim); 
+        }
+    }
 }
 
 #[derive(Debug)]

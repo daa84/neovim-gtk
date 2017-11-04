@@ -16,9 +16,11 @@ where
     F: FnOnce(io::Result<DescriptionList>) + Send + 'static,
 {
     thread::spawn(move || {
+        let mut result = Some(request(query.as_ref().map(|s| s.as_ref())));
         let mut cb = Some(cb);
+
         glib::idle_add(move || {
-            cb.take().unwrap()(request(query.as_ref().map(|s| s.as_ref())));
+            cb.take().unwrap()(result.take().unwrap());
             Continue(false)
         })
     });
@@ -37,10 +39,14 @@ fn request(query: Option<&str>) -> io::Result<DescriptionList> {
     let out = child.wait_with_output()?;
 
     if out.status.success() {
-        let description_list: DescriptionList = serde_json::from_slice(&out.stdout).map_err(|e| {
-            io::Error::new(io::ErrorKind::Other, e)
-        })?;
-        Ok(description_list)
+        if out.stdout.is_empty() {
+            Ok(DescriptionList::empty())
+        } else {
+            let description_list: DescriptionList = serde_json::from_slice(&out.stdout).map_err(|e| {
+                io::Error::new(io::ErrorKind::Other, e)
+            })?;
+            Ok(description_list)
+        }
     } else {
         Err(io::Error::new(
             io::ErrorKind::Other,
@@ -137,6 +143,14 @@ fn create_plug_label(plug: &Description) -> gtk::Box {
 #[derive(Deserialize, Debug)]
 pub struct DescriptionList {
     pub plugins: Box<[Description]>,
+}
+
+impl DescriptionList {
+    fn empty() -> DescriptionList {
+        DescriptionList {
+            plugins: Box::new([]),
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]

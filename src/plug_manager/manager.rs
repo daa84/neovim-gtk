@@ -7,14 +7,13 @@ use super::store::{Store, PlugInfo};
 use nvim::NeovimClient;
 
 pub struct Manager {
-    vim_plug: vim_plug::Manager,
+    pub vim_plug: vim_plug::Manager,
     pub store: Store,
     pub plug_manage_state: PlugManageState,
 }
 
 impl Manager {
     pub fn new() -> Self {
-
         let (plug_manage_state, store) = if Store::is_config_exists() {
             (PlugManageState::NvimGtk, Store::load())
         } else {

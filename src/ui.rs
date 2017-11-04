@@ -10,7 +10,6 @@ use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image, AboutDialog};
 use gio::prelude::*;
 use gio::{Menu, MenuExt, MenuItem, MenuItemExt, SimpleAction};
 
-use nvim_config::NvimConfig;
 use settings::Settings;
 use shell::{Shell, ShellOptions};
 use shell_dlg;
@@ -54,15 +53,11 @@ impl Components {
 impl Ui {
     pub fn new(options: ShellOptions) -> Ui {
         let plug_manager = plug_manager::Manager::new();
-        let plug_config = plug_manager.load_config();
 
-        let nvim_config = NvimConfig::new(plug_config);
         let plug_manager = Arc::new(UiMutex::new(plug_manager));
         let comps = Arc::new(UiMutex::new(Components::new()));
         let settings = Rc::new(RefCell::new(Settings::new()));
-        let shell = Rc::new(RefCell::new(
-            Shell::new(settings.clone(), options, nvim_config),
-        ));
+        let shell = Rc::new(RefCell::new(Shell::new(settings.clone(), options)));
         settings.borrow_mut().set_shell(Rc::downgrade(&shell));
 
         let projects = Projects::new(&comps.borrow().open_btn, shell.clone());
