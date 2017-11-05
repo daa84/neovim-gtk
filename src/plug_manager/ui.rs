@@ -116,7 +116,7 @@ impl<'a> Ui<'a> {
             let mut manager = self.manager.borrow_mut();
             manager.clear_removed();
             manager.save();
-            if let Some(config_path) = NvimConfig::new(manager.load_config()).generate_config() {
+            if let Some(config_path) = NvimConfig::new(manager.generate_config()).generate_config() {
                 if let Some(path) = config_path.to_str() {
                     manager.vim_plug.reload(path);
                 }

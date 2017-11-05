@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::fs::OpenOptions;
+use std::fs::{remove_file, OpenOptions};
 use std::io::Write;
 
 use dirs;
@@ -27,6 +27,7 @@ impl NvimConfig {
                 Ok(file) => Some(file),
             }
         } else {
+            NvimConfig::config_path().map(remove_file);
             None
         }
     }

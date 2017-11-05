@@ -27,7 +27,7 @@ impl Manager {
         }
     }
 
-    pub fn load_config(&self) -> Option<PlugManagerConfigSource> {
+    pub fn generate_config(&self) -> Option<PlugManagerConfigSource> {
         if self.store.is_enabled() {
             Some(PlugManagerConfigSource::new(&self.store))
         } else {
