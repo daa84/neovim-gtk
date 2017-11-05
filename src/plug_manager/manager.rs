@@ -107,7 +107,7 @@ impl PlugManagerConfigSource {
 
         for plug in store.get_plugs() {
             if !plug.removed {
-                builder += &format!("Plug '{}'\n", plug.get_plug_path());
+                builder += &format!("Plug '{}', {{ 'as': '{}' }}\n", plug.get_plug_path(), plug.name);
             }
         }
 

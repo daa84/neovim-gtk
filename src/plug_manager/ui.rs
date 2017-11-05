@@ -43,6 +43,7 @@ impl<'a> Ui<'a> {
         let header_bar = gtk::HeaderBar::new();
 
         let add_plug_btn = gtk::Button::new_with_label("Add..");
+        add_plug_btn.get_style_context().map(|c| c.add_class("suggested-action"));
         header_bar.pack_end(&add_plug_btn);
 
 
@@ -81,14 +82,14 @@ impl<'a> Ui<'a> {
             &pages,
             &format!(
                 "NeovimGtk plugin manager is a GUI for vim-plug.\n\
-            It can load plugins from vim-plug configuration if vim-plug sarted and self settings is empty.\n\
+            It can load plugins from vim-plug configuration if vim-plug sarted and NeovimGtk manager settings is empty.\n\
             When enabled it generate and load vim-plug as simple vim file at startup before init.vim is processed.\n\
-            So after enabling this manager <b>you must disable vim-plug</b> configuration in init.vim.\n\
+            So <b>after</b> enabling this manager <b>you must disable vim-plug</b> configuration in init.vim.\n\
             This manager currently only manage vim-plug configuration and do not any actions on plugin management.\n\
             So you must call all vim-plug (PlugInstall, PlugUpdate, PlugClean) commands manually.\n\
             Current configuration source is <b>{}</b>",
                 match self.manager.borrow().plug_manage_state {
-                    manager::PlugManageState::NvimGtk => "config file",
+                    manager::PlugManageState::NvimGtk => "NeovimGtk config file",
                     manager::PlugManageState::VimPlug => "loaded from vim-plug",
                     manager::PlugManageState::Unknown => "Unknown",
                 }
@@ -155,8 +156,8 @@ fn create_up_down_btns(
     manager: &Arc<UiMutex<manager::Manager>>,
 ) -> gtk::Box {
     let buttons_panel = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-    let up_btn = gtk::Button::new_from_icon_name("go-up", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
-    let down_btn = gtk::Button::new_from_icon_name("go-down", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
+    let up_btn = gtk::Button::new_from_icon_name("go-up-symbolic", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
+    let down_btn = gtk::Button::new_from_icon_name("go-down-symbolic", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
 
     up_btn.connect_clicked(clone!(plugs_panel, manager => move |_| {
             if let Some(row) = plugs_panel.get_selected_row() {
@@ -188,6 +189,7 @@ fn create_up_down_btns(
 
     buttons_panel.pack_start(&up_btn, false, true, 0);
     buttons_panel.pack_start(&down_btn, false, true, 0);
+    buttons_panel.set_halign(gtk::Align::Center);
 
     buttons_panel
 }

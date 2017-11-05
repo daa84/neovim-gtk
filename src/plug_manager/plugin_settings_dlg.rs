@@ -24,12 +24,17 @@ impl<'a> Builder<'a> {
         );
 
         let content = dlg.get_content_area();
+        let border = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        border.set_border_width(12);
+
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::None);
 
-        let path = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let path = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+        path.set_border_width(5);
         let path_lbl = gtk::Label::new("Repo");
         let path_e = gtk::Entry::new();
+        path_e.set_placeholder_text("user_name/repo_name");
 
         path.pack_start(&path_lbl, true, true, 0);
         path.pack_end(&path_e, false, true, 0);
@@ -37,7 +42,8 @@ impl<'a> Builder<'a> {
         list.add(&path);
 
 
-        let name = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let name = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+        name.set_border_width(5);
         let name_lbl = gtk::Label::new("Name");
         let name_e = gtk::Entry::new();
 
@@ -46,8 +52,15 @@ impl<'a> Builder<'a> {
 
         list.add(&name);
 
-        content.add(&list);
+        border.pack_start(&list, true, true, 0);
+        content.add(&border);
         content.show_all();
+
+        path_e.connect_changed(clone!(name_e => move |p| {
+            if let Some(name) = p.get_text().and_then(|t| extract_name(&t)) {
+                name_e.set_text(&name);
+            }
+        }));
 
         let ok: i32 = gtk::ResponseType::Ok.into();
         let res = if dlg.run() == ok {
@@ -59,7 +72,7 @@ impl<'a> Builder<'a> {
                     } else {
                         Some(name)
                     })
-                    .or_else(|| Builder::extract_name(&path))
+                    .or_else(|| extract_name(&path))
                     .unwrap_or_else(|| path.clone());
 
                 store::PlugInfo::new(name.to_owned(), path.to_owned())
@@ -72,18 +85,18 @@ impl<'a> Builder<'a> {
 
         res
     }
+}
 
-    fn extract_name(path: &str) -> Option<String> {
-        if let Some(idx) = path.rfind(|c| c == '/' || c == '\\') {
-            if idx < path.len() - 1 {
-                let path = path.trim_right_matches(".git");
-                Some(path[idx + 1..].to_owned())
-            } else {
-                None
-            }
+fn extract_name(path: &str) -> Option<String> {
+    if let Some(idx) = path.rfind(|c| c == '/' || c == '\\') {
+        if idx < path.len() - 1 {
+            let path = path.trim_right_matches(".git");
+            Some(path[idx + 1..].to_owned())
         } else {
             None
         }
+    } else {
+        None
     }
 }
 
