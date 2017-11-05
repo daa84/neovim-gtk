@@ -108,7 +108,7 @@ mod tests {
     fn test_extract_name() {
         assert_eq!(
             Some("plugin_name".to_owned()),
-            Builder::extract_name("http://github.com/somebody/plugin_name.git")
+            extract_name("http://github.com/somebody/plugin_name.git")
         );
     }
 }
