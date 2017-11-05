@@ -341,8 +341,7 @@ fn add_vimawesome_tab(
     link_button.set_markup(
         "Plugins are taken from: <a href=\"https://vimawesome.com\">https://vimawesome.com</a>",
     );
-    let search_entry = gtk::Entry::new();
-    search_entry.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, "edit-find");
+    let search_entry = gtk::SearchEntry::new();
 
     get_plugins.pack_start(&link_button, false, true, 10);
     get_plugins.pack_start(&search_entry, false, true, 5);
