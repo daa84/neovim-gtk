@@ -16,6 +16,23 @@ use shell_dlg;
 use project::Projects;
 use plug_manager;
 
+macro_rules! clone {
+    (@param _) => ( _ );
+    (@param $x:ident) => ( $x );
+    ($($n:ident),+ => move || $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+                move || $body
+        }
+    );
+    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+                move |$(clone!(@param $p),)+| $body
+        }
+    );
+}
+
 pub struct Ui {
     initialized: bool,
     comps: Arc<UiMutex<Components>>,
@@ -125,25 +142,6 @@ impl Ui {
             paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
             header_bar.pack_start(&paste_btn);
 
-            let plug_image = Image::new_from_icon_name(
-                "system-software-install",
-                gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32,
-            );
-            let plug_btn = ToolButton::new(Some(&plug_image), "Plug");
-
-            let comps_ref = self.comps.clone();
-            let plug_manager_ref = self.plug_manager.clone();
-            plug_btn.connect_clicked(move |_| {
-                plug_manager::Ui::new(&plug_manager_ref).show(
-                    comps_ref
-                        .borrow()
-                        .window
-                        .as_ref()
-                        .unwrap(),
-                )
-            });
-            header_bar.pack_start(&plug_btn);
-
             header_bar.set_show_close_button(true);
 
             window.set_titlebar(Some(&header_bar));
@@ -182,7 +180,14 @@ impl Ui {
     }
 
     fn create_main_menu(&self, app: &gtk::Application) {
+        let comps = self.comps.clone();
+        let plug_manager = self.plug_manager.clone();
+
         let menu = Menu::new();
+
+        let plugs = MenuItem::new("Plugins", None);
+        plugs.set_detailed_action("app.Plugins");
+        menu.append_item(&plugs);
 
         let about = MenuItem::new("About", None);
         about.set_detailed_action("app.HelpAbout");
@@ -190,11 +195,23 @@ impl Ui {
 
         app.set_app_menu(Some(&menu));
 
+        let plugs_action = SimpleAction::new("Plugins", None);
+        plugs_action.connect_activate(
+            clone!(comps => move |_, _| plug_manager::Ui::new(&plug_manager).show(
+                    comps
+                    .borrow()
+                    .window
+                    .as_ref()
+                    .unwrap(),
+                    )),
+        );
+
         let about_action = SimpleAction::new("HelpAbout", None);
-        let comps = self.comps.clone();
         about_action.connect_activate(move |_, _| on_help_about(&*comps.borrow()));
         about_action.set_enabled(true);
+
         app.add_action(&about_action);
+        app.add_action(&plugs_action);
     }
 }
 
@@ -259,21 +276,4 @@ impl<T: ?Sized> UiMutex<T> {
             panic!("Can access to UI only from main thread");
         }
     }
-}
-
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ => move || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-                move || $body
-        }
-    );
-    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-                move |$(clone!(@param $p),)+| $body
-        }
-    );
 }
