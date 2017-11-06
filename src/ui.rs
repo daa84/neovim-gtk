@@ -14,6 +14,24 @@ use settings::Settings;
 use shell::{Shell, ShellOptions};
 use shell_dlg;
 use project::Projects;
+use plug_manager;
+
+macro_rules! clone {
+    (@param _) => ( _ );
+    (@param $x:ident) => ( $x );
+    ($($n:ident),+ => move || $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+                move || $body
+        }
+    );
+    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+                move |$(clone!(@param $p),)+| $body
+        }
+    );
+}
 
 pub struct Ui {
     initialized: bool,
@@ -21,6 +39,7 @@ pub struct Ui {
     settings: Rc<RefCell<Settings>>,
     shell: Rc<RefCell<Shell>>,
     projects: Rc<RefCell<Projects>>,
+    plug_manager: Arc<UiMutex<plug_manager::Manager>>,
 }
 
 pub struct Components {
@@ -30,8 +49,8 @@ pub struct Components {
 
 impl Components {
     fn new() -> Components {
-        let save_image = Image::new_from_icon_name("document-open",
-                                                   gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+        let save_image =
+            Image::new_from_icon_name("document-open", gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
 
         Components {
             open_btn: ToolButton::new(Some(&save_image), "Open"),
@@ -50,6 +69,9 @@ impl Components {
 
 impl Ui {
     pub fn new(options: ShellOptions) -> Ui {
+        let plug_manager = plug_manager::Manager::new();
+
+        let plug_manager = Arc::new(UiMutex::new(plug_manager));
         let comps = Arc::new(UiMutex::new(Components::new()));
         let settings = Rc::new(RefCell::new(Settings::new()));
         let shell = Rc::new(RefCell::new(Shell::new(settings.clone(), options)));
@@ -63,6 +85,7 @@ impl Ui {
             shell,
             settings,
             projects,
+            plug_manager,
         }
     }
 
@@ -96,24 +119,29 @@ impl Ui {
 
             let projects = self.projects.clone();
             header_bar.pack_start(&comps.open_btn);
-            comps
-                .open_btn
-                .connect_clicked(move |_| projects.borrow_mut().show());
+            comps.open_btn.connect_clicked(
+                move |_| projects.borrow_mut().show(),
+            );
 
-            let save_image = Image::new_from_icon_name("document-save",
-                                                       gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+            let save_image = Image::new_from_icon_name(
+                "document-save",
+                gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32,
+            );
             let save_btn = ToolButton::new(Some(&save_image), "Save");
 
             let shell = self.shell.clone();
             save_btn.connect_clicked(move |_| shell.borrow_mut().edit_save_all());
             header_bar.pack_start(&save_btn);
 
-            let paste_image = Image::new_from_icon_name("edit-paste",
-                                                        gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
+            let paste_image = Image::new_from_icon_name(
+                "edit-paste",
+                gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32,
+            );
             let paste_btn = ToolButton::new(Some(&paste_image), "Paste");
             let shell = self.shell.clone();
             paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
             header_bar.pack_start(&paste_btn);
+
             header_bar.set_show_close_button(true);
 
             window.set_titlebar(Some(&header_bar));
@@ -134,17 +162,32 @@ impl Ui {
         shell.grab_focus();
 
         let comps_ref = self.comps.clone();
-        shell.set_detach_cb(Some(move || { 
+        shell.set_detach_cb(Some(move || {
             let comps_ref = comps_ref.clone();
             gtk::idle_add(move || {
                 comps_ref.borrow().close_window();
                 Continue(false)
             });
         }));
+
+        let state_ref = self.shell.borrow().state.clone();
+        let plug_manager_ref = self.plug_manager.clone();
+        shell.set_nvim_started_cb(Some(move || {
+            plug_manager_ref.borrow_mut().init_nvim_client(
+                state_ref.borrow().nvim_clone(),
+            );
+        }));
     }
 
     fn create_main_menu(&self, app: &gtk::Application) {
+        let comps = self.comps.clone();
+        let plug_manager = self.plug_manager.clone();
+
         let menu = Menu::new();
+
+        let plugs = MenuItem::new("Plugins", None);
+        plugs.set_detailed_action("app.Plugins");
+        menu.append_item(&plugs);
 
         let about = MenuItem::new("About", None);
         about.set_detailed_action("app.HelpAbout");
@@ -152,11 +195,23 @@ impl Ui {
 
         app.set_app_menu(Some(&menu));
 
+        let plugs_action = SimpleAction::new("Plugins", None);
+        plugs_action.connect_activate(
+            clone!(comps => move |_, _| plug_manager::Ui::new(&plug_manager).show(
+                    comps
+                    .borrow()
+                    .window
+                    .as_ref()
+                    .unwrap(),
+                    )),
+        );
+
         let about_action = SimpleAction::new("HelpAbout", None);
-        let comps = self.comps.clone();
         about_action.connect_activate(move |_, _| on_help_about(&*comps.borrow()));
         about_action.set_enabled(true);
+
         app.add_action(&about_action);
+        app.add_action(&plugs_action);
     }
 }
 
@@ -178,13 +233,13 @@ fn gtk_delete(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
     }
 
     Inhibit(if shell_dlg::can_close_window(comps, shell) {
-                let comps = comps.borrow();
-                comps.close_window();
-                shell.borrow_mut().detach_ui();
-                false
-            } else {
-                true
-            })
+        let comps = comps.borrow();
+        comps.close_window();
+        shell.borrow_mut().detach_ui();
+        false
+    } else {
+        true
+    })
 }
 
 pub struct UiMutex<T: ?Sized> {

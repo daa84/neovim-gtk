@@ -532,13 +532,8 @@ impl Entry {
 
 // ----- Store / Load settings
 //
-use std::path::PathBuf;
-use std::fs::File;
-use std::io::prelude::*;
-use std;
+use settings::SettingsLoader;
 use toml;
-
-const PROJECTS_SETTINGS_FILE: &str = "projects.toml";
 
 #[derive(Serialize, Deserialize)]
 struct ProjectSettings {
@@ -564,87 +559,21 @@ impl ProjectEntrySettings {
     }
 }
 
-impl ProjectSettings {
-    fn new(projects: Vec<ProjectEntrySettings>) -> ProjectSettings {
-        ProjectSettings { projects }
-    }
+impl SettingsLoader for ProjectSettings {
+    const SETTINGS_FILE: &'static str = "projects.toml";
 
     fn empty() -> ProjectSettings {
         ProjectSettings { projects: vec![] }
     }
 
-    fn load_from_file(path: &Path) -> Result<ProjectSettings, String> {
-        if path.exists() {
-            let mut file = File::open(path).map_err(|e| format!("{}", e))?;
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)
-                .map_err(|e| format!("{}", e))?;
-            toml::from_str(&contents).map_err(|e| format!("{}", e))
-        } else {
-            Ok(ProjectSettings::empty())
-        }
-    }
-
-    fn load_err() -> Result<ProjectSettings, String> {
-        let mut toml_path = get_app_config_dir_create()?;
-        toml_path.push(PROJECTS_SETTINGS_FILE);
-        ProjectSettings::load_from_file(&toml_path)
-    }
-
-    fn load() -> ProjectSettings {
-        match ProjectSettings::load_err() {
-            Ok(settings) => settings,
-            Err(e) => {
-                println!("{}", e);
-                ProjectSettings::empty()
-            }
-        }
-    }
-
-    fn save_err(&self) -> Result<(), String> {
-        let mut toml_path = get_app_config_dir_create()?;
-        toml_path.push(PROJECTS_SETTINGS_FILE);
-        let mut file = File::create(toml_path).map_err(|e| format!("{}", e))?;
-
-        let contents = toml::to_vec(self).map_err(|e| format!("{}", e))?;
-
-        file.write_all(&contents).map_err(|e| format!("{}", e))?;
-
-        Ok(())
-    }
-
-    pub fn save(&self) {
-        match self.save_err() {
-            Ok(()) => (),
-            Err(e) => println!("{}", e),
-        }
+    fn from_str(s: &str) -> Result<Self, String> {
+        toml::from_str(&s).map_err(|e| format!("{}", e))
     }
 }
 
-fn get_app_config_dir_create() -> Result<PathBuf, String> {
-    let config_dir = get_app_config_dir()?;
-
-    std::fs::create_dir_all(&config_dir)
-        .map_err(|e| format!("{}", e))?;
-
-    Ok(config_dir)
-}
-
-fn get_app_config_dir() -> Result<PathBuf, String> {
-    let mut config_dir = get_xdg_config_dir()?;
-
-    config_dir.push("nvim-gtk");
-
-    Ok(config_dir)
-}
-
-fn get_xdg_config_dir() -> Result<PathBuf, String> {
-    if let Ok(config_path) = std::env::var("XDG_CONFIG_HOME") {
-        return Ok(PathBuf::from(config_path));
+impl ProjectSettings {
+    fn new(projects: Vec<ProjectEntrySettings>) -> ProjectSettings {
+        ProjectSettings { projects }
     }
-
-    let mut home_dir = std::env::home_dir()
-        .ok_or("Impossible to get your home dir!")?;
-    home_dir.push(".config");
-    Ok(home_dir)
 }
+

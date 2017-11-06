@@ -13,6 +13,7 @@ use ui::UiMutex;
 use ui_model::{ModelRect, ModelRectVec};
 use shell;
 use glib;
+use nvim_config::NvimConfig;
 
 use value::ValueMapExt;
 
@@ -255,6 +256,12 @@ pub fn start(
         ));
     } else {
         cmd.arg("--cmd").arg("let &rtp.=',runtime'");
+    }
+
+    if let Some(nvim_config) = NvimConfig::config_path() {
+        if let Some(path) = nvim_config.to_str() {
+            cmd.arg("--cmd").arg(format!("source {}", path));
+        }
     }
 
     let session = Session::new_child_cmd(&mut cmd);
@@ -505,16 +512,23 @@ fn call(
     Ok(repaint_mode)
 }
 
-pub trait ErrorReport {
+pub trait ErrorReport<T> {
     fn report_err(&self, nvim: &mut NeovimApi);
+
+    fn ok_and_report(&self, nvim: &mut NeovimApi) -> Option<&T>;
 }
 
-impl<T> ErrorReport for result::Result<T, CallError> {
+impl<T> ErrorReport<T> for result::Result<T, CallError> {
     fn report_err(&self, _: &mut NeovimApi) {
         if let Err(ref err) = *self {
             println!("{}", err);
             //nvim.report_error(&err_msg).expect("Error report error :)");
         }
+    }
+
+    fn ok_and_report(&self, nvim: &mut NeovimApi) -> Option<&T> {
+        self.report_err(nvim);
+        self.as_ref().ok()
     }
 }
 

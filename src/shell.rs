@@ -79,6 +79,7 @@ pub struct State {
     options: ShellOptions,
 
     detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
+    nvim_started_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
 }
 
 impl State {
@@ -112,6 +113,7 @@ impl State {
             options,
 
             detach_cb: None,
+            nvim_started_cb: None,
         }
     }
 
@@ -153,6 +155,17 @@ impl State {
             self.detach_cb = Some(Box::new(RefCell::new(cb.unwrap())));
         } else {
             self.detach_cb = None;
+        }
+    }
+
+    pub fn set_nvim_started_cb<F>(&mut self, cb: Option<F>)
+    where
+        F: FnMut() + Send + 'static,
+    {
+        if cb.is_some() {
+            self.nvim_started_cb = Some(Box::new(RefCell::new(cb.unwrap())));
+        } else {
+            self.nvim_started_cb = None;
         }
     }
 
@@ -581,6 +594,14 @@ impl Shell {
         let mut state = self.state.borrow_mut();
         state.set_detach_cb(cb);
     }
+
+    pub fn set_nvim_started_cb<F>(&self, cb: Option<F>)
+    where
+        F: FnMut() + Send + 'static,
+    {
+        let mut state = self.state.borrow_mut();
+        state.set_nvim_started_cb(cb);
+    }
 }
 
 impl Deref for Shell {
@@ -763,9 +784,11 @@ fn init_nvim_async(
     });
 
     // attach ui
+    let state_ref = state_arc.clone();
     let mut nvim = Some(nvim);
     glib::idle_add(move || {
         let mut nvim = nvim.take().unwrap();
+
         if let Err(err) = nvim::post_start_init(
             &mut nvim,
             options.open_path.as_ref(),
@@ -773,15 +796,18 @@ fn init_nvim_async(
             rows as u64,
         )
         {
-            show_nvim_init_error(&err, state_arc.clone());
+            show_nvim_init_error(&err, state_ref.clone());
         } else {
-            let mut state = state_arc.borrow_mut();
+            let mut state = state_ref.borrow_mut();
             state.nvim.borrow_mut().set_initialized(nvim);
             state.cursor.as_mut().unwrap().start();
         }
 
         Continue(false)
     });
+
+
+    idle_cb_call!(state_arc.nvim_started_cb());
 }
 
 fn draw_initializing(state: &State, ctx: &cairo::Context) {

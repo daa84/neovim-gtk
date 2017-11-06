@@ -18,18 +18,23 @@ extern crate log;
 extern crate env_logger;
 extern crate htmlescape;
 
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate toml;
+extern crate serde_json;
 
 mod sys;
 
+mod nvim_config;
+mod dirs;
 mod color;
 mod value;
 mod mode;
 mod ui_model;
 #[macro_use]
 mod ui;
+mod plug_manager;
 mod nvim;
 mod render;
 mod shell;
