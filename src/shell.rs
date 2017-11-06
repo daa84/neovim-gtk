@@ -79,6 +79,7 @@ pub struct State {
     options: ShellOptions,
 
     detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
+    nvim_started_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
 }
 
 impl State {
@@ -112,6 +113,7 @@ impl State {
             options,
 
             detach_cb: None,
+            nvim_started_cb: None,
         }
     }
 
@@ -153,6 +155,17 @@ impl State {
             self.detach_cb = Some(Box::new(RefCell::new(cb.unwrap())));
         } else {
             self.detach_cb = None;
+        }
+    }
+
+    pub fn set_nvim_started_cb<F>(&mut self, cb: Option<F>)
+    where
+        F: FnMut() + Send + 'static,
+    {
+        if cb.is_some() {
+            self.nvim_started_cb = Some(Box::new(RefCell::new(cb.unwrap())));
+        } else {
+            self.nvim_started_cb = None;
         }
     }
 
@@ -581,6 +594,14 @@ impl Shell {
         let mut state = self.state.borrow_mut();
         state.set_detach_cb(cb);
     }
+
+    pub fn set_nvim_started_cb<F>(&self, cb: Option<F>)
+    where
+        F: FnMut() + Send + 'static,
+    {
+        let mut state = self.state.borrow_mut();
+        state.set_nvim_started_cb(cb);
+    }
 }
 
 impl Deref for Shell {
@@ -643,10 +664,7 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
 
         match ev.get_button() {
             1 => mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position()),
-            2 => {
-                mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position());
-                shell.edit_paste("*");
-            }
+            2 => mouse_input(shell, "MiddleMouse", ev.get_state(), ev.get_position()),
             3 => mouse_input(shell, "RightMouse", ev.get_state(), ev.get_position()),
             _ => (),
         }
@@ -781,7 +799,7 @@ fn init_nvim_async(
 
 fn set_nvim_initialized(nvim: Neovim, state_arc: Arc<UiMutex<State>>) {
     let mut nvim = Some(nvim);
-    glib::idle_add(move || {
+    glib::idle_add(clone!(state_arc => move || {
         let mut state = state_arc.borrow_mut();
         state.nvim.borrow_mut().set_initialized(
             nvim.take().unwrap(),
@@ -789,7 +807,10 @@ fn set_nvim_initialized(nvim: Neovim, state_arc: Arc<UiMutex<State>>) {
         state.cursor.as_mut().unwrap().start();
 
         Continue(false)
-    });
+    }));
+
+
+    idle_cb_call!(state_arc.nvim_started_cb());
 }
 
 fn draw_initializing(state: &State, ctx: &cairo::Context) {

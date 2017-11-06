@@ -37,6 +37,7 @@ fn main() {
         .entry("Return", "\"CR\"")
         .entry("Escape", "\"Esc\"")
         .entry("Delete", "\"Del\"")
+        .entry("Insert", "\"Insert\"")
         .entry("Page_Up", "\"PageUp\"")
         .entry("Page_Down", "\"PageDown\"")
         .entry("Enter", "\"CR\"")

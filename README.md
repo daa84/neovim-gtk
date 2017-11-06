@@ -36,7 +36,8 @@ git clone https://aur.archlinux.org/neovim-gtk-git.git
 cd neovim-gtk-git 
 makepkg -si
 ```
-
+## flatpak
+Flatpak package available [here](https://github.com/daa84/neovim-gtk-flatpak)
 
 # Build
 ## Linux

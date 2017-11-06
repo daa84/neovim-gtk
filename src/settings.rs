@@ -101,3 +101,78 @@ fn monospace_font_changed(mut shell: &mut Shell, state: &mut State) {
         state.update_font(&mut shell);
     }
 }
+
+use std::path::Path;
+use std::fs::File;
+use std::io::prelude::*;
+
+use toml;
+use serde;
+
+use dirs;
+
+pub trait SettingsLoader: Sized + serde::Serialize {
+    const SETTINGS_FILE: &'static str;
+
+    fn empty() -> Self;
+
+    fn from_str(s: &str) -> Result<Self, String>;
+
+    fn load() -> Self {
+        match load_err() {
+            Ok(settings) => settings,
+            Err(e) => {
+                println!("{}", e);
+                Self::empty()
+            }
+        }
+    }
+
+    fn is_file_exists() -> bool {
+        if let Ok(mut toml_path) = dirs::get_app_config_dir() {
+            toml_path.push(Self::SETTINGS_FILE);
+            toml_path.is_file()
+        } else {
+            false
+        }
+    }
+
+    fn save(&self) {
+        match save_err(self) {
+            Ok(()) => (),
+            Err(e) => error!("{}", e),
+        }
+    }
+}
+
+fn load_from_file<T: SettingsLoader>(path: &Path) -> Result<T, String> {
+    if path.exists() {
+        let mut file = File::open(path).map_err(|e| format!("{}", e))?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).map_err(
+            |e| format!("{}", e),
+        )?;
+        T::from_str(&contents)
+    } else {
+        Ok(T::empty())
+    }
+}
+
+fn load_err<T: SettingsLoader>() -> Result<T, String> {
+    let mut toml_path = dirs::get_app_config_dir_create()?;
+    toml_path.push(T::SETTINGS_FILE);
+    load_from_file(&toml_path)
+}
+
+
+fn save_err<T: SettingsLoader>(sl: &T) -> Result<(), String> {
+    let mut toml_path = dirs::get_app_config_dir_create()?;
+    toml_path.push(T::SETTINGS_FILE);
+    let mut file = File::create(toml_path).map_err(|e| format!("{}", e))?;
+
+    let contents = toml::to_vec::<T>(sl).map_err(|e| format!("{}", e))?;
+
+    file.write_all(&contents).map_err(|e| format!("{}", e))?;
+
+    Ok(())
+}

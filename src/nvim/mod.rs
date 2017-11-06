@@ -21,6 +21,7 @@ use neovim_lib::{Neovim, NeovimApi, Session, UiAttachOptions, CallError};
 
 use ui::UiMutex;
 use shell;
+use nvim_config::NvimConfig;
 
 #[derive(Debug)]
 pub struct NvimInitError {
@@ -107,6 +108,12 @@ pub fn start(
         cmd.arg("--cmd").arg("let &rtp.=',runtime'");
     }
 
+    if let Some(nvim_config) = NvimConfig::config_path() {
+        if let Some(path) = nvim_config.to_str() {
+            cmd.arg("--cmd").arg(format!("source {}", path));
+        }
+    }
+
     let session = Session::new_child_cmd(&mut cmd);
 
     let session = match session {
@@ -149,16 +156,23 @@ pub fn post_start_init(
 }
 
 
-pub trait ErrorReport {
+pub trait ErrorReport<T> {
     fn report_err(&self, nvim: &mut NeovimApi);
+
+     fn ok_and_report(&self, nvim: &mut NeovimApi) -> Option<&T>;
 }
 
-impl<T> ErrorReport for result::Result<T, CallError> {
+impl<T> ErrorReport<T> for result::Result<T, CallError> {
     fn report_err(&self, _: &mut NeovimApi) {
         if let Err(ref err) = *self {
             println!("{}", err);
             //nvim.report_error(&err_msg).expect("Error report error :)");
         }
+    }
+
+    fn ok_and_report(&self, nvim: &mut NeovimApi) -> Option<&T> {
+        self.report_err(nvim);
+        self.as_ref().ok()
     }
 }
 
