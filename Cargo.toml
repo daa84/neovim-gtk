@@ -25,7 +25,7 @@ gobject-sys = "0.4"
 #pango-sys = { git = 'https://github.com/gtk-rs/sys' }
 #gio = { git = 'https://github.com/gtk-rs/gio' }
 #pangocairo = { git = 'https://github.com/RazrFalcon/pangocairo-rs' }
-neovim-lib = "0.4"
+neovim-lib = "0.5"
 phf = "0.7"
 log = "0.3"
 env_logger = "0.4"

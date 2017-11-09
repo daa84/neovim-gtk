@@ -139,7 +139,7 @@ pub fn post_start_init(
     let mut opts = UiAttachOptions::new();
     opts.set_popupmenu_external(false);
     opts.set_tabline_external(true);
-    nvim.ui_attach(cols, rows, opts).map_err(
+    nvim.ui_attach(cols, rows, &opts).map_err(
         NvimInitError::new_post_init,
     )?;
     nvim.command("runtime! ginit.vim").map_err(

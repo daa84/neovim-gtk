@@ -26,7 +26,7 @@ impl NvimHandler {
                 self.safe_call(move |ui| {
                     let mut repaint_mode = RepaintMode::Nothing;
 
-                    for ev in &params {
+                    for ev in params {
                         if let Some(ev_args) = ev.as_array() {
                             if let Some(ev_name) = ev_args[0].as_str() {
                                 for local_args in ev_args.iter().skip(1) {
@@ -34,7 +34,8 @@ impl NvimHandler {
                                         Value::Array(ref ar) => ar.clone(),
                                         _ => vec![],
                                     };
-                                    let call_reapint_mode = redraw_handler::call(ui, ev_name, &args)?;
+                                    let call_reapint_mode =
+                                        redraw_handler::call(ui, ev_name, &args)?;
                                     repaint_mode = repaint_mode.join(call_reapint_mode);
                                 }
                             } else {
@@ -73,11 +74,12 @@ impl NvimHandler {
 
     fn safe_call<F>(&self, cb: F)
     where
-        F: Fn(&mut shell::State) -> result::Result<(), String> + 'static + Send,
+        F: FnOnce(&mut shell::State) -> result::Result<(), String> + 'static + Send,
     {
+        let mut cb = Some(cb);
         let shell = self.shell.clone();
         glib::idle_add(move || {
-            if let Err(msg) = cb(&mut shell.borrow_mut()) {
+            if let Err(msg) = cb.take().unwrap()(&mut shell.borrow_mut()) {
                 println!("Error call function: {}", msg);
             }
             glib::Continue(false)
@@ -86,8 +88,7 @@ impl NvimHandler {
 }
 
 impl Handler for NvimHandler {
-    fn handle_notify(&mut self, name: &str, args: &Vec<Value>) {
-        self.nvim_cb(name, args.clone());
+    fn handle_notify(&mut self, name: &str, args: Vec<Value>) {
+        self.nvim_cb(name, args);
     }
 }
-
