@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use std::cell::RefCell;
 
 use super::vim_plug;
 use super::store::{Store, PlugInfo};
@@ -35,7 +34,7 @@ impl Manager {
         }
     }
 
-    pub fn init_nvim_client(&mut self, nvim: Rc<RefCell<NeovimClient>>) {
+    pub fn init_nvim_client(&mut self, nvim: Rc<NeovimClient>) {
         self.vim_plug.initialize(nvim);
     }
 

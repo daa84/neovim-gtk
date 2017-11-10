@@ -17,7 +17,7 @@ use input;
 const MAX_VISIBLE_ROWS: i32 = 10;
 
 struct State {
-    nvim: Option<Rc<RefCell<nvim::NeovimClient>>>,
+    nvim: Option<Rc<nvim::NeovimClient>>,
     renderer: gtk::CellRendererText,
     tree: gtk::TreeView,
     scroll: gtk::ScrolledWindow,
@@ -139,8 +139,11 @@ impl PopupMenu {
         let state_ref = state.clone();
         state.borrow().tree.connect_button_press_event(move |tree, ev| {
                                             let state = state_ref.borrow();
-                                            let mut nvim = state.nvim.as_ref().unwrap().borrow_mut();
-                                            tree_button_press(tree, ev, &mut *nvim)
+                                            if let Some(mut nvim) = state.nvim.as_ref().unwrap().nvim() {
+                                                tree_button_press(tree, ev, &mut *nvim)
+                                            } else {
+                                                Inhibit(false)
+                                            }
                                         });
 
         let state_ref = state.clone();
@@ -149,8 +152,12 @@ impl PopupMenu {
         let state_ref = state.clone();
         popover.connect_key_press_event(move |_, ev| {
                                             let state = state_ref.borrow();
-                                            let mut nvim = state.nvim.as_ref().unwrap().borrow_mut();
-                                            input::gtk_key_press(&mut *nvim, ev)
+                                            let nvim = state.nvim.as_ref().unwrap();
+                                            if let Some(mut nvim) = nvim.nvim() {
+                                                input::gtk_key_press(&mut *nvim, ev)
+                                            } else {
+                                                Inhibit(false)
+                                            }
                                         });
 
         PopupMenu {

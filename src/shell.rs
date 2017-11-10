@@ -1,6 +1,6 @@
-use std::cell::{RefMut, RefCell, Cell};
+use std::cell::{RefCell, Cell};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::ops::Deref;
 use std::thread;
 
@@ -21,7 +21,7 @@ use settings::{Settings, FontSource};
 use ui_model::{UiModel, Attrs, ModelRect};
 use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim;
-use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient};
+use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, NeovimRef, NeovimClientAsync};
 use input;
 use input::keyval_to_input_string;
 use cursor::Cursor;
@@ -60,7 +60,7 @@ pub struct State {
     color_model: ColorModel,
     cur_attrs: Option<Attrs>,
     mouse_enabled: bool,
-    nvim: Rc<RefCell<NeovimClient>>,
+    nvim: Rc<NeovimClient>,
     pub font_ctx: render::Context,
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
@@ -91,7 +91,7 @@ impl State {
         State {
             model: UiModel::empty(),
             color_model: ColorModel::new(),
-            nvim: Rc::new(RefCell::new(NeovimClient::new())),
+            nvim: Rc::new(NeovimClient::new()),
             cur_attrs: None,
             mouse_enabled: true,
             font_ctx,
@@ -125,22 +125,17 @@ impl State {
         &self.color_model.bg_color
     }
 
-    pub fn nvim(&self) -> Option<RefMut<Neovim>> {
-        if self.nvim.borrow().is_initialized() {
-            Some(RefMut::map(self.nvim.borrow_mut(), |n| n.nvim_mut()))
-        } else {
-            None
-        }
+    pub fn nvim(&self) -> Option<NeovimRef> {
+        self.nvim.nvim()
     }
 
-    pub fn nvim_clone(&self) -> Rc<RefCell<NeovimClient>> {
+    pub fn nvim_clone(&self) -> Rc<NeovimClient> {
         self.nvim.clone()
     }
 
     pub fn start_nvim_initialization(&self) -> bool {
-        let mut nvim = self.nvim.borrow_mut();
-        if nvim.is_uninitialized() {
-            nvim.set_in_progress();
+        if self.nvim.is_uninitialized() {
+            self.nvim.set_in_progress();
             true
         } else {
             false
@@ -229,7 +224,9 @@ impl State {
     }
 
     fn im_commit(&self, ch: &str) {
-        input::im_input(&mut self.nvim.borrow_mut(), ch);
+        if let Some(mut nvim) = self.nvim() {
+            input::im_input(&mut nvim, ch);
+        }
     }
 
     fn calc_nvim_size(&self) -> (usize, usize) {
@@ -270,7 +267,7 @@ impl State {
     }
 
     fn try_nvim_resize(&self) {
-        if !self.nvim.borrow().is_initialized() {
+        if !self.nvim.is_initialized() {
             return;
         }
 
@@ -305,9 +302,10 @@ impl State {
             gtk::timeout_add(250, move || {
                 resize_state.set(ResizeState::NvimResizeRequest(columns, rows));
 
-                let mut nvim = nvim.borrow_mut();
-                if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
-                    error!("Error trying resize nvim {}", err);
+                if let Some(mut nvim) = nvim.nvim() {
+                    if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
+                        error!("Error trying resize nvim {}", err);
+                    }
                 }
                 Continue(false)
             }),
@@ -406,8 +404,7 @@ impl Shell {
 
     pub fn is_nvim_initialized(&self) -> bool {
         let state = self.state.borrow();
-        let nvim = state.nvim.borrow();
-        nvim.is_initialized()
+        state.nvim.is_initialized()
     }
 
     pub fn init(&mut self) {
@@ -488,8 +485,8 @@ impl Shell {
             {
                 Inhibit(true)
             } else {
-                if shell.nvim.borrow().is_initialized() {
-                    input::gtk_key_press(&mut shell.nvim.borrow_mut(), ev)
+                if let Some(mut nvim) = shell.nvim() {
+                    input::gtk_key_press(&mut nvim, ev)
                 } else {
                     Inhibit(false)
                 }
@@ -716,7 +713,7 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
 
     let state = state_arc.borrow();
-    if state.nvim.borrow().is_initialized() {
+    if state.nvim.is_initialized() {
         render::render(
             ctx,
             state.cursor.as_ref().unwrap(),
@@ -725,7 +722,7 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
             &state.color_model,
             &state.mode,
         );
-    } else if state.nvim.borrow().is_initializing() {
+    } else if state.nvim.is_initializing() {
         draw_initializing(&*state, ctx);
     }
 
@@ -738,7 +735,7 @@ fn show_nvim_start_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State
 
     glib::idle_add(move || {
         let state = state_arc.borrow();
-        state.nvim.borrow_mut().set_error();
+        state.nvim.set_error();
         state.error_area.show_nvim_start_error(&source, &cmd);
         state.show_error_area();
 
@@ -751,7 +748,7 @@ fn show_nvim_init_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>
 
     glib::idle_add(move || {
         let state = state_arc.borrow();
-        state.nvim.borrow_mut().set_error();
+        state.nvim.set_error();
         state.error_area.show_nvim_init_error(&source);
         state.show_error_area();
 
@@ -766,7 +763,7 @@ fn init_nvim_async(
     rows: usize,
 ) {
     // execute nvim
-    let mut nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
+    let nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
         Ok(nvim) => nvim,
         Err(err) => {
             show_nvim_start_error(&err, state_arc);
@@ -774,8 +771,10 @@ fn init_nvim_async(
         }
     };
 
+    let nvim = set_nvim_to_state(state_arc.clone(), nvim);
+
     // add callback on session end
-    let guard = nvim.session.take_dispatch_guard();
+    let guard = nvim.borrow().session.take_dispatch_guard();
     let state_ref = state_arc.clone();
     thread::spawn(move || {
         guard.join().expect("Can't join dispatch thread");
@@ -785,7 +784,7 @@ fn init_nvim_async(
 
     // attach ui
     if let Err(err) = nvim::post_start_init(
-        &mut nvim,
+        nvim,
         options.open_path.as_ref(),
         cols as u64,
         rows as u64,
@@ -793,17 +792,40 @@ fn init_nvim_async(
     {
         show_nvim_init_error(&err, state_arc.clone());
     } else {
-        set_nvim_initialized(nvim, state_arc);
+        set_nvim_initialized(state_arc);
     }
 }
 
-fn set_nvim_initialized(nvim: Neovim, state_arc: Arc<UiMutex<State>>) {
-    let mut nvim = Some(nvim);
+fn set_nvim_to_state(state_arc: Arc<UiMutex<State>>, nvim: Neovim) -> NeovimClientAsync {
+    let pair = Arc::new((Mutex::new(None), Condvar::new()));
+    let pair2 = pair.clone();
+
+    glib::idle_add(move || {
+        let nvim_aync = state_arc.borrow().nvim.set_nvim_async(nvim);
+
+        let &(ref lock, ref cvar) = &*pair2;
+        let mut started = lock.lock().unwrap();
+        *started = Some(nvim_aync);
+        cvar.notify_one();
+
+        Continue(false)
+    });
+
+    // Wait idle set nvim properly
+    let &(ref lock, ref cvar) = &*pair;
+    let mut started = lock.lock().unwrap();
+    while started.is_none() {
+        started = cvar.wait(started).unwrap();
+    }
+
+    started.take().unwrap()
+}
+
+fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
     glib::idle_add(clone!(state_arc => move || {
         let mut state = state_arc.borrow_mut();
-        state.nvim.borrow_mut().set_initialized(
-            nvim.take().unwrap(),
-        );
+        state.nvim.async_to_sync();
+        state.nvim.set_initialized();
         state.cursor.as_mut().unwrap().start();
 
         Continue(false)

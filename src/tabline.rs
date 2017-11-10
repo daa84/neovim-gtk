@@ -18,7 +18,7 @@ use nvim::ErrorReport;
 struct State {
     data: Vec<Tabpage>,
     selected: Option<Tabpage>,
-    nvim: Option<Rc<RefCell<nvim::NeovimClient>>>,
+    nvim: Option<Rc<nvim::NeovimClient>>,
 }
 
 impl State {
@@ -33,8 +33,9 @@ impl State {
     fn switch_page(&self, idx: u32) {
         let target = &self.data[idx as usize];
         if Some(target) != self.selected.as_ref() {
-            let mut nvim = self.nvim.as_ref().unwrap().borrow_mut();
-            nvim.set_current_tabpage(target).report_err(&mut **nvim);
+            if let Some(nvim) = self.nvim.as_ref().unwrap().nvim() {
+                nvim.set_current_tabpage(target).report_err(&mut *nvim);
+            }
         }
     }
 }
@@ -70,7 +71,7 @@ impl Tabline {
 
     fn update_state(
         &self,
-        nvim: &Rc<RefCell<nvim::NeovimClient>>,
+        nvim: &Rc<nvim::NeovimClient>,
         selected: &Tabpage,
         tabs: &[(Tabpage, Option<String>)],
     ) {
@@ -87,7 +88,7 @@ impl Tabline {
 
     pub fn update_tabs(
         &self,
-        nvim: &Rc<RefCell<nvim::NeovimClient>>,
+        nvim: &Rc<nvim::NeovimClient>,
         selected: &Tabpage,
         tabs: &[(Tabpage, Option<String>)],
     ) {

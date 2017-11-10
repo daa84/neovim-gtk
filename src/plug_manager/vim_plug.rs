@@ -1,13 +1,12 @@
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
 
-use neovim_lib::{Neovim, NeovimApi};
+use neovim_lib::NeovimApi;
 
-use nvim::{NeovimClient, ErrorReport};
+use nvim::{NeovimClient, ErrorReport, NeovimRef};
 use value::ValueMapExt;
 
 pub struct Manager {
-    nvim: Option<Rc<RefCell<NeovimClient>>>,
+    nvim: Option<Rc<NeovimClient>>,
 }
 
 impl Manager {
@@ -15,17 +14,12 @@ impl Manager {
         Manager { nvim: None }
     }
 
-    pub fn initialize(&mut self, nvim: Rc<RefCell<NeovimClient>>) {
+    pub fn initialize(&mut self, nvim: Rc<NeovimClient>) {
         self.nvim = Some(nvim);
     }
 
-    fn nvim(&self) -> Option<RefMut<Neovim>> {
-        let nvim_client = self.nvim.as_ref().unwrap();
-        if nvim_client.borrow().is_initialized() {
-            Some(RefMut::map(nvim_client.borrow_mut(), |n| n.nvim_mut()))
-        } else {
-            None
-        }
+    fn nvim(&self) -> Option<NeovimRef> {
+        self.nvim.as_ref().unwrap().nvim()
     }
 
     pub fn get_plugs(&self) -> Result<Box<[VimPlugInfo]>, String> {
