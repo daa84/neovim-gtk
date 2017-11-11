@@ -33,10 +33,7 @@ impl State {
         }
     }
 
-    fn before_show(&mut self,
-                   shell: &shell::State,
-                   menu_items: &[Vec<&str>],
-                   selected: i64) {
+    fn before_show(&mut self, shell: &shell::State, menu_items: &[Vec<&str>], selected: i64) {
         if self.nvim.is_none() {
             self.nvim = Some(shell.nvim_clone());
         }
@@ -50,10 +47,15 @@ impl State {
             return;
         }
 
-        self.renderer
-            .set_property_font(Some(&shell.get_font_desc().to_string()));
-        self.renderer.set_property_foreground_rgba(Some(&shell.get_foreground().into()));
-        self.renderer.set_property_background_rgba(Some(&shell.get_background().into()));
+        self.renderer.set_property_font(
+            Some(&shell.get_font_desc().to_string()),
+        );
+        self.renderer.set_property_foreground_rgba(
+            Some(&shell.get_foreground().into()),
+        );
+        self.renderer.set_property_background_rgba(
+            Some(&shell.get_background().into()),
+        );
 
         let col_count = menu[0].len();
         let columns = self.tree.get_columns();
@@ -93,8 +95,13 @@ impl State {
         if selected >= 0 {
             let selected_path = gtk::TreePath::new_from_string(&format!("{}", selected));
             self.tree.get_selection().select_path(&selected_path);
-            self.tree
-                .scroll_to_cell(Some(&selected_path), None, false, 0.0, 0.0);
+            self.tree.scroll_to_cell(
+                Some(&selected_path),
+                None,
+                false,
+                0.0,
+                0.0,
+            );
         } else {
             self.tree.get_selection().unselect_all();
         }
@@ -129,7 +136,10 @@ impl PopupMenu {
         state.tree.set_can_focus(false);
 
 
-        state.scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+        state.scroll.set_policy(
+            gtk::PolicyType::Never,
+            gtk::PolicyType::Automatic,
+        );
 
         state.scroll.add(&state.tree);
         state.scroll.show_all();
@@ -137,28 +147,33 @@ impl PopupMenu {
 
         let state = Rc::new(RefCell::new(state));
         let state_ref = state.clone();
-        state.borrow().tree.connect_button_press_event(move |tree, ev| {
-                                            let state = state_ref.borrow();
-                                            if let Some(mut nvim) = state.nvim.as_ref().unwrap().nvim() {
-                                                tree_button_press(tree, ev, &mut *nvim)
-                                            } else {
-                                                Inhibit(false)
-                                            }
-                                        });
+        state.borrow().tree.connect_button_press_event(
+            move |tree, ev| {
+                let state = state_ref.borrow();
+                let nvim = state.nvim.as_ref().unwrap().nvim();
+                if let Some(mut nvim) = nvim {
+                    tree_button_press(tree, ev, &mut *nvim)
+                } else {
+                    Inhibit(false)
+                }
+            },
+        );
 
         let state_ref = state.clone();
-        state.borrow().tree.connect_size_allocate(move |_, _| on_treeview_allocate(state_ref.clone()));
+        state.borrow().tree.connect_size_allocate(move |_, _| {
+            on_treeview_allocate(state_ref.clone())
+        });
 
         let state_ref = state.clone();
         popover.connect_key_press_event(move |_, ev| {
-                                            let state = state_ref.borrow();
-                                            let nvim = state.nvim.as_ref().unwrap();
-                                            if let Some(mut nvim) = nvim.nvim() {
-                                                input::gtk_key_press(&mut *nvim, ev)
-                                            } else {
-                                                Inhibit(false)
-                                            }
-                                        });
+            let state = state_ref.borrow();
+            let nvim = state.nvim.as_ref().unwrap().nvim();
+            if let Some(mut nvim) = nvim {
+                input::gtk_key_press(&mut *nvim, ev)
+            } else {
+                Inhibit(false)
+            }
+        });
 
         PopupMenu {
             popover,
@@ -171,27 +186,30 @@ impl PopupMenu {
         self.open
     }
 
-    pub fn show(&mut self,
-                shell: &shell::State,
-                menu_items: &[Vec<&str>],
-                selected: i64,
-                x: i32,
-                y: i32,
-                width: i32,
-                height: i32) {
+    pub fn show(
+        &mut self,
+        shell: &shell::State,
+        menu_items: &[Vec<&str>],
+        selected: i64,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) {
 
         self.open = true;
 
-        self.popover
-            .set_pointing_to(&gtk::Rectangle {
-                                 x,
-                                 y,
-                                 width,
-                                 height,
-                             });
-        self.state
-            .borrow_mut()
-            .before_show(shell, menu_items, selected);
+        self.popover.set_pointing_to(&gtk::Rectangle {
+            x,
+            y,
+            width,
+            height,
+        });
+        self.state.borrow_mut().before_show(
+            shell,
+            menu_items,
+            selected,
+        );
         self.popover.popup()
     }
 
@@ -260,18 +278,17 @@ fn on_treeview_allocate(state: Rc<RefCell<State>>) {
     let treeview_height = state.borrow().calc_treeview_height();
 
     idle_add(move || {
-                 let state = state.borrow();
+        let state = state.borrow();
 
-                 // strange solution to make gtk assertions happy
-                 let previous_height = state.scroll.get_max_content_height();
-                 if previous_height < treeview_height {
-                     state.scroll.set_max_content_height(treeview_height);
-                     state.scroll.set_min_content_height(treeview_height);
-                 } else if previous_height > treeview_height {
-                     state.scroll.set_min_content_height(treeview_height);
-                     state.scroll.set_max_content_height(treeview_height);
-                 }
-                 Continue(false)
-             });
+        // strange solution to make gtk assertions happy
+        let previous_height = state.scroll.get_max_content_height();
+        if previous_height < treeview_height {
+            state.scroll.set_max_content_height(treeview_height);
+            state.scroll.set_min_content_height(treeview_height);
+        } else if previous_height > treeview_height {
+            state.scroll.set_min_content_height(treeview_height);
+            state.scroll.set_max_content_height(treeview_height);
+        }
+        Continue(false)
+    });
 }
-

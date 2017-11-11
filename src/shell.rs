@@ -267,10 +267,6 @@ impl State {
     }
 
     fn try_nvim_resize(&self) {
-        if !self.nvim.is_initialized() {
-            return;
-        }
-
         let (columns, rows) = self.calc_nvim_size();
 
 
@@ -774,7 +770,7 @@ fn init_nvim_async(
     let nvim = set_nvim_to_state(state_arc.clone(), nvim);
 
     // add callback on session end
-    let guard = nvim.borrow().session.take_dispatch_guard();
+    let guard = nvim.borrow().unwrap().session.take_dispatch_guard();
     let state_ref = state_arc.clone();
     thread::spawn(move || {
         guard.join().expect("Can't join dispatch thread");
@@ -799,9 +795,10 @@ fn init_nvim_async(
 fn set_nvim_to_state(state_arc: Arc<UiMutex<State>>, nvim: Neovim) -> NeovimClientAsync {
     let pair = Arc::new((Mutex::new(None), Condvar::new()));
     let pair2 = pair.clone();
+    let mut nvim = Some(nvim);
 
     glib::idle_add(move || {
-        let nvim_aync = state_arc.borrow().nvim.set_nvim_async(nvim);
+        let nvim_aync = state_arc.borrow().nvim.set_nvim_async(nvim.take().unwrap());
 
         let &(ref lock, ref cvar) = &*pair2;
         let mut started = lock.lock().unwrap();

@@ -27,22 +27,28 @@ impl NvimHandler {
                     let mut repaint_mode = RepaintMode::Nothing;
 
                     for ev in params {
-                        if let Some(ev_args) = ev.as_array() {
-                            if let Some(ev_name) = ev_args[0].as_str() {
-                                for local_args in ev_args.iter().skip(1) {
-                                    let args = match *local_args {
-                                        Value::Array(ref ar) => ar.clone(),
-                                        _ => vec![],
-                                    };
-                                    let call_reapint_mode =
-                                        redraw_handler::call(ui, ev_name, &args)?;
-                                    repaint_mode = repaint_mode.join(call_reapint_mode);
+                        if let Value::Array(ev_args) = ev {
+                            let mut args_iter = ev_args.into_iter();
+                            let ev_name = args_iter.next();
+                            if let Some(ev_name) = ev_name {
+                                if let Some(ev_name) = ev_name.as_str() {
+                                    for local_args in args_iter {
+                                        let args = match local_args {
+                                            Value::Array(ar) => ar,
+                                            _ => vec![],
+                                        };
+                                        let call_reapint_mode =
+                                            redraw_handler::call(ui, &ev_name, &args)?;
+                                        repaint_mode = repaint_mode.join(call_reapint_mode);
+                                    }
+                                } else {
+                                    error!("Unsupported event");
                                 }
                             } else {
-                                println!("Unsupported event {:?}", ev_args);
+                                error!("Event name does not exists");
                             }
                         } else {
-                            println!("Unsupported event type {:?}", ev);
+                            error!("Unsupported event type {:?}", ev);
                         }
                     }
 
@@ -52,22 +58,31 @@ impl NvimHandler {
             }
             "Gui" => {
                 if !params.is_empty() {
-                    if let Some(ev_name) = params[0].as_str().map(String::from) {
-                        let args = params.iter().skip(1).cloned().collect();
-                        self.safe_call(move |ui| {
-                            redraw_handler::call_gui_event(ui, &ev_name, &args)?;
-                            ui.on_redraw(&RepaintMode::All);
-                            Ok(())
-                        });
+                    let mut params_iter = params.into_iter();
+                    if let Some(ev_name) = params_iter.next() {
+                        if let Value::String(ev_name) = ev_name {
+                            let args = params_iter.collect();
+                            self.safe_call(move |ui| {
+                                redraw_handler::call_gui_event(
+                                    ui,
+                                    ev_name.as_str().ok_or_else(|| "Event name does not exists")?,
+                                    &args,
+                                )?;
+                                ui.on_redraw(&RepaintMode::All);
+                                Ok(())
+                            });
+                        } else {
+                            error!("Unsupported event");
+                        }
                     } else {
-                        println!("Unsupported event {:?}", params);
+                        error!("Event name does not exists");
                     }
                 } else {
-                    println!("Unsupported event {:?}", params);
+                    error!("Unsupported event {:?}", params);
                 }
             }
             _ => {
-                println!("Notification {}({:?})", method, params);
+                error!("Notification {}({:?})", method, params);
             }
         }
     }
@@ -80,7 +95,7 @@ impl NvimHandler {
         let shell = self.shell.clone();
         glib::idle_add(move || {
             if let Err(msg) = cb.take().unwrap()(&mut shell.borrow_mut()) {
-                println!("Error call function: {}", msg);
+                error!("Error call function: {}", msg);
             }
             glib::Continue(false)
         });

@@ -14,10 +14,7 @@ enum NeovimClientState {
 
 pub enum NeovimRef<'a> {
     SingleThreaded(RefMut<'a, Neovim>),
-    MultiThreaded {
-        guard: MutexGuard<'a, RefCell<Option<Neovim>>>,
-        nvim: RefMut<'a, Option<Neovim>>,
-    },
+    MultiThreaded(MutexGuard<'a, Option<Neovim>>),
 }
 
 impl<'a> NeovimRef<'a> {
@@ -25,21 +22,11 @@ impl<'a> NeovimRef<'a> {
         NeovimRef::SingleThreaded(nvim)
     }
 
-    fn is_some(&self) -> bool {
-        match *self {
-            NeovimRef::MultiThreaded{ref nvim, ..} => nvim.is_some(),
-            NeovimRef::SingleThreaded(_) => true,
-        }
-    }
-
     fn from_nvim_async(nvim_async: &'a NeovimClientAsync) -> Option<NeovimRef<'a>> {
         let guard = nvim_async.nvim.lock().unwrap();
-        let nvim = guard.borrow_mut();
 
-        let nvim_ref = NeovimRef::MultiThreaded { guard, nvim };
-
-        if nvim_ref.is_some() {
-            Some(nvim_ref)
+        if guard.is_some() {
+            Some(NeovimRef::MultiThreaded(guard))
         } else {
             None
         }
@@ -52,7 +39,7 @@ impl<'a> Deref for NeovimRef<'a> {
     fn deref(&self) -> &Neovim {
         match *self {
             NeovimRef::SingleThreaded(ref nvim) => &*nvim,
-            NeovimRef::MultiThreaded { ref nvim, .. } => (&*nvim).as_ref().unwrap(),
+            NeovimRef::MultiThreaded(ref nvim) => (&*nvim).as_ref().unwrap(),
         }
     }
 }
@@ -61,22 +48,22 @@ impl<'a> DerefMut for NeovimRef<'a> {
     fn deref_mut(&mut self) -> &mut Neovim {
         match *self {
             NeovimRef::SingleThreaded(ref mut nvim) => &mut *nvim,
-            NeovimRef::MultiThreaded { ref mut nvim, .. } => (&mut *nvim).as_mut().unwrap(),
+            NeovimRef::MultiThreaded(ref mut nvim) => (&mut *nvim).as_mut().unwrap(),
         }
     }
 }
 
 pub struct NeovimClientAsync {
-    nvim: Arc<Mutex<RefCell<Option<Neovim>>>>,
+    nvim: Arc<Mutex<Option<Neovim>>>,
 }
 
 impl NeovimClientAsync {
-    fn new(nvim: Neovim) -> Self {
-        NeovimClientAsync { nvim: Arc::new(Mutex::new(RefCell::new(Some(nvim)))) }
+    fn new() -> Self {
+        NeovimClientAsync { nvim: Arc::new(Mutex::new(None)) }
     }
 
-    pub fn borrow(&self) -> NeovimRef {
-        NeovimRef::from_nvim_async(self).unwrap()
+    pub fn borrow(&self) -> Option<NeovimRef> {
+        NeovimRef::from_nvim_async(self)
     }
 }
 
@@ -91,7 +78,7 @@ impl Clone for NeovimClientAsync {
 pub struct NeovimClient {
     state: Cell<NeovimClientState>,
     nvim: RefCell<Option<Neovim>>,
-    nvim_async: RefCell<Option<NeovimClientAsync>>,
+    nvim_async: NeovimClientAsync,
 }
 
 impl NeovimClient {
@@ -99,29 +86,22 @@ impl NeovimClient {
         NeovimClient {
             state: Cell::new(NeovimClientState::Uninitialized),
             nvim: RefCell::new(None),
-            nvim_async: RefCell::new(None),
+            nvim_async: NeovimClientAsync::new(),
         }
     }
 
     pub fn async_to_sync(&self) {
-        {
-            let lock = self.nvim_async
-                .borrow()
-                .as_ref()
-                .expect("Nvim not initialized")
-                .nvim
-                .lock()
-                .unwrap();
-            let nvim = lock.borrow_mut().take().unwrap();
-            *self.nvim.borrow_mut() = Some(nvim);
-        }
-        *self.nvim_async.borrow_mut() = None;
+        let mut lock = self.nvim_async
+            .nvim
+            .lock()
+            .unwrap();
+        let nvim = lock.take().unwrap();
+        *self.nvim.borrow_mut() = Some(nvim);
     }
 
     pub fn set_nvim_async(&self, nvim: Neovim) -> NeovimClientAsync {
-        let nvim_async = NeovimClientAsync::new(nvim);
-        *self.nvim_async.borrow_mut() = Some(nvim_async.clone());
-        nvim_async
+        *self.nvim_async.nvim.lock().unwrap() = Some(nvim);
+        self.nvim_async.clone()
     }
 
     pub fn set_initialized(&self) {
@@ -155,12 +135,7 @@ impl NeovimClient {
                 RefMut::map(nvim, |n| n.as_mut().unwrap()),
             ))
         } else {
-            let nvim_async = self.nvim_async.borrow();
-            if let Some(ref nvim_async) = *nvim_async {
-                NeovimRef::from_nvim_async(nvim_async)
-            } else {
-                None
-            }
+            self.nvim_async.borrow()
         }
     }
 }

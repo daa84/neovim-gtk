@@ -33,7 +33,7 @@ impl State {
     fn switch_page(&self, idx: u32) {
         let target = &self.data[idx as usize];
         if Some(target) != self.selected.as_ref() {
-            if let Some(nvim) = self.nvim.as_ref().unwrap().nvim() {
+            if let Some(mut nvim) = self.nvim.as_ref().unwrap().nvim() {
                 nvim.set_current_tabpage(target).report_err(&mut *nvim);
             }
         }

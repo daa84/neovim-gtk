@@ -139,15 +139,15 @@ pub fn post_start_init(
     let mut opts = UiAttachOptions::new();
     opts.set_popupmenu_external(false);
     opts.set_tabline_external(true);
-    nvim.borrow().ui_attach(cols, rows, &opts).map_err(
+    nvim.borrow().unwrap().ui_attach(cols, rows, &opts).map_err(
         NvimInitError::new_post_init,
     )?;
-    nvim.borrow().command("runtime! ginit.vim").map_err(
+    nvim.borrow().unwrap().command("runtime! ginit.vim").map_err(
         NvimInitError::new_post_init,
     )?;
 
     if let Some(path) = open_path {
-        nvim.borrow().command(&format!("e {}", path)).map_err(
+        nvim.borrow().unwrap().command(&format!("e {}", path)).map_err(
             NvimInitError::new_post_init,
         )?;
     }
