@@ -606,6 +606,10 @@ impl Deref for Shell {
 }
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
+    if let Some(mut nvim) = state.nvim() {
+        nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif").report_err(&mut *nvim);
+    }
+
     state.im_context.focus_in();
     state.cursor.as_mut().unwrap().enter_focus();
     let point = state.model.cur_point();
@@ -614,6 +618,10 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 }
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
+    if let Some(mut nvim) = state.nvim() {
+        nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif").report_err(&mut *nvim);
+    }
+
     state.im_context.focus_out();
     state.cursor.as_mut().unwrap().leave_focus();
     let point = state.model.cur_point();
