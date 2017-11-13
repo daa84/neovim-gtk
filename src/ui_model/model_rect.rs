@@ -9,6 +9,10 @@ pub struct ModelRectVec {
 }
 
 impl ModelRectVec {
+    pub fn empty() -> ModelRectVec {
+        ModelRectVec { list: vec![] }
+    }
+
     pub fn new(first: ModelRect) -> ModelRectVec {
         ModelRectVec { list: vec![first] }
     }
@@ -257,13 +261,7 @@ impl ModelRect {
         )
     }
 
-    pub fn from_area(
-        cell_metrics: &CellMetrics,
-        x1: f64,
-        y1: f64,
-        x2: f64,
-        y2: f64,
-    ) -> ModelRect {
+    pub fn from_area(cell_metrics: &CellMetrics, x1: f64, y1: f64, x2: f64, y2: f64) -> ModelRect {
         let &CellMetrics {
             char_width,
             line_height,

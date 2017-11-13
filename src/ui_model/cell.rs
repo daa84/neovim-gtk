@@ -63,4 +63,3 @@ impl Cell {
         self.dirty = true;
     }
 }
-

@@ -70,6 +70,12 @@ impl UiModel {
     }
 
     pub fn set_cursor(&mut self, row: usize, col: usize) -> ModelRectVec {
+        // it is possible in some cases that cursor moved out of visible rect
+        // see https://github.com/daa84/neovim-gtk/issues/20
+        if row >= self.model.len() || col >= self.model[row].line.len() {
+            return ModelRectVec::empty();
+        }
+
         let mut changed_region = ModelRectVec::new(self.cur_point());
 
         self.cur_row = row;
