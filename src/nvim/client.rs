@@ -69,9 +69,7 @@ impl NeovimClientAsync {
 
 impl Clone for NeovimClientAsync {
     fn clone(&self) -> Self {
-        NeovimClientAsync {
-            nvim: self.nvim.clone()
-        }
+        NeovimClientAsync { nvim: self.nvim.clone() }
     }
 }
 
@@ -90,11 +88,17 @@ impl NeovimClient {
         }
     }
 
+    pub fn clear(&self) {
+        let mut nvim = self.nvim.borrow_mut();
+        if nvim.is_some() {
+            nvim.take();
+        } else {
+            self.nvim_async.nvim.lock().unwrap().take();
+        }
+    }
+
     pub fn async_to_sync(&self) {
-        let mut lock = self.nvim_async
-            .nvim
-            .lock()
-            .unwrap();
+        let mut lock = self.nvim_async.nvim.lock().unwrap();
         let nvim = lock.take().unwrap();
         *self.nvim.borrow_mut() = Some(nvim);
     }

@@ -783,7 +783,14 @@ fn init_nvim_async(
     thread::spawn(move || {
         guard.join().expect("Can't join dispatch thread");
 
-        idle_cb_call!(state_ref.detach_cb());
+        glib::idle_add(move || {
+            state_ref.borrow().nvim.clear();
+            if let Some(ref cb) = state_ref.borrow().detach_cb {
+                (&mut *cb.borrow_mut())();
+            }
+
+            glib::Continue(false)
+        });
     });
 
     // attach ui
