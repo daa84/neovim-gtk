@@ -95,10 +95,6 @@ impl Ui {
         }
         self.initialized = true;
 
-        if app.prefers_app_menu() {
-            self.create_main_menu(app);
-        }
-
         let mut settings = self.settings.borrow_mut();
         settings.init();
 
@@ -113,6 +109,10 @@ impl Ui {
         let use_header_bar = env::var("NVIM_GTK_NO_HEADERBAR")
             .map(|opt| opt.trim() != "1")
             .unwrap_or(true);
+
+        if app.prefers_app_menu() || use_header_bar {
+            self.create_main_menu(app);
+        }
 
         if use_header_bar {
             let header_bar = HeaderBar::new();
