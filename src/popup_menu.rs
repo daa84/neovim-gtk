@@ -50,11 +50,13 @@ impl State {
         self.renderer.set_property_font(
             Some(&shell.get_font_desc().to_string()),
         );
+
+        let color_model = &shell.color_model;
         self.renderer.set_property_foreground_rgba(
-            Some(&shell.get_foreground().into()),
+            Some(&color_model.pmenu_fg().into()),
         );
         self.renderer.set_property_background_rgba(
-            Some(&shell.get_background().into()),
+            Some(&color_model.pmenu_bg().into()),
         );
 
         let col_count = menu[0].len();

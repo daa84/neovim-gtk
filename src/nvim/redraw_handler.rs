@@ -201,7 +201,7 @@ pub fn call(
                         );
                         let tab_attr = tab_attrs
                             .get("tab")
-                            .map(|tab_id| Tabpage::new(tab_id.clone()))
+                            .map(|&tab_id| Tabpage::new(tab_id.clone()))
                             .unwrap();
 
                         (tab_attr, name_attr)

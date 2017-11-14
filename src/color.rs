@@ -1,6 +1,7 @@
 use std;
 use gdk;
 use ui_model::Cell;
+use theme::Theme;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Color(pub f64, pub f64, pub f64);
@@ -41,6 +42,7 @@ pub struct ColorModel {
     pub bg_color: Color,
     pub fg_color: Color,
     pub sp_color: Color,
+    pub theme: Theme,
 }
 
 impl ColorModel {
@@ -49,6 +51,7 @@ impl ColorModel {
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
             sp_color: COLOR_RED,
+            theme: Theme::new(),
         }
     }
 
@@ -101,5 +104,40 @@ impl ColorModel {
     #[inline]
     pub fn actual_cell_sp<'a>(&'a self, cell: &'a Cell) -> &'a Color  {
         cell.attrs.special.as_ref().unwrap_or(&self.sp_color)
+    }
+
+    pub fn pmenu_bg(&self) -> &Color {
+        if let Some(ref pmenu) = self.theme.pmenu {
+            pmenu.bg.as_ref().unwrap_or(&self.bg_color)
+        } else {
+            &self.bg_color
+        }
+    }
+
+
+    pub fn pmenu_fg(&self) -> &Color {
+        if let Some(ref pmenu) = self.theme.pmenu {
+            pmenu.fg.as_ref().unwrap_or(&self.fg_color)
+        } else {
+            &self.fg_color
+        }
+    }
+
+
+    pub fn pmenu_bg_sel(&self) -> &Color {
+        if let Some(ref pmenu) = self.theme.pmenu {
+            pmenu.bg_sel.as_ref().unwrap_or(&self.bg_color)
+        } else {
+            &self.bg_color
+        }
+    }
+
+
+    pub fn pmenu_fg_sel(&self) -> &Color {
+        if let Some(ref pmenu) = self.theme.pmenu {
+            pmenu.fg_sel.as_ref().unwrap_or(&self.fg_color)
+        } else {
+            &self.fg_color
+        }
     }
 }

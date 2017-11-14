@@ -57,7 +57,7 @@ enum ResizeState {
 
 pub struct State {
     pub model: UiModel,
-    color_model: ColorModel,
+    pub color_model: ColorModel,
     cur_attrs: Option<Attrs>,
     mouse_enabled: bool,
     nvim: Rc<NeovimClient>,
@@ -115,14 +115,6 @@ impl State {
             detach_cb: None,
             nvim_started_cb: None,
         }
-    }
-
-    pub fn get_foreground(&self) -> &Color {
-        &self.color_model.fg_color
-    }
-
-    pub fn get_background(&self) -> &Color {
-        &self.color_model.bg_color
     }
 
     pub fn nvim(&self) -> Option<NeovimRef> {
@@ -938,6 +930,10 @@ impl RedrawEvents for State {
                     self.resize_main_window();
                 }
             }
+        }
+
+        if let Some(mut nvim) = self.nvim.nvim() {
+            self.color_model.theme.update(&mut *nvim);
         }
         RepaintMode::Nothing
     }

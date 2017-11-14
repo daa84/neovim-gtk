@@ -159,7 +159,7 @@ pub fn post_start_init(
 pub trait ErrorReport<T> {
     fn report_err(&self, nvim: &mut NeovimApi);
 
-     fn ok_and_report(&self, nvim: &mut NeovimApi) -> Option<&T>;
+     fn ok_and_report(self, nvim: &mut NeovimApi) -> Option<T>;
 }
 
 impl<T> ErrorReport<T> for result::Result<T, CallError> {
@@ -170,9 +170,9 @@ impl<T> ErrorReport<T> for result::Result<T, CallError> {
         }
     }
 
-    fn ok_and_report(&self, nvim: &mut NeovimApi) -> Option<&T> {
+    fn ok_and_report(self, nvim: &mut NeovimApi) -> Option<T> {
         self.report_err(nvim);
-        self.as_ref().ok()
+        self.ok()
     }
 }
 

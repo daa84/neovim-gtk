@@ -28,6 +28,7 @@ mod sys;
 
 mod nvim_config;
 mod dirs;
+mod theme;
 mod color;
 mod value;
 mod mode;
