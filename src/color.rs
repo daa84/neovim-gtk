@@ -39,7 +39,7 @@ impl Color {
 
     pub fn to_hex(&self) -> String {
         format!(
-            "#{:X}{:X}{:X}",
+            "#{:02X}{:02X}{:02X}",
             (self.0 * 255.0) as u8,
             (self.1 * 255.0) as u8,
             (self.2 * 255.0) as u8
@@ -148,5 +148,16 @@ impl ColorModel {
         } else {
             &self.fg_color
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_hex() {
+        let col = Color(0.0, 1.0, 0.0);
+        assert_eq!("#00FF00", &col.to_hex());
     }
 }
