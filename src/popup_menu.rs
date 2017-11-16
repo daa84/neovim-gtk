@@ -9,8 +9,8 @@ use gdk::{EventButton, EventType};
 
 use neovim_lib::{Neovim, NeovimApi};
 
-use nvim;
-use nvim::ErrorReport;
+use color::ColorModel;
+use nvim::{self, ErrorReport};
 use shell;
 use input;
 
@@ -21,15 +21,23 @@ struct State {
     renderer: gtk::CellRendererText,
     tree: gtk::TreeView,
     scroll: gtk::ScrolledWindow,
+    css_provider: gtk::CssProvider,
 }
 
 impl State {
     pub fn new() -> Self {
+        let tree = gtk::TreeView::new();
+        let css_provider = gtk::CssProvider::new();
+
+        let style_context = tree.get_style_context().unwrap();
+        style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
         State {
             nvim: None,
             renderer: gtk::CellRendererText::new(),
-            tree: gtk::TreeView::new(),
+            tree,
             scroll: gtk::ScrolledWindow::new(None, None),
+            css_provider,
         }
     }
 
@@ -59,6 +67,8 @@ impl State {
             Some(&color_model.pmenu_bg().into()),
         );
 
+        self.update_css(color_model);
+
         let col_count = menu[0].len();
         let columns = self.tree.get_columns();
 
@@ -82,6 +92,23 @@ impl State {
         }
 
         self.tree.set_model(Some(&list_store));
+    }
+
+    fn update_css(&self, color_model: &ColorModel) {
+        let bg = color_model.pmenu_bg_sel();
+        let fg = color_model.pmenu_fg_sel();
+
+        match gtk::CssProviderExtManual::load_from_data(
+            &self.css_provider,
+            &format!(
+                ".view {{ color: {}; background-color: {};}}",
+                fg.to_hex(),
+                bg.to_hex()
+            ),
+        ) {
+            Err(e) => error!("Can't update css {}", e),
+            Ok(_) => (),
+        };
     }
 
     fn append_column(&self, id: i32) {

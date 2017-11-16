@@ -137,7 +137,7 @@ pub fn post_start_init(
     rows: u64,
 ) -> result::Result<(), NvimInitError> {
     let mut opts = UiAttachOptions::new();
-    opts.set_popupmenu_external(false);
+    opts.set_popupmenu_external(true);
     opts.set_tabline_external(true);
     nvim.borrow().unwrap().ui_attach(cols, rows, &opts).map_err(
         NvimInitError::new_post_init,

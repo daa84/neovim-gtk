@@ -36,6 +36,15 @@ impl Color {
             (std::u16::MAX as f64 * self.2) as u16,
         )
     }
+
+    pub fn to_hex(&self) -> String {
+        format!(
+            "#{:X}{:X}{:X}",
+            (self.0 * 255.0) as u8,
+            (self.1 * 255.0) as u8,
+            (self.2 * 255.0) as u8
+        )
+    }
 }
 
 pub struct ColorModel {
@@ -93,7 +102,7 @@ impl ColorModel {
         }
     }
 
-    pub fn actual_cell_bg<'a>(&'a self, cell: &'a Cell) -> &'a Color  {
+    pub fn actual_cell_bg<'a>(&'a self, cell: &'a Cell) -> &'a Color {
         if !cell.attrs.reverse {
             cell.attrs.background.as_ref().unwrap_or(&self.bg_color)
         } else {
@@ -102,7 +111,7 @@ impl ColorModel {
     }
 
     #[inline]
-    pub fn actual_cell_sp<'a>(&'a self, cell: &'a Cell) -> &'a Color  {
+    pub fn actual_cell_sp<'a>(&'a self, cell: &'a Cell) -> &'a Color {
         cell.attrs.special.as_ref().unwrap_or(&self.sp_color)
     }
 
