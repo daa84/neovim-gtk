@@ -907,8 +907,8 @@ impl RedrawEvents for State {
         RepaintMode::AreaList(repaint_area)
     }
 
-    fn on_put(&mut self, text: &str) -> RepaintMode {
-        RepaintMode::Area(self.model.put(text, self.cur_attrs.as_ref()))
+    fn on_put(&mut self, text: String) -> RepaintMode {
+        RepaintMode::Area(self.model.put(&text, self.cur_attrs.as_ref()))
     }
 
     fn on_clear(&mut self) -> RepaintMode {

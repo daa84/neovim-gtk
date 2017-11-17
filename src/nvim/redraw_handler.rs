@@ -15,7 +15,7 @@ use super::mode_info::ModeInfo;
 pub trait RedrawEvents {
     fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode;
 
-    fn on_put(&mut self, text: &str) -> RepaintMode;
+    fn on_put(&mut self, text: String) -> RepaintMode;
 
     fn on_clear(&mut self) -> RepaintMode;
 
@@ -136,7 +136,12 @@ macro_rules! call {
     ($s:ident -> $c:ident ($args:ident : $($arg_type:ident),+ )) => (
         {
             let mut iter = $args.into_iter();
-            $s.$c($( try_arg!(iter.next().unwrap(), $arg_type)),+ )
+            $s.$c($( 
+                try_arg!(iter.next()
+                             .ok_or_else(|| format!("No such argument for {}", stringify!($c)))?, 
+                         $arg_type
+                        )
+            ),+ )
         }
     )
 }
@@ -180,10 +185,10 @@ pub fn call(
     args: Vec<Value>,
 ) -> result::Result<RepaintMode, String> {
     let repaint_mode = match method {
-        "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
-        "put" => ui.on_put(try_str!(args[0])),
+        "cursor_goto" => call!(ui->on_cursor_goto(args: uint, uint)),
+        "put" => call!(ui->on_put(args: str)),
         "clear" => ui.on_clear(),
-        "resize" => ui.on_resize(try_uint!(args[0]), try_uint!(args[1])),
+        "resize" => call!(ui->on_resize(args: uint, uint)),
         "highlight_set" => {
             call!(ui->on_highlight_set(args: ext));
             RepaintMode::Nothing
