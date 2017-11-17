@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use color::Color;
+use neovim_lib::Value;
 
 #[derive(Clone)]
 pub struct Attrs {
@@ -26,6 +29,38 @@ impl Attrs {
             reverse: false,
             double_width: false,
         }
+    }
+
+    pub fn from_value_map(attrs: &HashMap<String, Value>) -> Attrs {
+        let mut model_attrs = Attrs::new();
+
+        for (ref key, ref val) in attrs {
+            match key.as_ref() {
+                "foreground" => {
+                    if let Some(fg) = val.as_u64() {
+                        model_attrs.foreground = Some(Color::from_indexed_color(fg));
+                    }
+                }
+                "background" => {
+                    if let Some(bg) = val.as_u64() {
+                        model_attrs.background = Some(Color::from_indexed_color(bg));
+                    }
+                }
+                "special" => {
+                    if let Some(bg) = val.as_u64() {
+                        model_attrs.special = Some(Color::from_indexed_color(bg));
+                    }
+                }
+                "reverse" => model_attrs.reverse = true,
+                "bold" => model_attrs.bold = true,
+                "italic" => model_attrs.italic = true,
+                "underline" => model_attrs.underline = true,
+                "undercurl" => model_attrs.undercurl = true,
+                attr_key => error!("unknown attribute {}", attr_key),
+            };
+        }
+
+        model_attrs
     }
 
     fn clear(&mut self) {

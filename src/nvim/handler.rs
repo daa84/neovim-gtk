@@ -38,7 +38,7 @@ impl NvimHandler {
                                             _ => vec![],
                                         };
                                         let call_reapint_mode =
-                                            redraw_handler::call(ui, &ev_name, &args)?;
+                                            redraw_handler::call(ui, &ev_name, args)?;
                                         repaint_mode = repaint_mode.join(call_reapint_mode);
                                     }
                                 } else {

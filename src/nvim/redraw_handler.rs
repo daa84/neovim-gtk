@@ -1,4 +1,5 @@
 use std::result;
+use std::collections::HashMap;
 
 use neovim_lib::{Value, UiOption};
 use neovim_lib::neovim_api::Tabpage;
@@ -6,6 +7,7 @@ use neovim_lib::neovim_api::Tabpage;
 use shell;
 
 use value::ValueMapExt;
+use rmpv;
 
 use super::repaint_mode::RepaintMode;
 use super::mode_info::ModeInfo;
@@ -21,7 +23,7 @@ pub trait RedrawEvents {
 
     fn on_redraw(&mut self, mode: &RepaintMode);
 
-    fn on_highlight_set(&mut self, attrs: &[(Value, Value)]) -> RepaintMode;
+    fn on_highlight_set(&mut self, attrs: HashMap<String, Value>) -> RepaintMode;
 
     fn on_eol_clear(&mut self) -> RepaintMode;
 
@@ -64,6 +66,16 @@ pub trait RedrawEvents {
         cursor_style_enabled: bool,
         mode_info: Vec<ModeInfo>,
     ) -> RepaintMode;
+
+    fn cmdline_show(
+        &mut self,
+        content: Vec<(HashMap<String, Value>, String)>,
+        pos: u64,
+        firstc: String,
+        prompt: String,
+        indent: u64,
+        level: u64,
+    ) -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -103,6 +115,31 @@ macro_rules! map_array {
     );
 }
 
+macro_rules! try_arg {
+    ($value:expr, bool) => (try_bool!($value));
+    ($value:expr, uint) => (try_uint!($value));
+    ($value:expr, str) => (
+        match $value {
+            Value::String(s) => {
+                if let Some(s) = s.into_str() {
+                    Ok(s)
+                } else {
+                    Err("Can't convert to utf8 string".to_owned())
+                }
+            }
+            _ => Err("Can't convert to string".to_owned()),
+        }?);
+    ($value:expr, ext) => (rmpv::ext::from_value($value).map_err(|e| e.to_string())?);
+}
+
+macro_rules! call {
+    ($s:ident -> $c:ident ($args:ident : $($arg_type:ident),+ )) => (
+        {
+            let mut iter = $args.into_iter();
+            $s.$c($( try_arg!(iter.next().unwrap(), $arg_type)),+ )
+        }
+    )
+}
 
 pub fn call_gui_event(
     ui: &mut shell::State,
@@ -140,7 +177,7 @@ pub fn call_gui_event(
 pub fn call(
     ui: &mut shell::State,
     method: &str,
-    args: &[Value],
+    args: Vec<Value>,
 ) -> result::Result<RepaintMode, String> {
     let repaint_mode = match method {
         "cursor_goto" => ui.on_cursor_goto(try_uint!(args[0]), try_uint!(args[1])),
@@ -148,21 +185,12 @@ pub fn call(
         "clear" => ui.on_clear(),
         "resize" => ui.on_resize(try_uint!(args[0]), try_uint!(args[1])),
         "highlight_set" => {
-            if let Value::Map(ref attrs) = args[0] {
-                ui.on_highlight_set(attrs);
-            } else {
-                panic!("Supports only map value as argument");
-            }
+            call!(ui->on_highlight_set(args: ext));
             RepaintMode::Nothing
         }
         "eol_clear" => ui.on_eol_clear(),
         "set_scroll_region" => {
-            ui.on_set_scroll_region(
-                try_uint!(args[0]),
-                try_uint!(args[1]),
-                try_uint!(args[2]),
-                try_uint!(args[3]),
-            );
+            call!(ui->on_set_scroll_region(args: uint, uint, uint, uint));
             RepaintMode::Nothing
         }
         "scroll" => ui.on_scroll(try_int!(args[0])),
@@ -221,6 +249,7 @@ pub fn call(
             )?;
             ui.mode_info_set(try_bool!(args[0]), mode_info)
         }
+        "cmdline_show" => call!(ui->cmdline_show(args: ext, uint, str, str, uint, uint)),
         _ => {
             println!("Event {}({:?})", method, args);
             RepaintMode::Nothing
@@ -229,4 +258,3 @@ pub fn call(
 
     Ok(repaint_mode)
 }
-

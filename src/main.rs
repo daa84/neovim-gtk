@@ -17,6 +17,7 @@ extern crate phf;
 extern crate log;
 extern crate env_logger;
 extern crate htmlescape;
+extern crate rmpv;
 
 extern crate serde;
 #[macro_use]

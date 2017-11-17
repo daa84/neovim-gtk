@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 use std::ops::Deref;
 use std::thread;
+use std::collections::HashMap;
 
 use cairo;
 use pangocairo::CairoContextExt;
@@ -20,8 +21,10 @@ use neovim_lib::neovim_api::Tabpage;
 use settings::{Settings, FontSource};
 use ui_model::{UiModel, Attrs, ModelRect};
 use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
-use nvim;
-use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, NeovimRef, NeovimClientAsync};
+
+use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, NeovimRef,
+           NeovimClientAsync, CmdLine};
+
 use input;
 use input::keyval_to_input_string;
 use cursor::Cursor;
@@ -599,7 +602,8 @@ impl Deref for Shell {
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
     if let Some(mut nvim) = state.nvim() {
-        nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif").report_err(&mut *nvim);
+        nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif")
+            .report_err(&mut *nvim);
     }
 
     state.im_context.focus_in();
@@ -611,7 +615,8 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
     if let Some(mut nvim) = state.nvim() {
-        nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif").report_err(&mut *nvim);
+        nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif")
+            .report_err(&mut *nvim);
     }
 
     state.im_context.focus_out();
@@ -959,38 +964,8 @@ impl RedrawEvents for State {
         RepaintMode::Area(self.model.scroll(count))
     }
 
-    fn on_highlight_set(&mut self, attrs: &[(Value, Value)]) -> RepaintMode {
-        let mut model_attrs = Attrs::new();
-
-        for &(ref key_val, ref val) in attrs {
-            if let Some(key) = key_val.as_str() {
-                match key {
-                    "foreground" => {
-                        if let Some(fg) = val.as_u64() {
-                            model_attrs.foreground = Some(Color::from_indexed_color(fg));
-                        }
-                    }
-                    "background" => {
-                        if let Some(bg) = val.as_u64() {
-                            model_attrs.background = Some(Color::from_indexed_color(bg));
-                        }
-                    }
-                    "special" => {
-                        if let Some(bg) = val.as_u64() {
-                            model_attrs.special = Some(Color::from_indexed_color(bg));
-                        }
-                    }
-                    "reverse" => model_attrs.reverse = true,
-                    "bold" => model_attrs.bold = true,
-                    "italic" => model_attrs.italic = true,
-                    "underline" => model_attrs.underline = true,
-                    "undercurl" => model_attrs.undercurl = true,
-                    attr_key => println!("unknown attribute {}", attr_key),
-                };
-            } else {
-                panic!("attr key must be string");
-            }
-        }
+    fn on_highlight_set(&mut self, attrs: HashMap<String, Value>) -> RepaintMode {
+        let model_attrs = Attrs::from_value_map(&attrs);
 
         self.cur_attrs = Some(model_attrs);
         RepaintMode::Nothing
@@ -1092,6 +1067,19 @@ impl RedrawEvents for State {
         mode_info: Vec<nvim::ModeInfo>,
     ) -> RepaintMode {
         self.mode.set_info(cursor_style_enabled, mode_info);
+        RepaintMode::Nothing
+    }
+
+    fn cmdline_show(
+        &mut self,
+        content: Vec<(HashMap<String, Value>, String)>,
+        pos: u64,
+        firstc: String,
+        prompt: String,
+        indent: u64,
+        level: u64,
+    ) -> RepaintMode {
+        // TODO: implement
         RepaintMode::Nothing
     }
 }

@@ -4,11 +4,13 @@ mod handler;
 mod mode_info;
 mod redraw_handler;
 mod repaint_mode;
+mod cmd_line;
 
 pub use self::redraw_handler::{RedrawEvents, GuiApi};
 pub use self::repaint_mode::RepaintMode;
 pub use self::client::{NeovimClient, NeovimClientAsync, NeovimRef};
 pub use self::mode_info::{ModeInfo, CursorShape};
+pub use self::cmd_line::{CmdLine};
 
 use std::error;
 use std::fmt;
@@ -136,20 +138,28 @@ pub fn post_start_init(
     cols: u64,
     rows: u64,
 ) -> result::Result<(), NvimInitError> {
-    let mut opts = UiAttachOptions::new();
-    opts.set_popupmenu_external(true);
-    opts.set_tabline_external(true);
-    nvim.borrow().unwrap().ui_attach(cols, rows, &opts).map_err(
-        NvimInitError::new_post_init,
-    )?;
-    nvim.borrow().unwrap().command("runtime! ginit.vim").map_err(
-        NvimInitError::new_post_init,
-    )?;
+    nvim.borrow()
+        .unwrap()
+        .ui_attach(
+            cols,
+            rows,
+            UiAttachOptions::new()
+                .set_popupmenu_external(true)
+                .set_tabline_external(true)
+                .set_cmdline_external(true),
+        )
+        .map_err(NvimInitError::new_post_init)?;
+
+    nvim.borrow()
+        .unwrap()
+        .command("runtime! ginit.vim")
+        .map_err(NvimInitError::new_post_init)?;
 
     if let Some(path) = open_path {
-        nvim.borrow().unwrap().command(&format!("e {}", path)).map_err(
-            NvimInitError::new_post_init,
-        )?;
+        nvim.borrow()
+            .unwrap()
+            .command(&format!("e {}", path))
+            .map_err(NvimInitError::new_post_init)?;
     }
 
     Ok(())
@@ -159,7 +169,7 @@ pub fn post_start_init(
 pub trait ErrorReport<T> {
     fn report_err(&self, nvim: &mut NeovimApi);
 
-     fn ok_and_report(self, nvim: &mut NeovimApi) -> Option<T>;
+    fn ok_and_report(self, nvim: &mut NeovimApi) -> Option<T>;
 }
 
 impl<T> ErrorReport<T> for result::Result<T, CallError> {
@@ -175,4 +185,3 @@ impl<T> ErrorReport<T> for result::Result<T, CallError> {
         self.ok()
     }
 }
-
