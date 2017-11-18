@@ -37,7 +37,7 @@ pub trait RedrawEvents {
 
     fn on_update_sp(&mut self, sp: i64) -> RepaintMode;
 
-    fn on_mode_change(&mut self, mode: &str, idx: u64) -> RepaintMode;
+    fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode;
 
     fn on_mouse(&mut self, on: bool) -> RepaintMode;
 
@@ -45,7 +45,7 @@ pub trait RedrawEvents {
 
     fn popupmenu_show(
         &mut self,
-        menu: &[Vec<&str>],
+        menu: Vec<Vec<String>>,
         selected: i64,
         row: u64,
         col: u64,
@@ -118,6 +118,7 @@ macro_rules! map_array {
 macro_rules! try_arg {
     ($value:expr, bool) => (try_bool!($value));
     ($value:expr, uint) => (try_uint!($value));
+    ($value:expr, int) => (try_int!($value));
     ($value:expr, str) => (
         match $value {
             Value::String(s) => {
@@ -198,31 +199,18 @@ pub fn call(
             call!(ui->on_set_scroll_region(args: uint, uint, uint, uint));
             RepaintMode::Nothing
         }
-        "scroll" => ui.on_scroll(try_int!(args[0])),
-        "update_bg" => ui.on_update_bg(try_int!(args[0])),
-        "update_fg" => ui.on_update_fg(try_int!(args[0])),
-        "update_sp" => ui.on_update_sp(try_int!(args[0])),
-        "mode_change" => ui.on_mode_change(try_str!(args[0]), try_uint!(args[1])),
+        "scroll" => call!(ui->on_scroll(args: int)),
+        "update_bg" => call!(ui->on_update_bg(args: int)),
+        "update_fg" => call!(ui->on_update_fg(args: int)),
+        "update_sp" => call!(ui->on_update_sp(args: int)),
+        "mode_change" => call!(ui->on_mode_change(args: str, uint)),
         "mouse_on" => ui.on_mouse(true),
         "mouse_off" => ui.on_mouse(false),
         "busy_start" => ui.on_busy(true),
         "busy_stop" => ui.on_busy(false),
-        "popupmenu_show" => {
-            let menu_items = map_array!(args[0], "Error get menu list array", |item| {
-                map_array!(item, "Error get menu item array", |col| {
-                    col.as_str().ok_or("Error get menu column")
-                })
-            })?;
-
-            ui.popupmenu_show(
-                &menu_items,
-                try_int!(args[1]),
-                try_uint!(args[2]),
-                try_uint!(args[3]),
-            )
-        }
+        "popupmenu_show" => call!(ui->popupmenu_show(args: ext, int, uint, uint)),
         "popupmenu_hide" => ui.popupmenu_hide(),
-        "popupmenu_select" => ui.popupmenu_select(try_int!(args[0])),
+        "popupmenu_select" => call!(ui->popupmenu_select(args: int)),
         "tabline_update" => {
             let tabs_out = map_array!(args[1], "Error get tabline list".to_owned(), |tab| {
                 tab.as_map()

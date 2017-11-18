@@ -23,14 +23,14 @@ use ui_model::{UiModel, Attrs, ModelRect};
 use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 
 use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, NeovimRef,
-           NeovimClientAsync, CmdLine};
+           NeovimClientAsync};
 
-use input;
-use input::keyval_to_input_string;
+use input::{self, keyval_to_input_string};
 use cursor::Cursor;
 use ui::UiMutex;
-use popup_menu::PopupMenu;
+use popup_menu::{self, PopupMenu};
 use tabline::Tabline;
+use cmd_line::CmdLine;
 use error;
 use mode;
 use render;
@@ -66,7 +66,8 @@ pub struct State {
     nvim: Rc<NeovimClient>,
     pub font_ctx: render::Context,
     cursor: Option<Cursor>,
-    popup_menu: RefCell<PopupMenu>,
+    popup_menu: PopupMenu,
+    cmd_line: CmdLine,
     settings: Rc<RefCell<Settings>>,
 
     pub mode: mode::Mode,
@@ -88,7 +89,7 @@ pub struct State {
 impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> State {
         let drawing_area = gtk::DrawingArea::new();
-        let popup_menu = RefCell::new(PopupMenu::new(&drawing_area));
+        let popup_menu = PopupMenu::new(&drawing_area);
         let font_ctx = render::Context::new(FontDescription::from_string(DEFAULT_FONT_NAME));
 
         State {
@@ -100,6 +101,7 @@ impl State {
             font_ctx,
             cursor: None,
             popup_menu,
+            cmd_line: CmdLine::new(),
             settings,
 
             mode: mode::Mode::new(),
@@ -183,7 +185,7 @@ impl State {
     }
 
     fn close_popup_menu(&self) {
-        if self.popup_menu.borrow().is_open() {
+        if self.popup_menu.is_open() {
             if let Some(mut nvim) = self.nvim() {
                 nvim.input("<Esc>").report_err(&mut *nvim);
             }
@@ -306,6 +308,14 @@ impl State {
 
     }
 
+    fn get_window(&self) -> gtk::Window {
+            self.drawing_area
+                .get_toplevel()
+                .unwrap()
+                .downcast()
+                .unwrap()
+    }
+
     fn resize_main_window(&mut self) {
         let &CellMetrics {
             line_height,
@@ -319,11 +329,7 @@ impl State {
         let request_width = (self.model.columns as f64 * char_width) as i32;
 
         if width != request_width || height != request_height {
-            let window: gtk::Window = self.drawing_area
-                .get_toplevel()
-                .unwrap()
-                .downcast()
-                .unwrap();
+            let window = self.get_window();
             let (win_width, win_height) = window.get_size();
             let h_border = win_width - width;
             let v_border = win_height - height;
@@ -998,8 +1004,8 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn on_mode_change(&mut self, mode: &str, idx: u64) -> RepaintMode {
-        self.mode.update(mode, idx as usize);
+    fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode {
+        self.mode.update(&mode, idx as usize);
         RepaintMode::Area(self.model.cur_point())
     }
 
@@ -1019,7 +1025,7 @@ impl RedrawEvents for State {
 
     fn popupmenu_show(
         &mut self,
-        menu: &[Vec<&str>],
+        menu: Vec<Vec<String>>,
         selected: i64,
         row: u64,
         col: u64,
@@ -1027,26 +1033,30 @@ impl RedrawEvents for State {
         let point = ModelRect::point(col as usize, row as usize);
         let (x, y, width, height) = point.to_area(self.font_ctx.cell_metrics());
 
-        self.popup_menu.borrow_mut().show(
-            self,
-            menu,
+        let context = popup_menu::PopupMenuContext {
+            nvim: &self.nvim,
+            color_model: &self.color_model,
+            font_ctx: &self.font_ctx,
+            menu_items: &menu,
             selected,
             x,
             y,
             width,
-            height,
-        );
+            height
+        };
+
+        self.popup_menu.show(context);
 
         RepaintMode::Nothing
     }
 
     fn popupmenu_hide(&mut self) -> RepaintMode {
-        self.popup_menu.borrow_mut().hide();
+        self.popup_menu.hide();
         RepaintMode::Nothing
     }
 
     fn popupmenu_select(&mut self, selected: i64) -> RepaintMode {
-        self.popup_menu.borrow().select(selected);
+        self.popup_menu.select(selected);
         RepaintMode::Nothing
     }
 
@@ -1079,6 +1089,7 @@ impl RedrawEvents for State {
         indent: u64,
         level: u64,
     ) -> RepaintMode {
+        self.cmd_line.show(&self.get_window());
         // TODO: implement
         RepaintMode::Nothing
     }

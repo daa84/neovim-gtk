@@ -4,13 +4,11 @@ mod handler;
 mod mode_info;
 mod redraw_handler;
 mod repaint_mode;
-mod cmd_line;
 
 pub use self::redraw_handler::{RedrawEvents, GuiApi};
 pub use self::repaint_mode::RepaintMode;
 pub use self::client::{NeovimClient, NeovimClientAsync, NeovimRef};
 pub use self::mode_info::{ModeInfo, CursorShape};
-pub use self::cmd_line::{CmdLine};
 
 use std::error;
 use std::fmt;

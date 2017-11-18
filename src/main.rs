@@ -43,6 +43,7 @@ mod shell;
 mod input;
 mod settings;
 mod cursor;
+mod cmd_line;
 mod shell_dlg;
 mod popup_menu;
 mod project;

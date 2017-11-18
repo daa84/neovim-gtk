@@ -10,9 +10,10 @@ use gdk::{EventButton, EventType};
 use neovim_lib::{Neovim, NeovimApi};
 
 use color::ColorModel;
-use nvim::{self, ErrorReport};
+use nvim::{self, ErrorReport, NeovimClient};
 use shell;
 use input;
+use render;
 
 const MAX_VISIBLE_ROWS: i32 = 10;
 
@@ -41,25 +42,25 @@ impl State {
         }
     }
 
-    fn before_show(&mut self, shell: &shell::State, menu_items: &[Vec<&str>], selected: i64) {
+    fn before_show(&mut self, ctx: PopupMenuContext) {
         if self.nvim.is_none() {
-            self.nvim = Some(shell.nvim_clone());
+            self.nvim = Some(ctx.nvim.clone());
         }
 
-        self.update_tree(menu_items, shell);
-        self.select(selected);
+        self.update_tree(&ctx);
+        self.select(ctx.selected);
     }
 
-    fn update_tree(&self, menu: &[Vec<&str>], shell: &shell::State) {
-        if menu.is_empty() {
+    fn update_tree(&self, ctx: &PopupMenuContext) {
+        if ctx.menu_items.is_empty() {
             return;
         }
 
-        self.renderer.set_property_font(
-            Some(&shell.get_font_desc().to_string()),
-        );
+        self.renderer.set_property_font(Some(
+            &ctx.font_ctx.font_description().to_string(),
+        ));
 
-        let color_model = &shell.color_model;
+        let color_model = &ctx.color_model;
         self.renderer.set_property_foreground_rgba(
             Some(&color_model.pmenu_fg().into()),
         );
@@ -69,7 +70,7 @@ impl State {
 
         self.update_css(color_model);
 
-        let col_count = menu[0].len();
+        let col_count = ctx.menu_items[0].len();
         let columns = self.tree.get_columns();
 
         if columns.len() != col_count {
@@ -85,7 +86,7 @@ impl State {
         let list_store = gtk::ListStore::new(&vec![gtk::Type::String; col_count]);
         let all_column_ids: Vec<u32> = (0..col_count).map(|i| i as u32).collect();
 
-        for line in menu {
+        for line in ctx.menu_items {
             let line_array: Vec<&glib::ToValue> =
                 line.iter().map(|v| v as &glib::ToValue).collect();
             list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
@@ -215,30 +216,17 @@ impl PopupMenu {
         self.open
     }
 
-    pub fn show(
-        &mut self,
-        shell: &shell::State,
-        menu_items: &[Vec<&str>],
-        selected: i64,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) {
+    pub fn show(&mut self, ctx: PopupMenuContext) {
 
         self.open = true;
 
         self.popover.set_pointing_to(&gtk::Rectangle {
-            x,
-            y,
-            width,
-            height,
+            x: ctx.x,
+            y: ctx.y,
+            width: ctx.width,
+            height: ctx.height,
         });
-        self.state.borrow_mut().before_show(
-            shell,
-            menu_items,
-            selected,
-        );
+        self.state.borrow_mut().before_show(ctx);
         self.popover.popup()
     }
 
@@ -255,6 +243,17 @@ impl PopupMenu {
     }
 }
 
+pub struct PopupMenuContext<'a> {
+    pub nvim: &'a Rc<NeovimClient>,
+    pub color_model: &'a ColorModel,
+    pub font_ctx: &'a render::Context,
+    pub menu_items: &'a [Vec<String>],
+    pub selected: i64,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
 
 fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) -> Inhibit {
     if ev.get_event_type() != EventType::ButtonPress {
