@@ -11,7 +11,6 @@ use neovim_lib::{Neovim, NeovimApi};
 
 use color::ColorModel;
 use nvim::{self, ErrorReport, NeovimClient};
-use shell;
 use input;
 use render;
 

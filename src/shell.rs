@@ -90,6 +90,7 @@ impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> State {
         let drawing_area = gtk::DrawingArea::new();
         let popup_menu = PopupMenu::new(&drawing_area);
+        let cmd_line = CmdLine::new(&drawing_area);
         let font_ctx = render::Context::new(FontDescription::from_string(DEFAULT_FONT_NAME));
 
         State {
@@ -101,7 +102,7 @@ impl State {
             font_ctx,
             cursor: None,
             popup_menu,
-            cmd_line: CmdLine::new(),
+            cmd_line,
             settings,
 
             mode: mode::Mode::new(),
@@ -1089,7 +1090,7 @@ impl RedrawEvents for State {
         indent: u64,
         level: u64,
     ) -> RepaintMode {
-        self.cmd_line.show(&self.get_window());
+        self.cmd_line.show();
         // TODO: implement
         RepaintMode::Nothing
     }

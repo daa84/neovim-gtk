@@ -1,23 +1,29 @@
 use gtk;
 use gtk::prelude::*;
 
+//TODO: levels
 pub struct CmdLine {
-    dlg: gtk::Dialog,
+    popover: gtk::Popover,
 }
 
 impl CmdLine {
-    pub fn new() -> Self {
-        let dlg = gtk::Dialog::new();
-        dlg.set_modal(true);
-        dlg.set_destroy_with_parent(true);
+    pub fn new(drawing: &gtk::DrawingArea) -> Self {
+        let popover = gtk::Popover::new(Some(drawing));
+        popover.set_modal(false);
+        let edit_frame = gtk::Frame::new(None);
+        edit_frame.set_shadow_type(gtk::ShadowType::In);
+        let drawing_area = gtk::DrawingArea::new();
+        edit_frame.add(&drawing_area);
+        edit_frame.show_all();
+
+        popover.add(&edit_frame);
 
         CmdLine {
-            dlg,
+            popover,
         }
     }
 
-    pub fn show<W: gtk::IsA<gtk::Window>>(&self, parent: &W) {
-        self.dlg.set_transient_for(parent);
-        self.dlg.show();
+    pub fn show(&self) {
+        self.popover.popup();
     }
 }
