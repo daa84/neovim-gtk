@@ -30,7 +30,7 @@ use cursor::Cursor;
 use ui::UiMutex;
 use popup_menu::{self, PopupMenu};
 use tabline::Tabline;
-use cmd_line::CmdLine;
+use cmd_line::{self, CmdLine};
 use error;
 use mode;
 use render;
@@ -915,7 +915,9 @@ impl RedrawEvents for State {
     }
 
     fn on_put(&mut self, text: String) -> RepaintMode {
-        RepaintMode::Area(self.model.put(&text, self.cur_attrs.as_ref()))
+        let ch = text.chars().last().unwrap_or(' ');
+        let double_width = text.is_empty();
+        RepaintMode::Area(self.model.put(ch, double_width, self.cur_attrs.as_ref()))
     }
 
     fn on_clear(&mut self) -> RepaintMode {
@@ -1090,8 +1092,8 @@ impl RedrawEvents for State {
         indent: u64,
         level: u64,
     ) -> RepaintMode {
-        self.cmd_line.show();
-        // TODO: implement
+        let level = cmd_line::Level::from(content, pos, firstc, prompt, indent, level);
+        self.cmd_line.show_level(level);
         RepaintMode::Nothing
     }
 }

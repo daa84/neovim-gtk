@@ -91,16 +91,16 @@ impl UiModel {
         (self.cur_row, self.cur_col)
     }
 
-    pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) -> ModelRect {
+    pub fn put(&mut self, ch: char, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {
         let mut changed_region = self.cur_point();
         let line = &mut self.model[self.cur_row];
         line.dirty_line = true;
 
         let cell = &mut line[self.cur_col];
 
-        cell.ch = text.chars().last().unwrap_or(' ');
+        cell.ch = ch;
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);
-        cell.attrs.double_width = text.is_empty();
+        cell.attrs.double_width = double_width;
         cell.dirty = true;
         self.cur_col += 1;
         if self.cur_col >= self.columns {
