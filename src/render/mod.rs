@@ -15,9 +15,9 @@ use cursor;
 use pangocairo::CairoContextExt;
 use ui_model;
 
-pub fn render(
+pub fn render<RC: cursor::CursorRedrawCb + 'static>(
     ctx: &cairo::Context,
-    cursor: &cursor::Cursor,
+    cursor: &cursor::Cursor<RC>,
     font_ctx: &context::Context,
     ui_model: &ui_model::UiModel,
     color_model: &color::ColorModel,

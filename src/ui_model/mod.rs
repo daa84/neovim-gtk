@@ -293,7 +293,7 @@ mod tests {
 
         model.set_cursor(1, 1);
 
-        let rect = model.put(" ", None);
+        let rect = model.put(' ', false, None);
 
         assert_eq!(1, rect.top);
         assert_eq!(1, rect.left);

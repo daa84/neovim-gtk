@@ -1,10 +1,8 @@
 use cairo;
 use color::Color;
 use ui::UiMutex;
-use shell;
 use mode;
 use nvim;
-use nvim::{RepaintMode, RedrawEvents};
 use std::sync::{Arc, Weak};
 use render;
 use render::CellMetrics;
@@ -44,20 +42,20 @@ enum AnimPhase {
     Busy,
 }
 
-struct State {
+struct State<CB: CursorRedrawCb> {
     alpha: Alpha,
     anim_phase: AnimPhase,
-    shell: Weak<UiMutex<shell::State>>,
+    redraw_cb: Weak<UiMutex<CB>>,
 
     timer: Option<glib::SourceId>,
 }
 
-impl State {
-    fn new(shell: Weak<UiMutex<shell::State>>) -> State {
+impl <CB: CursorRedrawCb> State <CB> {
+    fn new(redraw_cb: Weak<UiMutex<CB>>) -> Self {
         State {
             alpha: Alpha(1.0),
             anim_phase: AnimPhase::Shown,
-            shell: shell,
+            redraw_cb,
             timer: None,
         }
     }
@@ -72,13 +70,13 @@ impl State {
     }
 }
 
-pub struct Cursor {
-    state: Arc<UiMutex<State>>,
+pub struct Cursor <CB: CursorRedrawCb> {
+    state: Arc<UiMutex<State<CB>>>,
 }
 
-impl Cursor {
-    pub fn new(shell: Weak<UiMutex<shell::State>>) -> Cursor {
-        Cursor { state: Arc::new(UiMutex::new(State::new(shell))) }
+impl <CB: CursorRedrawCb + 'static> Cursor <CB> {
+    pub fn new(redraw_cb: Weak<UiMutex<CB>>) -> Self {
+        Cursor { state: Arc::new(UiMutex::new(State::new(redraw_cb))) }
     }
 
     pub fn start(&mut self) {
@@ -205,7 +203,8 @@ fn cursor_rect(
         (line_y, cursor_width, line_height)
     }
 }
-fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
+
+fn anim_step<CB: CursorRedrawCb + 'static> (state: &Arc<UiMutex<State<CB>>>) -> glib::Continue {
     let mut mut_state = state.borrow_mut();
 
     let next_event = match mut_state.anim_phase {
@@ -240,10 +239,9 @@ fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
         AnimPhase::Busy => None,
     };
 
-    let shell = mut_state.shell.upgrade().unwrap();
-    let mut shell = shell.borrow_mut();
-    let point = shell.model.cur_point();
-    shell.on_redraw(&RepaintMode::Area(point));
+    let redraw_cb = mut_state.redraw_cb.upgrade().unwrap();
+    let mut redraw_cb = redraw_cb.borrow_mut();
+    redraw_cb.queue_redraw_cursor();
 
 
     if let Some(timeout) = next_event {
@@ -257,12 +255,16 @@ fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
 
 }
 
-impl Drop for Cursor {
+impl <CB: CursorRedrawCb> Drop for Cursor<CB> {
     fn drop(&mut self) {
         if let Some(timer_id) = self.state.borrow().timer {
             glib::source_remove(timer_id);
         }
     }
+}
+
+pub trait CursorRedrawCb {
+    fn queue_redraw_cursor(&mut self);
 }
 
 #[cfg(test)]

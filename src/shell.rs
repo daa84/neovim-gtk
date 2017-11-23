@@ -26,7 +26,7 @@ use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, N
            NeovimClientAsync};
 
 use input::{self, keyval_to_input_string};
-use cursor::Cursor;
+use cursor::{Cursor, CursorRedrawCb};
 use ui::UiMutex;
 use popup_menu::{self, PopupMenu};
 use tabline::Tabline;
@@ -58,19 +58,32 @@ enum ResizeState {
     Wait,
 }
 
+pub struct RenderState {
+    pub font_ctx: render::Context,
+    pub color_model: ColorModel,
+    pub mode: mode::Mode,
+}
+
+impl RenderState {
+    pub fn new() -> Self {
+        RenderState {
+            font_ctx: render::Context::new(FontDescription::from_string(DEFAULT_FONT_NAME)),
+            color_model: ColorModel::new(),
+            mode: mode::Mode::new(),
+        }
+    }
+}
+
 pub struct State {
     pub model: UiModel,
-    pub color_model: ColorModel,
     cur_attrs: Option<Attrs>,
     mouse_enabled: bool,
     nvim: Rc<NeovimClient>,
-    pub font_ctx: render::Context,
-    cursor: Option<Cursor>,
+    cursor: Option<Cursor<State>>,
     popup_menu: PopupMenu,
     cmd_line: CmdLine,
     settings: Rc<RefCell<Settings>>,
-
-    pub mode: mode::Mode,
+    render_state: Rc<RefCell<RenderState>>,
 
     stack: gtk::Stack,
     drawing_area: gtk::DrawingArea,
@@ -89,23 +102,20 @@ pub struct State {
 impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> State {
         let drawing_area = gtk::DrawingArea::new();
+        let render_state = Rc::new(RefCell::new(RenderState::new()));
         let popup_menu = PopupMenu::new(&drawing_area);
-        let cmd_line = CmdLine::new(&drawing_area);
-        let font_ctx = render::Context::new(FontDescription::from_string(DEFAULT_FONT_NAME));
+        let cmd_line = CmdLine::new(&drawing_area, render_state.clone());
 
         State {
             model: UiModel::empty(),
-            color_model: ColorModel::new(),
             nvim: Rc::new(NeovimClient::new()),
             cur_attrs: None,
             mouse_enabled: true,
-            font_ctx,
             cursor: None,
             popup_menu,
             cmd_line,
             settings,
-
-            mode: mode::Mode::new(),
+            render_state,
 
             // UI
             stack: gtk::Stack::new(),
@@ -162,12 +172,10 @@ impl State {
         }
     }
 
-    pub fn get_font_desc(&self) -> &FontDescription {
-        self.font_ctx.font_description()
-    }
-
     pub fn set_font_desc(&mut self, desc: &str) {
-        self.font_ctx.update(FontDescription::from_string(desc));
+        self.render_state.borrow_mut().font_ctx.update(
+            FontDescription::from_string(desc),
+        );
         self.model.clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintMode::All);
@@ -207,18 +215,25 @@ impl State {
 
         self.update_dirty_glyphs();
 
+        let render_state = self.render_state.borrow();
+        let cell_metrics = render_state.font_ctx.cell_metrics();
+
         for mut rect in rects {
             rect.extend_by_items(&self.model);
 
-            let (x, y, width, height) =
-                rect.to_area_extend_ink(&self.model, self.font_ctx.cell_metrics());
+            let (x, y, width, height) = rect.to_area_extend_ink(&self.model, cell_metrics);
             self.drawing_area.queue_draw_area(x, y, width, height);
         }
     }
 
     #[inline]
     fn update_dirty_glyphs(&mut self) {
-        render::shape_dirty(&self.font_ctx, &mut self.model, &self.color_model);
+        let render_state = self.render_state.borrow();
+        render::shape_dirty(
+            &render_state.font_ctx,
+            &mut self.model,
+            &render_state.color_model,
+        );
     }
 
     fn im_commit(&self, ch: &str) {
@@ -232,7 +247,7 @@ impl State {
             line_height,
             char_width,
             ..
-        } = self.font_ctx.cell_metrics();
+        } = self.render_state.borrow().font_ctx.cell_metrics();
         let alloc = self.drawing_area.get_allocation();
         (
             (alloc.width as f64 / char_width).trunc() as usize,
@@ -252,7 +267,7 @@ impl State {
         let (row, col) = self.model.get_cursor();
 
         let (x, y, width, height) =
-            ModelRect::point(col, row).to_area(self.font_ctx.cell_metrics());
+            ModelRect::point(col, row).to_area(self.render_state.borrow().font_ctx.cell_metrics());
 
         self.im_context.set_cursor_location(&gdk::Rectangle {
             x,
@@ -310,11 +325,11 @@ impl State {
     }
 
     fn get_window(&self) -> gtk::Window {
-            self.drawing_area
-                .get_toplevel()
-                .unwrap()
-                .downcast()
-                .unwrap()
+        self.drawing_area
+            .get_toplevel()
+            .unwrap()
+            .downcast()
+            .unwrap()
     }
 
     fn resize_main_window(&mut self) {
@@ -322,7 +337,7 @@ impl State {
             line_height,
             char_width,
             ..
-        } = self.font_ctx.cell_metrics();
+        } = self.render_state.borrow().font_ctx.cell_metrics();
 
         let width = self.drawing_area.get_allocated_width();
         let height = self.drawing_area.get_allocated_height();
@@ -341,7 +356,10 @@ impl State {
     fn edit_paste(&self, clipboard: &str) {
         let nvim = self.nvim();
         if let Some(mut nvim) = nvim {
-            if self.mode.is(&mode::NvimMode::Insert) || self.mode.is(&mode::NvimMode::Normal) {
+            let render_state = self.render_state.borrow();
+            if render_state.mode.is(&mode::NvimMode::Insert) ||
+                render_state.mode.is(&mode::NvimMode::Normal)
+            {
                 let paste_code = format!("normal! \"{}P", clipboard);
                 nvim.command(&paste_code).report_err(&mut *nvim);
             } else {
@@ -682,7 +700,7 @@ fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f
         line_height,
         char_width,
         ..
-    } = shell.font_ctx.cell_metrics();
+    } = shell.render_state.borrow().font_ctx.cell_metrics();
     let (x, y) = position;
     let col = (x / char_width).trunc() as u64;
     let row = (y / line_height).trunc() as u64;
@@ -722,13 +740,14 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
 
     let state = state_arc.borrow();
     if state.nvim.is_initialized() {
+        let render_state = state.render_state.borrow();
         render::render(
             ctx,
             state.cursor.as_ref().unwrap(),
-            &state.font_ctx,
+            &render_state.font_ctx,
             &state.model,
-            &state.color_model,
-            &state.mode,
+            &render_state.color_model,
+            &render_state.mode,
         );
     } else if state.nvim.is_initializing() {
         draw_initializing(&*state, ctx);
@@ -852,14 +871,16 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
 }
 
 fn draw_initializing(state: &State, ctx: &cairo::Context) {
+    let render_state = state.render_state.borrow();
+    let color_model = &render_state.color_model;
     let layout = ctx.create_pango_layout();
-    let desc = state.get_font_desc();
+    let desc = render_state.font_ctx.font_description();
     let alloc = state.drawing_area.get_allocation();
 
     ctx.set_source_rgb(
-        state.color_model.bg_color.0,
-        state.color_model.bg_color.1,
-        state.color_model.bg_color.2,
+        color_model.bg_color.0,
+        color_model.bg_color.1,
+        color_model.bg_color.2,
     );
     ctx.paint();
 
@@ -872,9 +893,9 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
 
     ctx.move_to(x, y);
     ctx.set_source_rgb(
-        state.color_model.fg_color.0,
-        state.color_model.fg_color.1,
-        state.color_model.fg_color.2,
+        color_model.fg_color.0,
+        color_model.fg_color.1,
+        color_model.fg_color.2,
     );
     ctx.update_pango_layout(&layout);
     ctx.show_pango_layout(&layout);
@@ -883,11 +904,11 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     ctx.move_to(x + width as f64, y);
     state.cursor.as_ref().unwrap().draw(
         ctx,
-        &state.font_ctx,
-        &state.mode,
+        &render_state.font_ctx,
+        &render_state.mode,
         y,
         false,
-        &state.color_model.bg_color,
+        &color_model.bg_color,
     );
 }
 
@@ -947,7 +968,8 @@ impl RedrawEvents for State {
         }
 
         if let Some(mut nvim) = self.nvim.nvim() {
-            self.color_model.theme.update(&mut *nvim);
+            let mut render_state = self.render_state.borrow_mut();
+            render_state.color_model.theme.update(&mut *nvim);
         }
         RepaintMode::Nothing
     }
@@ -981,34 +1003,38 @@ impl RedrawEvents for State {
     }
 
     fn on_update_bg(&mut self, bg: i64) -> RepaintMode {
+        let mut render_state = self.render_state.borrow_mut();
         if bg >= 0 {
-            self.color_model.bg_color = Color::from_indexed_color(bg as u64);
+            render_state.color_model.bg_color = Color::from_indexed_color(bg as u64);
         } else {
-            self.color_model.bg_color = COLOR_BLACK;
+            render_state.color_model.bg_color = COLOR_BLACK;
         }
         RepaintMode::Nothing
     }
 
     fn on_update_fg(&mut self, fg: i64) -> RepaintMode {
+        let mut render_state = self.render_state.borrow_mut();
         if fg >= 0 {
-            self.color_model.fg_color = Color::from_indexed_color(fg as u64);
+            render_state.color_model.fg_color = Color::from_indexed_color(fg as u64);
         } else {
-            self.color_model.fg_color = COLOR_WHITE;
+            render_state.color_model.fg_color = COLOR_WHITE;
         }
         RepaintMode::Nothing
     }
 
     fn on_update_sp(&mut self, sp: i64) -> RepaintMode {
+        let mut render_state = self.render_state.borrow_mut();
         if sp >= 0 {
-            self.color_model.sp_color = Color::from_indexed_color(sp as u64);
+            render_state.color_model.sp_color = Color::from_indexed_color(sp as u64);
         } else {
-            self.color_model.sp_color = COLOR_RED;
+            render_state.color_model.sp_color = COLOR_RED;
         }
         RepaintMode::Nothing
     }
 
     fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode {
-        self.mode.update(&mode, idx as usize);
+        let mut render_state = self.render_state.borrow_mut();
+        render_state.mode.update(&mode, idx as usize);
         RepaintMode::Area(self.model.cur_point())
     }
 
@@ -1034,18 +1060,19 @@ impl RedrawEvents for State {
         col: u64,
     ) -> RepaintMode {
         let point = ModelRect::point(col as usize, row as usize);
-        let (x, y, width, height) = point.to_area(self.font_ctx.cell_metrics());
+        let render_state = self.render_state.borrow();
+        let (x, y, width, height) = point.to_area(render_state.font_ctx.cell_metrics());
 
         let context = popup_menu::PopupMenuContext {
             nvim: &self.nvim,
-            color_model: &self.color_model,
-            font_ctx: &self.font_ctx,
+            color_model: &render_state.color_model,
+            font_ctx: &render_state.font_ctx,
             menu_items: &menu,
             selected,
             x,
             y,
             width,
-            height
+            height,
         };
 
         self.popup_menu.show(context);
@@ -1079,7 +1106,8 @@ impl RedrawEvents for State {
         cursor_style_enabled: bool,
         mode_info: Vec<nvim::ModeInfo>,
     ) -> RepaintMode {
-        self.mode.set_info(cursor_style_enabled, mode_info);
+        let mut render_state = self.render_state.borrow_mut();
+        render_state.mode.set_info(cursor_style_enabled, mode_info);
         RepaintMode::Nothing
     }
 
@@ -1092,9 +1120,15 @@ impl RedrawEvents for State {
         indent: u64,
         level: u64,
     ) -> RepaintMode {
-        let level = cmd_line::Level::from(content, pos, firstc, prompt, indent, level);
-        self.cmd_line.show_level(level);
+        self.cmd_line.show_level(content, pos, firstc, prompt, indent, level);
         RepaintMode::Nothing
+    }
+}
+
+impl CursorRedrawCb for State {
+    fn queue_redraw_cursor(&mut self) {
+        let cur_point = self.model.cur_point();
+        self.on_redraw(&RepaintMode::Area(cur_point));
     }
 }
 
