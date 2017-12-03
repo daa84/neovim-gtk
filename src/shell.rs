@@ -21,7 +21,8 @@ use settings::{Settings, FontSource};
 use ui_model::{UiModel, Attrs, ModelRect};
 use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim;
-use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, NeovimRef, NeovimClientAsync};
+use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, NeovimRef,
+           NeovimClientAsync};
 use input;
 use input::keyval_to_input_string;
 use cursor::Cursor;
@@ -462,18 +463,19 @@ impl Shell {
 
         let ref_state = self.state.clone();
         state.drawing_area.connect_key_press_event(move |_, ev| {
-            let mut shell = ref_state.borrow_mut();
-            shell.cursor.as_mut().unwrap().reset_state();
-            // GtkIMContext will eat a Shift-Space and not tell us about shift.
-            // Also don't let IME eat any GDK_KEY_KP_ events
-            if !ev.get_state().contains(gdk::SHIFT_MASK) &&
-                ev.get_keyval() < gdk_sys::GDK_KEY_KP_Space as u32 &&
-                ev.get_keyval() > gdk_sys::GDK_KEY_KP_Divide as u32 &&
-                shell.im_context.filter_keypress(ev)
-            {
+            ref_state
+                .borrow_mut()
+                .cursor
+                .as_mut()
+                .unwrap()
+                .reset_state();
+
+            if ref_state.borrow().im_context.filter_keypress(ev) {
                 Inhibit(true)
             } else {
-                if let Some(mut nvim) = shell.nvim() {
+                let state = ref_state.borrow();
+                let nvim = state.nvim();
+                if let Some(mut nvim) = nvim {
                     input::gtk_key_press(&mut nvim, ev)
                 } else {
                     Inhibit(false)
@@ -599,7 +601,8 @@ impl Deref for Shell {
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
     if let Some(mut nvim) = state.nvim() {
-        nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif").report_err(&mut *nvim);
+        nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif")
+            .report_err(&mut *nvim);
     }
 
     state.im_context.focus_in();
@@ -611,7 +614,8 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
     if let Some(mut nvim) = state.nvim() {
-        nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif").report_err(&mut *nvim);
+        nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif")
+            .report_err(&mut *nvim);
     }
 
     state.im_context.focus_out();
