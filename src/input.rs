@@ -79,7 +79,9 @@ pub fn convert_key(ev: &EventKey) -> Option<String> {
 
 pub fn im_input(nvim: &mut Neovim, input: &str) {
     debug!("nvim_input -> {}", input);
-    nvim.input(input).expect("Error run input command to nvim");
+
+    let input = keyval_to_input_string(input, gdk::ModifierType::empty());
+    nvim.input(&input).expect("Error run input command to nvim");
 }
 
 pub fn gtk_key_press(nvim: &mut Neovim, ev: &EventKey) -> Inhibit {
