@@ -19,7 +19,8 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
 
     // CTRL-^ and CTRL-@ don't work in the normal way.
     if state.contains(gdk::CONTROL_MASK) && !state.contains(gdk::SHIFT_MASK) &&
-       !state.contains(gdk::MOD1_MASK) {
+        !state.contains(gdk::MOD1_MASK)
+    {
         if val == "6" {
             val = "^";
         } else if val == "2" {
@@ -80,7 +81,12 @@ pub fn convert_key(ev: &EventKey) -> Option<String> {
 pub fn im_input(nvim: &mut Neovim, input: &str) {
     debug!("nvim_input -> {}", input);
 
-    let input = keyval_to_input_string(input, gdk::ModifierType::empty());
+    let input: String = input
+        .chars()
+        .map(|ch| {
+            keyval_to_input_string(&ch.to_string(), gdk::ModifierType::empty())
+        })
+        .collect();
     nvim.input(&input).expect("Error run input command to nvim");
 }
 
