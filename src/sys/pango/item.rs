@@ -23,7 +23,7 @@ impl Item {
     #[cfg(test)]
     pub fn new() -> Self {
         unsafe {
-            from_glib_none(pango_sys::pango_item_new())
+            from_glib_full(pango_sys::pango_item_new())
         }
     }
 
