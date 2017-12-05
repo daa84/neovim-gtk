@@ -6,7 +6,7 @@ use std::sync::Arc;
 use gtk;
 use gtk_sys;
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image, AboutDialog};
+use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image, AboutDialog, SettingsExt};
 use gio::prelude::*;
 use gio::{Menu, MenuExt, MenuItem, MenuItemExt, SimpleAction};
 
@@ -104,6 +104,15 @@ impl Ui {
 
         comps.window = Some(ApplicationWindow::new(app));
         let window = comps.window.as_ref().unwrap();
+
+        let prefer_dark_theme = env::var("NVIM_GTK_PREFER_DARK_THEME")
+            .map(|opt| opt.trim() == "1")
+            .unwrap_or(false);
+        if prefer_dark_theme {
+            if let Some(settings) = window.get_settings() {
+                settings.set_property_gtk_application_prefer_dark_theme(true);
+            }
+        }
 
         // Client side decorations including the toolbar are disabled via NVIM_GTK_NO_HEADERBAR=1
         let use_header_bar = env::var("NVIM_GTK_NO_HEADERBAR")
