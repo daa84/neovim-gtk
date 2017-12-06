@@ -346,11 +346,15 @@ impl State {
 
 pub struct UiState {
     mouse_pressed: bool,
+    scroll_delta: (f64, f64),
 }
 
 impl UiState {
     pub fn new() -> UiState {
-        UiState { mouse_pressed: false }
+        UiState {
+            mouse_pressed: false,
+            scroll_delta: (0.0, 0.0),
+        }
     }
 }
 
@@ -416,8 +420,8 @@ impl Shell {
 
         state.drawing_area.set_events(
             (gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
-                 gdk_sys::GDK_BUTTON_MOTION_MASK |
-                 gdk_sys::GDK_SCROLL_MASK)
+                 gdk_sys::GDK_BUTTON_MOTION_MASK | gdk_sys::GDK_SCROLL_MASK |
+                 gdk_sys::GDK_SMOOTH_SCROLL_MASK)
                 .bits() as i32,
         );
 
@@ -489,8 +493,9 @@ impl Shell {
         });
 
         let ref_state = self.state.clone();
+        let ref_ui_state = self.ui_state.clone();
         state.drawing_area.connect_scroll_event(move |_, ev| {
-            gtk_scroll_event(&mut *ref_state.borrow_mut(), ev)
+            gtk_scroll_event(&mut *ref_state.borrow_mut(), &mut *ref_ui_state.borrow_mut(), ev)
         });
 
         let ref_state = self.state.clone();
@@ -626,7 +631,7 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
     Inhibit(false)
 }
 
-fn gtk_scroll_event(state: &mut State, ev: &EventScroll) -> Inhibit {
+fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll) -> Inhibit {
     if !state.mouse_enabled {
         return Inhibit(false);
     }
@@ -646,7 +651,30 @@ fn gtk_scroll_event(state: &mut State, ev: &EventScroll) -> Inhibit {
         gdk_sys::GdkScrollDirection::Down => {
             mouse_input(state, "ScrollWheelDown", ev.get_state(), ev.get_position())
         }
-        _ => (),
+        gdk_sys::GdkScrollDirection::Smooth => {
+            // Remember and accumulate scroll deltas, so slow scrolling still
+            // works.
+            ui_state.scroll_delta.0 += ev.as_ref().delta_x;
+            ui_state.scroll_delta.1 += ev.as_ref().delta_y;
+            // Perform scroll action for deltas with abs(delta) >= 1.
+            let x = ui_state.scroll_delta.0 as isize;
+            let y = ui_state.scroll_delta.1 as isize;
+            for _ in 0..x {
+                mouse_input(state, "ScrollWheelRight", ev.get_state(), ev.get_position())
+            }
+            for _ in 0..-x {
+                mouse_input(state, "ScrollWheelLeft", ev.get_state(), ev.get_position())
+            }
+            for _ in 0..y {
+                mouse_input(state, "ScrollWheelDown", ev.get_state(), ev.get_position())
+            }
+            for _ in 0..-y {
+                mouse_input(state, "ScrollWheelUp", ev.get_state(), ev.get_position())
+            }
+            // Subtract performed scroll deltas.
+            ui_state.scroll_delta.0 -= x as f64;
+            ui_state.scroll_delta.1 -= y as f64;
+        }
     }
     Inhibit(false)
 }
