@@ -152,9 +152,11 @@ fn draw_cell(
     } else if !line.is_binded_to_item(col) {
         let bg = color_model.cell_bg(cell);
         if let Some(bg) = bg {
-            ctx.set_source_rgb(bg.0, bg.1, bg.2);
-            ctx.rectangle(line_x, line_y, char_width, line_height);
-            ctx.fill();
+            if bg != &color_model.bg_color {
+                ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                ctx.rectangle(line_x, line_y, char_width, line_height);
+                ctx.fill();
+            }
         }
     }
 }
