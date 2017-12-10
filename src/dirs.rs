@@ -30,4 +30,3 @@ fn get_xdg_config_dir() -> Result<PathBuf, String> {
     home_dir.push(".config");
     Ok(home_dir)
 }
-

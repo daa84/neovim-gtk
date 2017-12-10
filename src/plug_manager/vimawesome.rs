@@ -42,9 +42,10 @@ fn request(query: Option<&str>) -> io::Result<DescriptionList> {
         if out.stdout.is_empty() {
             Ok(DescriptionList::empty())
         } else {
-            let description_list: DescriptionList = serde_json::from_slice(&out.stdout).map_err(|e| {
-                io::Error::new(io::ErrorKind::Other, e)
-            })?;
+            let description_list: DescriptionList =
+                serde_json::from_slice(&out.stdout).map_err(|e| {
+                    io::Error::new(io::ErrorKind::Other, e)
+                })?;
             Ok(description_list)
         }
     } else {
@@ -147,9 +148,7 @@ pub struct DescriptionList {
 
 impl DescriptionList {
     fn empty() -> DescriptionList {
-        DescriptionList {
-            plugins: Box::new([]),
-        }
+        DescriptionList { plugins: Box::new([]) }
     }
 }
 

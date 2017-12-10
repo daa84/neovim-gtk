@@ -16,7 +16,7 @@ impl ValueMapExt for Vec<(Value, Value)> {
                     .ok_or_else(|| "Can't convert map key to string".to_owned())
                     .map(|key| (key, &p.1))
             })
-        .collect::<Result<HashMap<&str, &Value>, String>>()
+            .collect::<Result<HashMap<&str, &Value>, String>>()
 
     }
 

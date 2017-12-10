@@ -68,7 +68,10 @@ impl Store {
 
     pub fn add_plug(&mut self, plug: PlugInfo) -> bool {
         let path = plug.get_plug_path();
-        if self.settings.plugs.iter().any(|p| p.get_plug_path() == path || p.name == plug.name) {
+        if self.settings.plugs.iter().any(|p| {
+            p.get_plug_path() == path || p.name == plug.name
+        })
+        {
             return false;
         }
         self.settings.plugs.push(plug);
@@ -81,7 +84,10 @@ impl Store {
 
     pub fn move_item(&mut self, idx: usize, offset: i32) {
         let plug = self.settings.plugs.remove(idx);
-        self.settings.plugs.insert((idx as i32 + offset) as usize, plug);
+        self.settings.plugs.insert(
+            (idx as i32 + offset) as usize,
+            plug,
+        );
     }
 }
 
@@ -93,7 +99,10 @@ struct Settings {
 
 impl Settings {
     fn new(plugs: Vec<PlugInfo>) -> Self {
-        Settings { plugs, enabled: false }
+        Settings {
+            plugs,
+            enabled: false,
+        }
     }
 }
 
@@ -101,7 +110,10 @@ impl SettingsLoader for Settings {
     const SETTINGS_FILE: &'static str = "plugs.toml";
 
     fn empty() -> Self {
-        Settings { plugs: vec![], enabled: false }
+        Settings {
+            plugs: vec![],
+            enabled: false,
+        }
     }
 
     fn from_str(s: &str) -> Result<Self, String> {

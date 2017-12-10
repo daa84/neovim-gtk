@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 use std::ops::Deref;
 use std::thread;
+use std::time::Duration;
 
 use cairo;
 use pangocairo::CairoContextExt;
@@ -358,13 +359,19 @@ impl UiState {
 pub struct ShellOptions {
     nvim_bin_path: Option<String>,
     open_path: Option<String>,
+    timeout: Option<Duration>,
 }
 
 impl ShellOptions {
-    pub fn new(nvim_bin_path: Option<String>, open_path: Option<String>) -> Self {
+    pub fn new(
+        nvim_bin_path: Option<String>,
+        open_path: Option<String>,
+        timeout: Option<Duration>,
+    ) -> Self {
         ShellOptions {
             nvim_bin_path,
             open_path,
+            timeout,
         }
     }
 }
@@ -763,7 +770,11 @@ fn init_nvim_async(
     rows: usize,
 ) {
     // execute nvim
-    let nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
+    let nvim = match nvim::start(
+        state_arc.clone(),
+        options.nvim_bin_path.as_ref(),
+        options.timeout,
+    ) {
         Ok(nvim) => nvim,
         Err(err) => {
             show_nvim_start_error(&err, state_arc);

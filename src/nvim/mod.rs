@@ -16,6 +16,7 @@ use std::env;
 use std::process::{Stdio, Command};
 use std::result;
 use std::sync::Arc;
+use std::time::Duration;
 
 use neovim_lib::{Neovim, NeovimApi, Session, UiAttachOptions, CallError};
 
@@ -78,6 +79,7 @@ impl error::Error for NvimInitError {
 pub fn start(
     shell: Arc<UiMutex<shell::State>>,
     nvim_bin_path: Option<&String>,
+    timeout: Option<Duration>,
 ) -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
@@ -116,10 +118,12 @@ pub fn start(
 
     let session = Session::new_child_cmd(&mut cmd);
 
-    let session = match session {
+    let mut session = match session {
         Err(e) => return Err(NvimInitError::new(&cmd, e)),
         Ok(s) => s,
     };
+
+    session.set_timeout(timeout.unwrap_or(Duration::from_millis(10_000)));
 
     let mut nvim = Neovim::new(session);
 
@@ -139,17 +143,20 @@ pub fn post_start_init(
     let mut opts = UiAttachOptions::new();
     opts.set_popupmenu_external(true);
     opts.set_tabline_external(true);
-    nvim.borrow().unwrap().ui_attach(cols, rows, &opts).map_err(
-        NvimInitError::new_post_init,
-    )?;
-    nvim.borrow().unwrap().command("runtime! ginit.vim").map_err(
-        NvimInitError::new_post_init,
-    )?;
+    nvim.borrow()
+        .unwrap()
+        .ui_attach(cols, rows, &opts)
+        .map_err(NvimInitError::new_post_init)?;
+    nvim.borrow()
+        .unwrap()
+        .command("runtime! ginit.vim")
+        .map_err(NvimInitError::new_post_init)?;
 
     if let Some(path) = open_path {
-        nvim.borrow().unwrap().command(&format!("e {}", path)).map_err(
-            NvimInitError::new_post_init,
-        )?;
+        nvim.borrow()
+            .unwrap()
+            .command(&format!("e {}", path))
+            .map_err(NvimInitError::new_post_init)?;
     }
 
     Ok(())
@@ -159,7 +166,7 @@ pub fn post_start_init(
 pub trait ErrorReport<T> {
     fn report_err(&self, nvim: &mut NeovimApi);
 
-     fn ok_and_report(self, nvim: &mut NeovimApi) -> Option<T>;
+    fn ok_and_report(self, nvim: &mut NeovimApi) -> Option<T>;
 }
 
 impl<T> ErrorReport<T> for result::Result<T, CallError> {
@@ -175,4 +182,3 @@ impl<T> ErrorReport<T> for result::Result<T, CallError> {
         self.ok()
     }
 }
-

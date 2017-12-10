@@ -229,4 +229,3 @@ pub fn call(
 
     Ok(repaint_mode)
 }
-

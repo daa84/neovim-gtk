@@ -30,7 +30,9 @@ pub fn pango_itemize(
             start_index as i32,
             length as i32,
             attrs.to_glib_none().0,
-            cached_iter.map(|iter| iter.to_glib_none_mut().0).unwrap_or(ptr::null_mut()),
+            cached_iter
+                .map(|iter| iter.to_glib_none_mut().0)
+                .unwrap_or(ptr::null_mut()),
         ))
     }
 }
@@ -59,4 +61,3 @@ pub fn pango_shape(
         );
     }
 }
-

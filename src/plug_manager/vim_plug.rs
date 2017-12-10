@@ -84,7 +84,9 @@ impl Manager {
 
     pub fn reload(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("source {}", path)).report_err(&mut *nvim); 
+            nvim.command(&format!("source {}", path)).report_err(
+                &mut *nvim,
+            );
         }
     }
 }
@@ -100,4 +102,3 @@ impl VimPlugInfo {
         VimPlugInfo { name, uri }
     }
 }
-
