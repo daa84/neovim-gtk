@@ -4,11 +4,13 @@ mod handler;
 mod mode_info;
 mod redraw_handler;
 mod repaint_mode;
+mod ext;
 
 pub use self::redraw_handler::{RedrawEvents, GuiApi};
 pub use self::repaint_mode::RepaintMode;
 pub use self::client::{NeovimClient, NeovimClientAsync, NeovimRef};
 pub use self::mode_info::{ModeInfo, CursorShape};
+pub use self::ext::{ErrorReport, NeovimExt};
 
 use std::error;
 use std::fmt;
@@ -18,7 +20,7 @@ use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 
-use neovim_lib::{Neovim, NeovimApi, Session, UiAttachOptions, CallError};
+use neovim_lib::{Neovim, NeovimApi, Session, UiAttachOptions};
 
 use ui::UiMutex;
 use shell;
@@ -162,23 +164,3 @@ pub fn post_start_init(
     Ok(())
 }
 
-
-pub trait ErrorReport<T> {
-    fn report_err(&self, nvim: &mut NeovimApi);
-
-    fn ok_and_report(self, nvim: &mut NeovimApi) -> Option<T>;
-}
-
-impl<T> ErrorReport<T> for result::Result<T, CallError> {
-    fn report_err(&self, _: &mut NeovimApi) {
-        if let Err(ref err) = *self {
-            println!("{}", err);
-            //nvim.report_error(&err_msg).expect("Error report error :)");
-        }
-    }
-
-    fn ok_and_report(self, nvim: &mut NeovimApi) -> Option<T> {
-        self.report_err(nvim);
-        self.ok()
-    }
-}

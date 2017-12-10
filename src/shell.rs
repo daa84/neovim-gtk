@@ -21,9 +21,8 @@ use neovim_lib::neovim_api::Tabpage;
 use settings::{Settings, FontSource};
 use ui_model::{UiModel, Attrs, ModelRect};
 use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
-use nvim;
-use nvim::{RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, NeovimRef,
-           NeovimClientAsync};
+use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimExt, NeovimClient,
+           NeovimRef, NeovimClientAsync};
 use input;
 use input::keyval_to_input_string;
 use cursor::Cursor;
@@ -117,6 +116,13 @@ impl State {
             detach_cb: None,
             nvim_started_cb: None,
         }
+    }
+
+    /// Return NeovimRef only if vim in non blocking state
+    ///
+    /// Note that this call also do neovim api call get_mode
+    pub fn nvim_non_blocked(&self) -> Option<NeovimRef> {
+        self.nvim().and_then(NeovimExt::non_blocked)
     }
 
     pub fn nvim(&self) -> Option<NeovimRef> {
@@ -607,11 +613,10 @@ impl Deref for Shell {
 }
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
-    // in case nvim want some input - this will freeze nvim-gtk
-    //if let Some(mut nvim) = state.nvim() {
-    //    nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif")
-    //        .report_err(&mut *nvim);
-    //}
+    if let Some(mut nvim) = state.nvim_non_blocked() {
+        nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif")
+            .report_err(&mut *nvim);
+    }
 
     state.im_context.focus_in();
     state.cursor.as_mut().unwrap().enter_focus();
@@ -621,11 +626,10 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 }
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
-    // in case nvim want some input - this will freeze nvim-gtk
-    //if let Some(mut nvim) = state.nvim() {
-    //    nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif")
-    //        .report_err(&mut *nvim);
-    //}
+    if let Some(mut nvim) = state.nvim_non_blocked() {
+        nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif")
+            .report_err(&mut *nvim);
+    }
 
     state.im_context.focus_out();
     state.cursor.as_mut().unwrap().leave_focus();
