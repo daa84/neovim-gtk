@@ -13,11 +13,6 @@ call rpcnotify(1, 'Gui', 'Font', 'DejaVu Sans Mono 12')
 ```
 for more details see [wiki](https://github.com/daa84/neovim-gtk/wiki/Configuration)
 
-# Command line
-* pass nvim custom execution path (by default used `nvim` command)
-```
-cargo run -- --nvim-bin-path=E:\Neovim\bin\nvim.exe
-```
 # Install
 ## From sources
 By default to `/usr/local`:
