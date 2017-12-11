@@ -2,7 +2,8 @@ use std::ops::{Deref, DerefMut};
 use std::cell::{Cell, RefCell, RefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use neovim_lib::Neovim;
+use super::ErrorReport;
+use neovim_lib::{Neovim, NeovimApi};
 
 #[derive(Clone, Copy, PartialEq)]
 enum NeovimClientState {
@@ -30,6 +31,17 @@ impl<'a> NeovimRef<'a> {
         } else {
             None
         }
+    }
+
+    pub fn non_blocked(mut self) -> Option<Self> {
+        self.get_mode().ok_and_report().and_then(|mode| {
+            mode.iter()
+                .find(|kv| {
+                    kv.0.as_str().map(|key| key == "blocking").unwrap_or(false)
+                })
+                .map(|kv| kv.1.as_bool().unwrap_or(false))
+                .and_then(|block| if block { None } else { Some(self) })
+        })
     }
 }
 

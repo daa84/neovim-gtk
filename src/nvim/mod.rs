@@ -10,7 +10,7 @@ pub use self::redraw_handler::{RedrawEvents, GuiApi};
 pub use self::repaint_mode::RepaintMode;
 pub use self::client::{NeovimClient, NeovimClientAsync, NeovimRef};
 pub use self::mode_info::{ModeInfo, CursorShape};
-pub use self::ext::{ErrorReport, NeovimExt};
+pub use self::ext::ErrorReport;
 
 use std::error;
 use std::fmt;

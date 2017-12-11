@@ -55,7 +55,7 @@ fn get_hl_color(map: &HashMap<&str, &Value>, color_name: &str) -> Option<Color> 
 
 fn get_hl_colors(nvim: &mut Neovim, hl: &str) -> (Option<Color>, Option<Color>) {
     nvim.get_hl_by_name(hl, true)
-        .ok_and_report(nvim)
+        .ok_and_report()
         .and_then(|m| if let Some(m) = m.to_attrs_map_report() {
             Some((
                 get_hl_color(&m, "background"),

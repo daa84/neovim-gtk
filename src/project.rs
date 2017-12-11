@@ -394,7 +394,7 @@ fn list_old_files(nvim: &mut Neovim) -> Vec<String> {
             }
         }
         err @ Err(_) => {
-            err.report_err(nvim);
+            err.report_err();
             vec![]
         }
     }
@@ -427,7 +427,7 @@ impl EntryStore {
                     println!("Error get current directory");
                 }
             }
-            err @ Err(_) => err.report_err(nvim),
+            err @ Err(_) => err.report_err(),
         }
 
         let old_files = list_old_files(nvim);

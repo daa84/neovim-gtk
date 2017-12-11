@@ -34,7 +34,7 @@ impl State {
         let target = &self.data[idx as usize];
         if Some(target) != self.selected.as_ref() {
             if let Some(mut nvim) = self.nvim.as_ref().unwrap().nvim() {
-                nvim.set_current_tabpage(target).report_err(&mut *nvim);
+                nvim.set_current_tabpage(target).report_err();
             }
         }
     }

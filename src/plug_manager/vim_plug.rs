@@ -70,7 +70,7 @@ impl Manager {
         if let Some(mut nvim) = self.nvim() {
             let loaded_plug = nvim.eval("exists('g:loaded_plug')");
             loaded_plug
-                .ok_and_report(&mut *nvim)
+                .ok_and_report()
                 .and_then(|loaded_plug| loaded_plug.as_i64())
                 .map_or(false, |loaded_plug| if loaded_plug > 0 {
                     true
@@ -84,9 +84,7 @@ impl Manager {
 
     pub fn reload(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("source {}", path)).report_err(
-                &mut *nvim,
-            );
+            nvim.command(&format!("source {}", path)).report_err();
         }
     }
 }

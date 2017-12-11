@@ -21,7 +21,7 @@ use neovim_lib::neovim_api::Tabpage;
 use settings::{Settings, FontSource};
 use ui_model::{UiModel, Attrs, ModelRect};
 use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
-use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimExt, NeovimClient,
+use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient,
            NeovimRef, NeovimClientAsync};
 use input;
 use input::keyval_to_input_string;
@@ -122,7 +122,7 @@ impl State {
     ///
     /// Note that this call also do neovim api call get_mode
     pub fn nvim_non_blocked(&self) -> Option<NeovimRef> {
-        self.nvim().and_then(NeovimExt::non_blocked)
+        self.nvim().and_then(NeovimRef::non_blocked)
     }
 
     pub fn nvim(&self) -> Option<NeovimRef> {
@@ -177,20 +177,20 @@ impl State {
 
     pub fn open_file(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("e {}", path)).report_err(&mut *nvim);
+            nvim.command(&format!("e {}", path)).report_err();
         }
     }
 
     pub fn cd(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("cd {}", path)).report_err(&mut *nvim);
+            nvim.command(&format!("cd {}", path)).report_err();
         }
     }
 
     fn close_popup_menu(&self) {
         if self.popup_menu.borrow().is_open() {
             if let Some(mut nvim) = self.nvim() {
-                nvim.input("<Esc>").report_err(&mut *nvim);
+                nvim.input("<Esc>").report_err();
             }
         }
     }
@@ -298,7 +298,7 @@ impl State {
             gtk::timeout_add(250, move || {
                 resize_state.set(ResizeState::NvimResizeRequest(columns, rows));
 
-                if let Some(mut nvim) = nvim.nvim() {
+                if let Some(mut nvim) = nvim.nvim().and_then(NeovimRef::non_blocked) {
                     if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
                         error!("Error trying resize nvim {}", err);
                     }
@@ -341,10 +341,10 @@ impl State {
         if let Some(mut nvim) = nvim {
             if self.mode.is(&mode::NvimMode::Insert) || self.mode.is(&mode::NvimMode::Normal) {
                 let paste_code = format!("normal! \"{}P", clipboard);
-                nvim.command(&paste_code).report_err(&mut *nvim);
+                nvim.command(&paste_code).report_err();
             } else {
                 let paste_code = format!("<C-r>{}", clipboard);
-                nvim.input(&paste_code).report_err(&mut *nvim);
+                nvim.input(&paste_code).report_err();
             };
 
         }
@@ -583,7 +583,7 @@ impl Shell {
 
         let nvim = state.nvim();
         if let Some(mut nvim) = nvim {
-            nvim.command(":wa").report_err(&mut *nvim);
+            nvim.command(":wa").report_err();
         }
     }
 
@@ -615,7 +615,7 @@ impl Deref for Shell {
 fn gtk_focus_in(state: &mut State) -> Inhibit {
     if let Some(mut nvim) = state.nvim_non_blocked() {
         nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif")
-            .report_err(&mut *nvim);
+            .report_err();
     }
 
     state.im_context.focus_in();
@@ -628,7 +628,7 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 fn gtk_focus_out(state: &mut State) -> Inhibit {
     if let Some(mut nvim) = state.nvim_non_blocked() {
         nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif")
-            .report_err(&mut *nvim);
+            .report_err();
     }
 
     state.im_context.focus_out();

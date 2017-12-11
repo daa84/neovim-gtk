@@ -286,7 +286,7 @@ fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) 
         }
         apply_command.push_str("<C-y>");
 
-        nvim.input(&apply_command).report_err(nvim);
+        nvim.input(&apply_command).report_err();
     }
 
     Inhibit(false)
