@@ -64,20 +64,6 @@ impl ColorModel {
         }
     }
 
-    pub fn cell_colors<'a>(&'a self, cell: &'a Cell) -> (Option<&'a Color>, &'a Color) {
-        if !cell.attrs.reverse {
-            (
-                cell.attrs.background.as_ref(),
-                cell.attrs.foreground.as_ref().unwrap_or(&self.fg_color),
-            )
-        } else {
-            (
-                cell.attrs.foreground.as_ref().or(Some(&self.fg_color)),
-                cell.attrs.background.as_ref().unwrap_or(&self.bg_color),
-            )
-        }
-    }
-
     pub fn cell_fg<'a>(&'a self, cell: &'a Cell) -> Option<&'a Color> {
         if !cell.attrs.reverse {
             cell.attrs.foreground.as_ref()
