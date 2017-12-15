@@ -52,7 +52,7 @@ mod error;
 use std::env;
 use std::time::Duration;
 use std::str::FromStr;
-use gio::{ApplicationExt, FileExt};
+use gio::prelude::*;
 
 use ui::Ui;
 
@@ -64,7 +64,7 @@ const TIMEOUT_ARG: &str = "--timeout";
 fn main() {
     env_logger::init().expect("Can't initialize env_logger");
 
-    let app_flags = gio::APPLICATION_HANDLES_OPEN;
+    let app_flags = gio::APPLICATION_HANDLES_OPEN | gio::APPLICATION_NON_UNIQUE;
 
     let app = if cfg!(debug_assertions) {
         gtk::Application::new(Some("org.daa.NeovimGtkDebug"), app_flags)
@@ -73,10 +73,12 @@ fn main() {
     }.expect("Failed to initialize GTK application");
 
     app.connect_activate(activate);
-    {
-        use gio::ApplicationExtManual;
-        app.connect_open(open);
-    }
+    app.connect_open(open);
+
+    let new_window_action = gio::SimpleAction::new("new-window", None);
+    let app_ref = app.clone();
+    new_window_action.connect_activate(move |_, _| activate(&app_ref));
+    app.add_action(&new_window_action);
 
     gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
 
