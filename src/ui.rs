@@ -8,7 +8,7 @@ use gtk_sys;
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image, AboutDialog, SettingsExt};
 use gio::prelude::*;
-use gio::{Menu, MenuExt, MenuItem, MenuItemExt, SimpleAction};
+use gio::{Menu, MenuExt, MenuItem, SimpleAction};
 
 use settings::Settings;
 use shell::{Shell, ShellOptions};
@@ -194,14 +194,16 @@ impl Ui {
 
         let menu = Menu::new();
 
-        let plugs = MenuItem::new("Plugins", None);
-        plugs.set_detailed_action("app.Plugins");
-        menu.append_item(&plugs);
+        let section = Menu::new();
+        section.append_item(&MenuItem::new("New Window", "app.new-window"));
+        menu.append_section(None, &section);
 
-        let about = MenuItem::new("About", None);
-        about.set_detailed_action("app.HelpAbout");
-        menu.append_item(&about);
+        let section = Menu::new();
+        section.append_item(&MenuItem::new("Plugins", "app.Plugins"));
+        section.append_item(&MenuItem::new("About", "app.HelpAbout"));
+        menu.append_section(None, &section);
 
+        menu.freeze();
         app.set_app_menu(Some(&menu));
 
         let plugs_action = SimpleAction::new("Plugins", None);
