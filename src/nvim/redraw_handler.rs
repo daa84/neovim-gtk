@@ -43,7 +43,7 @@ pub trait RedrawEvents {
 
     fn popupmenu_show(
         &mut self,
-        menu: &[Vec<&str>],
+        menu: &[CompleteItem],
         selected: i64,
         row: u64,
         col: u64,
@@ -182,7 +182,7 @@ pub fn call(
             })?;
 
             ui.popupmenu_show(
-                &menu_items,
+                &CompleteItem::map(&menu_items),
                 try_int!(args[1]),
                 try_uint!(args[2]),
                 try_uint!(args[3]),
@@ -228,4 +228,26 @@ pub fn call(
     };
 
     Ok(repaint_mode)
+}
+
+pub struct CompleteItem<'a> {
+    pub word: &'a str,
+    pub kind: &'a str,
+    pub menu: &'a str,
+    pub info: &'a str,
+}
+
+impl<'a> CompleteItem<'a> {
+    fn map(menu: &'a [Vec<&str>]) -> Vec<Self> {
+        menu.iter()
+            .map(|menu| {
+                CompleteItem {
+                    word: menu[0],
+                    kind: menu[1],
+                    menu: menu[2],
+                    info: menu[3],
+                }
+            })
+            .collect()
+    }
 }

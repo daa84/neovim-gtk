@@ -10,7 +10,7 @@ use gdk::{EventButton, EventType};
 use neovim_lib::{Neovim, NeovimApi};
 
 use color::ColorModel;
-use nvim::{self, ErrorReport};
+use nvim::{self, ErrorReport, CompleteItem};
 use shell;
 use input;
 
@@ -32,25 +32,50 @@ impl State {
         let style_context = tree.get_style_context().unwrap();
         style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
+        let renderer = gtk::CellRendererText::new();
+
+        // TODO: use info
+        // word
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(&renderer, true);
+        column.add_attribute(&renderer, "text", 0);
+        tree.append_column(&column);
+
+        // kind
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(&renderer, true);
+        column.add_attribute(&renderer, "text", 1);
+        tree.append_column(&column);
+
+        // menu
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(&renderer, true);
+        column.add_attribute(&renderer, "text", 2);
+        tree.append_column(&column);
+
         State {
             nvim: None,
-            renderer: gtk::CellRendererText::new(),
             tree,
             scroll: gtk::ScrolledWindow::new(None, None),
+            renderer,
             css_provider,
         }
     }
 
-    fn before_show(&mut self, shell: &shell::State, menu_items: &[Vec<&str>], selected: i64) {
+    fn before_show(&mut self, shell: &shell::State, menu_items: &[CompleteItem], selected: i64) {
         if self.nvim.is_none() {
             self.nvim = Some(shell.nvim_clone());
         }
 
+        let max_width = shell.drawing_area.get_allocated_width();
+        //self.scroll.set_min_content_width(max_width - 20);
+        self.scroll.set_max_content_width(max_width - 20);
+        self.scroll.set_propagate_natural_width(true);
         self.update_tree(menu_items, shell);
         self.select(selected);
     }
 
-    fn update_tree(&self, menu: &[Vec<&str>], shell: &shell::State) {
+    fn update_tree(&self, menu: &[CompleteItem], shell: &shell::State) {
         if menu.is_empty() {
             return;
         }
@@ -69,25 +94,11 @@ impl State {
 
         self.update_css(color_model);
 
-        let col_count = menu[0].len();
-        let columns = self.tree.get_columns();
-
-        if columns.len() != col_count {
-            for col in columns {
-                self.tree.remove_column(&col);
-            }
-
-            for i in 0..col_count {
-                self.append_column(i as i32);
-            }
-        }
-
-        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; col_count]);
-        let all_column_ids: Vec<u32> = (0..col_count).map(|i| i as u32).collect();
+        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 3]);
+        let all_column_ids: Vec<u32> = (0..3).map(|i| i as u32).collect();
 
         for line in menu {
-            let line_array: Vec<&glib::ToValue> =
-                line.iter().map(|v| v as &glib::ToValue).collect();
+            let line_array: [&glib::ToValue; 3] = [&line.word, &line.kind, &line.menu];
             list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
         }
 
@@ -109,15 +120,6 @@ impl State {
             Err(e) => error!("Can't update css {}", e),
             Ok(_) => (),
         };
-    }
-
-    fn append_column(&self, id: i32) {
-        let renderer = &self.renderer;
-
-        let column = gtk::TreeViewColumn::new();
-        column.pack_start(renderer, true);
-        column.add_attribute(renderer, "text", id);
-        self.tree.append_column(&column);
     }
 
     fn select(&self, selected: i64) {
@@ -166,7 +168,7 @@ impl PopupMenu {
 
 
         state.scroll.set_policy(
-            gtk::PolicyType::Never,
+            gtk::PolicyType::Automatic,
             gtk::PolicyType::Automatic,
         );
 
@@ -218,7 +220,7 @@ impl PopupMenu {
     pub fn show(
         &mut self,
         shell: &shell::State,
-        menu_items: &[Vec<&str>],
+        menu_items: &[CompleteItem],
         selected: i64,
         x: i32,
         y: i32,

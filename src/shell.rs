@@ -22,7 +22,7 @@ use settings::{Settings, FontSource};
 use ui_model::{UiModel, Attrs, ModelRect};
 use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
 use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient,
-           NeovimRef, NeovimClientAsync};
+           NeovimRef, NeovimClientAsync, CompleteItem};
 use input;
 use input::keyval_to_input_string;
 use cursor::Cursor;
@@ -70,7 +70,7 @@ pub struct State {
     pub mode: mode::Mode,
 
     stack: gtk::Stack,
-    drawing_area: gtk::DrawingArea,
+    pub drawing_area: gtk::DrawingArea,
     tabs: Tabline,
     im_context: gtk::IMMulticontext,
     error_area: error::ErrorArea,
@@ -1093,7 +1093,7 @@ impl RedrawEvents for State {
 
     fn popupmenu_show(
         &mut self,
-        menu: &[Vec<&str>],
+        menu: &[CompleteItem],
         selected: i64,
         row: u64,
         col: u64,
