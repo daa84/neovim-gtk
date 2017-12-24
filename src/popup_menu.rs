@@ -22,6 +22,7 @@ struct State {
     tree: gtk::TreeView,
     scroll: gtk::ScrolledWindow,
     css_provider: gtk::CssProvider,
+    info_label: gtk::Label,
 }
 
 impl State {
@@ -34,7 +35,6 @@ impl State {
 
         let renderer = gtk::CellRendererText::new();
 
-        // TODO: use info
         // word
         let column = gtk::TreeViewColumn::new();
         column.pack_start(&renderer, true);
@@ -53,12 +53,16 @@ impl State {
         column.add_attribute(&renderer, "text", 2);
         tree.append_column(&column);
 
+        let info_label = gtk::Label::new(None);
+        info_label.set_line_wrap(true);
+
         State {
             nvim: None,
             tree,
             scroll: gtk::ScrolledWindow::new(None, None),
             renderer,
             css_provider,
+            info_label,
         }
     }
 
@@ -68,7 +72,6 @@ impl State {
         }
 
         let max_width = shell.drawing_area.get_allocated_width();
-        //self.scroll.set_min_content_width(max_width - 20);
         self.scroll.set_max_content_width(max_width - 20);
         self.scroll.set_propagate_natural_width(true);
         self.update_tree(menu_items, shell);
@@ -94,11 +97,11 @@ impl State {
 
         self.update_css(color_model);
 
-        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 3]);
-        let all_column_ids: Vec<u32> = (0..3).map(|i| i as u32).collect();
+        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 4]);
+        let all_column_ids: Vec<u32> = (0..4).map(|i| i as u32).collect();
 
         for line in menu {
-            let line_array: [&glib::ToValue; 3] = [&line.word, &line.kind, &line.menu];
+            let line_array: [&glib::ToValue; 4] = [&line.word, &line.kind, &line.menu, &line.info];
             list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
         }
 
@@ -133,8 +136,31 @@ impl State {
                 0.0,
                 0.0,
             );
+
+            self.show_info_column(&selected_path);
+
         } else {
             self.tree.get_selection().unselect_all();
+            self.info_label.hide();
+        }
+    }
+
+    fn show_info_column(&self, selected_path: &gtk::TreePath) {
+        let model = self.tree.get_model().unwrap();
+        let iter = model.get_iter(selected_path);
+
+        if let Some(iter) = iter {
+            let info_value = model.get_value(&iter, 3);
+            let info: &str = info_value.get().unwrap();
+
+            if !info.trim().is_empty() {
+                self.info_label.show();
+                self.info_label.set_text(&info);
+            } else {
+                self.info_label.hide();
+            }
+        } else {
+            self.info_label.hide();
         }
     }
 
@@ -163,6 +189,8 @@ impl PopupMenu {
         let popover = gtk::Popover::new(Some(drawing));
         popover.set_modal(false);
 
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+
         state.tree.set_headers_visible(false);
         state.tree.set_can_focus(false);
 
@@ -174,7 +202,11 @@ impl PopupMenu {
 
         state.scroll.add(&state.tree);
         state.scroll.show_all();
-        popover.add(&state.scroll);
+
+        content.pack_start(&state.scroll, true, true, 0);
+        content.pack_start(&state.info_label, false, true, 0);
+        content.show();
+        popover.add(&content);
 
         let state = Rc::new(RefCell::new(state));
         let state_ref = state.clone();
