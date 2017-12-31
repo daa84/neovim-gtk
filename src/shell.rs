@@ -80,6 +80,7 @@ pub struct State {
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
+    pub clipboard: gtk::Clipboard,
 
     pub mode: mode::Mode,
 
@@ -113,6 +114,7 @@ impl State {
             cursor: None,
             popup_menu,
             settings,
+            clipboard: gtk::Clipboard::get(&gdk::Atom::intern("CLIPBOARD")),
 
             mode: mode::Mode::new(),
 
@@ -199,6 +201,10 @@ impl State {
         if let Some(mut nvim) = self.nvim() {
             nvim.command(&format!("cd {}", path)).report_err();
         }
+    }
+
+    pub fn clipboard_set(&self, text: &str) {
+        self.clipboard.set_text(text);
     }
 
     fn close_popup_menu(&self) {
