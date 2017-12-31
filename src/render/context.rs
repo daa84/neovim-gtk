@@ -57,7 +57,7 @@ struct ContextState {
 
 impl ContextState {
     pub fn new(font_desc: pango::FontDescription) -> Self {
-        let font_map = FontMap::get_default();
+        let font_map = FontMap::get_default().unwrap();
         let pango_context = font_map.create_context().unwrap();
         pango_context.set_font_description(&font_desc);
 

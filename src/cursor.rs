@@ -65,9 +65,8 @@ impl State {
     fn reset_to(&mut self, phase: AnimPhase) {
         self.alpha = Alpha(1.0);
         self.anim_phase = phase;
-        if let Some(timer_id) = self.timer {
+        if let Some(timer_id) = self.timer.take() {
             glib::source_remove(timer_id);
-            self.timer = None;
         }
     }
 }
@@ -259,7 +258,7 @@ fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
 
 impl Drop for Cursor {
     fn drop(&mut self) {
-        if let Some(timer_id) = self.state.borrow().timer {
+        if let Some(timer_id) = self.state.borrow_mut().timer.take() {
             glib::source_remove(timer_id);
         }
     }

@@ -30,7 +30,7 @@ impl<'a> Ui<'a> {
         let dlg = gtk::Dialog::new_with_buttons(
             Some("Plug"),
             Some(parent),
-            gtk::DIALOG_DESTROY_WITH_PARENT,
+            gtk::DialogFlags::DESTROY_WITH_PARENT,
             &[
                 ("Cancel", gtk::ResponseType::Cancel.into()),
                 ("Ok", gtk::ResponseType::Ok.into()),

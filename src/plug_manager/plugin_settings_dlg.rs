@@ -16,7 +16,7 @@ impl<'a> Builder<'a> {
         let dlg = gtk::Dialog::new_with_buttons(
             Some(self.title),
             Some(parent),
-            gtk::DIALOG_USE_HEADER_BAR | gtk::DIALOG_DESTROY_WITH_PARENT,
+            gtk::DialogFlags::USE_HEADER_BAR | gtk::DialogFlags::DESTROY_WITH_PARENT,
             &[
                 ("Cancel", gtk::ResponseType::Cancel.into()),
                 ("Ok", gtk::ResponseType::Ok.into()),

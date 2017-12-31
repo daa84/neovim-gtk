@@ -9,10 +9,12 @@ use self::model_clip_iterator::{RowView, ModelClipIteratorFactory};
 use mode;
 use color;
 use sys::pango::*;
+use sys::pangocairo::*;
 use pango;
 use cairo;
+use pangocairo;
+
 use cursor;
-use pangocairo::CairoContextExt;
 use ui_model;
 
 pub fn render(
@@ -104,7 +106,7 @@ fn draw_underline(
             let undercurl_height = (underline_thickness * 4.0).min(max_undercurl_height);
             let undercurl_y = line_y + underline_position - undercurl_height / 2.0;
 
-            ctx.show_error_underline(line_x, undercurl_y, char_width, undercurl_height);
+            pangocairo::functions::error_underline_path(ctx, line_x, undercurl_y, char_width, undercurl_height);
         } else if cell.attrs.underline {
             let fg = color_model.actual_cell_fg(cell);
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
@@ -183,7 +185,8 @@ fn draw_cell(
 
             ctx.move_to(line_x, line_y + ascent);
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
-            ctx.show_glyph_string(item.font(), glyphs);
+
+            show_glyph_string(ctx, item.font(), glyphs);
         }
 
     }
