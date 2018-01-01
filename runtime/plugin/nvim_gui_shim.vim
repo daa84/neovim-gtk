@@ -4,7 +4,7 @@ if !has('nvim') || exists('g:GuiLoaded')
 endif
 let g:GuiLoaded = 1
 
-if !exists('g:GuiExternalClipboard')
+if exists('g:GuiInternalClipboard')
 	function! provider#clipboard#Call(method, args) abort
 		if a:method == 'get'
 			return [rpcrequest(1, 'Gui', 'Clipboard', 'Get'), 'v']
