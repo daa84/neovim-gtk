@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use gtk;
 use gtk::prelude::*;
 
+use glib;
 use glib::signal;
 
 use pango;
@@ -43,7 +44,7 @@ impl State {
 pub struct Tabline {
     tabs: gtk::Notebook,
     state: Rc<RefCell<State>>,
-    switch_handler_id: u64,
+    switch_handler_id: glib::SignalHandlerId,
 }
 
 impl Tabline {
@@ -102,7 +103,7 @@ impl Tabline {
         self.update_state(nvim, selected, tabs);
 
 
-        signal::signal_handler_block(&self.tabs, self.switch_handler_id);
+        signal::signal_handler_block(&self.tabs, &self.switch_handler_id);
 
         let count = self.tabs.get_n_pages() as usize;
         if count < tabs.len() {
@@ -134,7 +135,7 @@ impl Tabline {
             }
         }
 
-        signal::signal_handler_unblock(&self.tabs, self.switch_handler_id);
+        signal::signal_handler_unblock(&self.tabs, &self.switch_handler_id);
     }
 }
 

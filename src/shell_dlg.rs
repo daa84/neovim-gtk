@@ -31,7 +31,7 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>, shell: &Shell, changed_bufs: 
         .fold(String::new(), |acc, v| acc + v + "\n");
     changed_files.pop();
 
-    let flags = gtk::DIALOG_MODAL | gtk::DIALOG_DESTROY_WITH_PARENT;
+    let flags = gtk::DialogFlags::MODAL | gtk::DialogFlags::DESTROY_WITH_PARENT;
     let dlg = MessageDialog::new(
         Some(comps.borrow().window()),
         flags,

@@ -18,8 +18,8 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     debug!("keyval -> {}", in_str);
 
     // CTRL-^ and CTRL-@ don't work in the normal way.
-    if state.contains(gdk::CONTROL_MASK) && !state.contains(gdk::SHIFT_MASK) &&
-        !state.contains(gdk::MOD1_MASK)
+    if state.contains(gdk::ModifierType::CONTROL_MASK) && !state.contains(gdk::ModifierType::SHIFT_MASK) &&
+        !state.contains(gdk::ModifierType::MOD1_MASK)
     {
         if val == "6" {
             val = "^";
@@ -35,7 +35,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
 
         // Remove SHIFT
         if ch.is_ascii() && !ch.is_alphanumeric() {
-            state.remove(gdk::SHIFT_MASK);
+            state.remove(gdk::ModifierType::SHIFT_MASK);
         }
     }
 
@@ -43,13 +43,13 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
         val = "lt";
     }
 
-    if state.contains(gdk::SHIFT_MASK) {
+    if state.contains(gdk::ModifierType::SHIFT_MASK) {
         input.push_str("S-");
     }
-    if state.contains(gdk::CONTROL_MASK) {
+    if state.contains(gdk::ModifierType::CONTROL_MASK) {
         input.push_str("C-");
     }
-    if state.contains(gdk::MOD1_MASK) {
+    if state.contains(gdk::ModifierType::MOD1_MASK) {
         input.push_str("A-");
     }
 

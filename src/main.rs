@@ -11,6 +11,7 @@ extern crate cairo;
 extern crate pango;
 extern crate pango_sys;
 extern crate pangocairo;
+extern crate pango_cairo_sys;
 extern crate neovim_lib;
 extern crate phf;
 #[macro_use]
@@ -64,7 +65,7 @@ const TIMEOUT_ARG: &str = "--timeout";
 fn main() {
     env_logger::init().expect("Can't initialize env_logger");
 
-    let app_flags = gio::APPLICATION_HANDLES_OPEN | gio::APPLICATION_NON_UNIQUE;
+    let app_flags = gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::NON_UNIQUE;
 
     let app = if cfg!(debug_assertions) {
         gtk::Application::new(Some("org.daa.NeovimGtkDebug"), app_flags)
@@ -83,10 +84,10 @@ fn main() {
     gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
 
     let args: Vec<String> = env::args().collect();
-    let argv: Vec<&str> = args.iter()
+    let argv: Vec<String> = args.iter()
         .filter(|a| !a.starts_with(BIN_PATH_ARG))
         .filter(|a| !a.starts_with(TIMEOUT_ARG))
-        .map(String::as_str)
+        .cloned()
         .collect();
     app.run(&argv);
 }

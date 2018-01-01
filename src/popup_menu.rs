@@ -112,13 +112,13 @@ impl State {
         let bg = color_model.pmenu_bg_sel();
         let fg = color_model.pmenu_fg_sel();
 
-        match gtk::CssProviderExtManual::load_from_data(
+        match gtk::CssProviderExt::load_from_data(
             &self.css_provider,
             &format!(
                 ".view {{ color: {}; background-color: {};}}",
                 fg.to_hex(),
                 bg.to_hex()
-            ),
+            ).as_bytes(),
         ) {
             Err(e) => error!("Can't update css {}", e),
             Ok(_) => (),

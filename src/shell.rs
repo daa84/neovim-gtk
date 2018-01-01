@@ -1,4 +1,4 @@
-use std::cell::{RefCell, Cell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 use std::ops::Deref;
@@ -6,7 +6,6 @@ use std::thread;
 use std::time::Duration;
 
 use cairo;
-use pangocairo::CairoContextExt;
 use pango::{LayoutExt, FontDescription};
 use gdk;
 use gdk::{ModifierType, EventButton, EventMotion, EventType, EventScroll};
@@ -14,6 +13,7 @@ use gdk_sys;
 use glib;
 use gtk;
 use gtk::prelude::*;
+use pangocairo;
 
 use neovim_lib::{Neovim, NeovimApi, Value};
 use neovim_lib::neovim_api::Tabpage;
@@ -50,10 +50,24 @@ macro_rules! idle_cb_call {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ResizeState {
-    NvimResizeTimer(glib::SourceId, usize, usize),
+enum ResizeStateEnum {
+    NvimResizeTimer(usize, usize),
     NvimResizeRequest(usize, usize),
     Wait,
+}
+
+pub struct ResizeState {
+    state: ResizeStateEnum,
+    timer: Option<glib::SourceId>,
+}
+
+impl ResizeState {
+    pub fn new() -> Self {
+        ResizeState {
+            state: ResizeStateEnum::Wait,
+            timer: None,
+        }
+    }
 }
 
 pub struct State {
@@ -75,7 +89,7 @@ pub struct State {
     im_context: gtk::IMMulticontext,
     error_area: error::ErrorArea,
 
-    resize_state: Rc<Cell<ResizeState>>,
+    resize_state: Rc<RefCell<ResizeState>>,
 
     options: ShellOptions,
 
@@ -109,7 +123,7 @@ impl State {
             im_context: gtk::IMMulticontext::new(),
             error_area: error::ErrorArea::new(),
 
-            resize_state: Rc::new(Cell::new(ResizeState::Wait)),
+            resize_state: Rc::new(RefCell::new(ResizeState::new())),
 
             options,
 
@@ -269,24 +283,26 @@ impl State {
     fn try_nvim_resize(&self) {
         let (columns, rows) = self.calc_nvim_size();
 
+        let mut resize_state = self.resize_state.borrow_mut();
 
-        match self.resize_state.get() {
-            ResizeState::NvimResizeTimer(timer, req_columns, req_rows) => {
+        match resize_state.state {
+            ResizeStateEnum::NvimResizeTimer(req_columns, req_rows) => {
                 if req_columns == columns && req_rows == rows {
                     return;
                 }
-                glib::source_remove(timer);
+                glib::source_remove(resize_state.timer.take().unwrap());
+                resize_state.state = ResizeStateEnum::Wait;
             }
-            ResizeState::NvimResizeRequest(req_columns, req_rows) => {
+            ResizeStateEnum::NvimResizeRequest(req_columns, req_rows) => {
                 if req_columns == columns && req_rows == rows {
                     return;
                 }
             }
-            ResizeState::Wait => (),
+            ResizeStateEnum::Wait => (),
         }
 
 
-        let resize_state = self.resize_state.clone();
+        let resize_state_ref = self.resize_state.clone();
         let nvim = self.nvim.clone();
 
 
@@ -294,21 +310,19 @@ impl State {
             return;
         }
 
-        self.resize_state.set(ResizeState::NvimResizeTimer(
-            gtk::timeout_add(250, move || {
-                resize_state.set(ResizeState::NvimResizeRequest(columns, rows));
+        resize_state.state = ResizeStateEnum::NvimResizeTimer(columns, rows);
+        resize_state.timer = Some(gtk::timeout_add(250, move || {
+            let mut resize_state = resize_state_ref.borrow_mut();
+            resize_state.state = ResizeStateEnum::NvimResizeRequest(columns, rows);
+            resize_state.timer = None;
 
-                if let Some(mut nvim) = nvim.nvim().and_then(NeovimRef::non_blocked) {
-                    if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
-                        error!("Error trying resize nvim {}", err);
-                    }
+            if let Some(mut nvim) = nvim.nvim().and_then(NeovimRef::non_blocked) {
+                if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
+                    error!("Error trying resize nvim {}", err);
                 }
-                Continue(false)
-            }),
-            columns,
-            rows,
-        ));
-
+            }
+            Continue(false)
+        }));
     }
 
     fn resize_main_window(&mut self) {
@@ -508,7 +522,11 @@ impl Shell {
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
         state.drawing_area.connect_scroll_event(move |_, ev| {
-            gtk_scroll_event(&mut *ref_state.borrow_mut(), &mut *ref_ui_state.borrow_mut(), ev)
+            gtk_scroll_event(
+                &mut *ref_state.borrow_mut(),
+                &mut *ref_ui_state.borrow_mut(),
+                ev,
+            )
         });
 
         let ref_state = self.state.clone();
@@ -651,20 +669,20 @@ fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll)
 
     state.close_popup_menu();
 
-    match ev.as_ref().direction {
-        gdk_sys::GdkScrollDirection::Right => {
+    match ev.get_direction() {
+        gdk::ScrollDirection::Right => {
             mouse_input(state, "ScrollWheelRight", ev.get_state(), ev.get_position())
         }
-        gdk_sys::GdkScrollDirection::Left => {
+        gdk::ScrollDirection::Left => {
             mouse_input(state, "ScrollWheelLeft", ev.get_state(), ev.get_position())
         }
-        gdk_sys::GdkScrollDirection::Up => {
+        gdk::ScrollDirection::Up => {
             mouse_input(state, "ScrollWheelUp", ev.get_state(), ev.get_position())
         }
-        gdk_sys::GdkScrollDirection::Down => {
+        gdk::ScrollDirection::Down => {
             mouse_input(state, "ScrollWheelDown", ev.get_state(), ev.get_position())
         }
-        gdk_sys::GdkScrollDirection::Smooth => {
+        gdk::ScrollDirection::Smooth => {
             // Remember and accumulate scroll deltas, so slow scrolling still
             // works.
             ui_state.scroll_delta.0 += ev.as_ref().delta_x;
@@ -688,6 +706,7 @@ fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll)
             ui_state.scroll_delta.0 -= x as f64;
             ui_state.scroll_delta.1 -= y as f64;
         }
+        _ => (),
     }
     Inhibit(false)
 }
@@ -889,7 +908,7 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
 }
 
 fn draw_initializing(state: &State, ctx: &cairo::Context) {
-    let layout = ctx.create_pango_layout();
+    let layout = pangocairo::functions::create_layout(ctx).unwrap();
     let desc = state.get_font_desc();
     let alloc = state.drawing_area.get_allocation();
 
@@ -913,8 +932,8 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
         state.color_model.fg_color.1,
         state.color_model.fg_color.2,
     );
-    ctx.update_pango_layout(&layout);
-    ctx.show_pango_layout(&layout);
+    pangocairo::functions::update_layout(ctx, &layout);
+    pangocairo::functions::show_layout(ctx, &layout);
 
 
     ctx.move_to(x + width as f64, y);
@@ -933,9 +952,7 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
     if state.start_nvim_initialization() {
         let (cols, rows) = state.calc_nvim_size();
         state.model = UiModel::new(rows as u64, cols as u64);
-        state.resize_state.set(
-            ResizeState::NvimResizeRequest(cols, rows),
-        );
+        state.resize_state.borrow_mut().state = ResizeStateEnum::NvimResizeRequest(cols, rows);
 
         let state_arc = state_ref.clone();
         let options = state.options.clone();
@@ -965,16 +982,17 @@ impl RedrawEvents for State {
     }
 
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
-        match self.resize_state.get() {
-            ResizeState::NvimResizeTimer(..) => {
+        let state = self.resize_state.borrow().state.clone();
+        match state {
+            ResizeStateEnum::NvimResizeTimer(..) => {
                 if self.model.columns != columns as usize || self.model.rows != rows as usize {
                     self.model = UiModel::new(rows, columns);
                 }
             }
-            ResizeState::Wait |
-            ResizeState::NvimResizeRequest(..) => {
+            ResizeStateEnum::Wait |
+            ResizeStateEnum::NvimResizeRequest(..) => {
                 if self.model.columns != columns as usize || self.model.rows != rows as usize {
-                    self.resize_state.set(ResizeState::Wait);
+                    self.resize_state.borrow_mut().state = ResizeStateEnum::Wait;
                     self.model = UiModel::new(rows, columns);
                     self.resize_main_window();
                 }
