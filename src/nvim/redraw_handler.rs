@@ -1,9 +1,12 @@
 use std::result;
+use std::sync::Arc;
 
 use neovim_lib::{Value, UiOption};
 use neovim_lib::neovim_api::Tabpage;
 
+use ui::UiMutex;
 use shell;
+use gtk::ClipboardExt;
 
 use value::ValueMapExt;
 
@@ -111,6 +114,14 @@ pub fn call_gui_event(
 ) -> result::Result<(), String> {
     match method {
         "Font" => ui.set_font(try_str!(args[0])),
+        "Clipboard" => {
+            match try_str!(args[0]) {
+                "Set" => {
+                    ui.clipboard_set(try_str!(args[1]));
+                },
+                opt => error!("Unknown option {}", opt),
+            }
+        },
         "Option" => {
             match try_str!(args[0]) {
                 "Popupmenu" => {
@@ -135,6 +146,35 @@ pub fn call_gui_event(
         _ => return Err(format!("Unsupported event {}({:?})", method, args)),
     }
     Ok(())
+}
+
+pub fn call_gui_request(
+    ui: &Arc<UiMutex<shell::State>>,
+    method: &str,
+    args: &Vec<Value>,
+) -> result::Result<Value, Value> {
+    match method {
+        "Clipboard" => {
+            match try_str!(args[0]) {
+                "Get" => {
+                    // NOTE: wait_for_text waits on the main loop. We can't have the ui borrowed
+                    // while it runs, otherwise ui callbacks will get called and try to borrow
+                    // mutably twice!
+                    let clipboard = {
+                        let ui = &mut ui.borrow_mut();
+                        ui.clipboard.clone()
+                    };
+                    let t = clipboard.wait_for_text().unwrap_or_else(|| String::new());
+                    Ok(Value::Array(t.split("\n").map(|s| s.into()).collect::<Vec<Value>>()))
+                },
+                opt => {
+                    error!("Unknown option {}", opt);
+                    Err(Value::Nil)
+                },
+            }
+        },
+        _ => Err(Value::String(format!("Unsupported request {}({:?})", method, args).into())),
+    }
 }
 
 pub fn call(

@@ -4,6 +4,16 @@ if !has('nvim') || exists('g:GuiLoaded')
 endif
 let g:GuiLoaded = 1
 
+if !exists('g:GuiExternalClipboard')
+	function! provider#clipboard#Call(method, args) abort
+		if a:method == 'get'
+			return [rpcrequest(1, 'Gui', 'Clipboard', 'Get'), 'v']
+		elseif a:method == 'set'
+			call rpcnotify(1, 'Gui', 'Clipboard', 'Set', join(a:args[0], ''))
+		endif
+	endfunction
+endif
+
 " Set GUI font
 function! GuiFont(fname, ...) abort
 	call rpcnotify(1, 'Gui', 'Font', s:NvimQtToPangoFont(a:fname))
@@ -42,4 +52,3 @@ function s:GuiFontCommand(fname, bang) abort
 endfunction
 command! -nargs=? -bang Guifont call s:GuiFontCommand("<args>", "<bang>")
 command! -nargs=? -bang GuiFont call s:GuiFontCommand("<args>", "<bang>")
-
