@@ -55,12 +55,16 @@ fn get_hl_color(map: &HashMap<&str, &Value>, color_name: &str) -> Option<Color> 
 
 fn get_hl_colors(nvim: &mut Neovim, hl: &str) -> (Option<Color>, Option<Color>) {
     nvim.get_hl_by_name(hl, true)
-        .ok_and_report(nvim)
+        .ok_and_report()
         .and_then(|m| if let Some(m) = m.to_attrs_map_report() {
-            Some((
-                get_hl_color(&m, "background"),
-                get_hl_color(&m, "foreground"),
-            ))
+            let reverse = m.get("reverse").and_then(|v| v.as_bool()).unwrap_or(false);
+            let bg = get_hl_color(&m, "background");
+            let fg = get_hl_color(&m, "foreground");
+            if reverse {
+                Some((fg, bg))
+            } else {
+                Some((bg, fg))
+            }
         } else {
             None
         })

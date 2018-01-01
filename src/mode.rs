@@ -27,9 +27,7 @@ impl Mode {
     }
 
     pub fn mode_info(&self) -> Option<&nvim::ModeInfo> {
-        self.info
-            .as_ref()
-            .and_then(|i| i.get(self.idx))
+        self.info.as_ref().and_then(|i| i.get(self.idx))
     }
 
     pub fn update(&mut self, mode: &str, idx: usize) {

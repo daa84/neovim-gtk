@@ -22,6 +22,7 @@ struct State {
     tree: gtk::TreeView,
     scroll: gtk::ScrolledWindow,
     css_provider: gtk::CssProvider,
+    info_label: gtk::Label,
 }
 
 impl State {
@@ -32,12 +33,36 @@ impl State {
         let style_context = tree.get_style_context().unwrap();
         style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
+        let renderer = gtk::CellRendererText::new();
+
+        // word
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(&renderer, true);
+        column.add_attribute(&renderer, "text", 0);
+        tree.append_column(&column);
+
+        // kind
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(&renderer, true);
+        column.add_attribute(&renderer, "text", 1);
+        tree.append_column(&column);
+
+        // menu
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(&renderer, true);
+        column.add_attribute(&renderer, "text", 2);
+        tree.append_column(&column);
+
+        let info_label = gtk::Label::new(None);
+        info_label.set_line_wrap(true);
+
         State {
             nvim: None,
-            renderer: gtk::CellRendererText::new(),
             tree,
             scroll: gtk::ScrolledWindow::new(None, None),
+            renderer,
             css_provider,
+            info_label,
         }
     }
 
@@ -46,6 +71,8 @@ impl State {
             self.nvim = Some(ctx.nvim.clone());
         }
 
+        self.scroll.set_max_content_width(ctx.max_width);
+        self.scroll.set_propagate_natural_width(true);
         self.update_tree(&ctx);
         self.select(ctx.selected);
     }
@@ -69,25 +96,11 @@ impl State {
 
         self.update_css(color_model);
 
-        let col_count = ctx.menu_items[0].len();
-        let columns = self.tree.get_columns();
-
-        if columns.len() != col_count {
-            for col in columns {
-                self.tree.remove_column(&col);
-            }
-
-            for i in 0..col_count {
-                self.append_column(i as i32);
-            }
-        }
-
-        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; col_count]);
-        let all_column_ids: Vec<u32> = (0..col_count).map(|i| i as u32).collect();
+        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 4]);
+        let all_column_ids: Vec<u32> = (0..4).map(|i| i as u32).collect();
 
         for line in ctx.menu_items {
-            let line_array: Vec<&glib::ToValue> =
-                line.iter().map(|v| v as &glib::ToValue).collect();
+            let line_array: [&glib::ToValue; 4] = [&line.word, &line.kind, &line.menu, &line.info];
             list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
         }
 
@@ -98,26 +111,17 @@ impl State {
         let bg = color_model.pmenu_bg_sel();
         let fg = color_model.pmenu_fg_sel();
 
-        match gtk::CssProviderExtManual::load_from_data(
+        match gtk::CssProviderExt::load_from_data(
             &self.css_provider,
             &format!(
                 ".view {{ color: {}; background-color: {};}}",
                 fg.to_hex(),
                 bg.to_hex()
-            ),
+            ).as_bytes(),
         ) {
             Err(e) => error!("Can't update css {}", e),
             Ok(_) => (),
         };
-    }
-
-    fn append_column(&self, id: i32) {
-        let renderer = &self.renderer;
-
-        let column = gtk::TreeViewColumn::new();
-        column.pack_start(renderer, true);
-        column.add_attribute(renderer, "text", id);
-        self.tree.append_column(&column);
     }
 
     fn select(&self, selected: i64) {
@@ -131,8 +135,31 @@ impl State {
                 0.0,
                 0.0,
             );
+
+            self.show_info_column(&selected_path);
+
         } else {
             self.tree.get_selection().unselect_all();
+            self.info_label.hide();
+        }
+    }
+
+    fn show_info_column(&self, selected_path: &gtk::TreePath) {
+        let model = self.tree.get_model().unwrap();
+        let iter = model.get_iter(selected_path);
+
+        if let Some(iter) = iter {
+            let info_value = model.get_value(&iter, 3);
+            let info: &str = info_value.get().unwrap();
+
+            if !info.trim().is_empty() {
+                self.info_label.show();
+                self.info_label.set_text(&info);
+            } else {
+                self.info_label.hide();
+            }
+        } else {
+            self.info_label.hide();
         }
     }
 
@@ -161,18 +188,24 @@ impl PopupMenu {
         let popover = gtk::Popover::new(Some(drawing));
         popover.set_modal(false);
 
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+
         state.tree.set_headers_visible(false);
         state.tree.set_can_focus(false);
 
 
         state.scroll.set_policy(
-            gtk::PolicyType::Never,
+            gtk::PolicyType::Automatic,
             gtk::PolicyType::Automatic,
         );
 
         state.scroll.add(&state.tree);
         state.scroll.show_all();
-        popover.add(&state.scroll);
+
+        content.pack_start(&state.scroll, true, true, 0);
+        content.pack_start(&state.info_label, false, true, 0);
+        content.show();
+        popover.add(&content);
 
         let state = Rc::new(RefCell::new(state));
         let state_ref = state.clone();
@@ -216,7 +249,6 @@ impl PopupMenu {
     }
 
     pub fn show(&mut self, ctx: PopupMenuContext) {
-
         self.open = true;
 
         self.popover.set_pointing_to(&gtk::Rectangle {
@@ -246,12 +278,13 @@ pub struct PopupMenuContext<'a> {
     pub nvim: &'a Rc<NeovimClient>,
     pub color_model: &'a ColorModel,
     pub font_ctx: &'a render::Context,
-    pub menu_items: &'a [Vec<String>],
+    pub menu_items: &'a [nvim::CompleteItem<'a>],
     pub selected: i64,
     pub x: i32,
     pub y: i32,
     pub width: i32,
     pub height: i32,
+    pub max_width: i32,
 }
 
 fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) -> Inhibit {
@@ -284,7 +317,7 @@ fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) 
         }
         apply_command.push_str("<C-y>");
 
-        nvim.input(&apply_command).report_err(nvim);
+        nvim.input(&apply_command).report_err();
     }
 
     Inhibit(false)

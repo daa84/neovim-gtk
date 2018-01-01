@@ -18,8 +18,9 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     debug!("keyval -> {}", in_str);
 
     // CTRL-^ and CTRL-@ don't work in the normal way.
-    if state.contains(gdk::CONTROL_MASK) && !state.contains(gdk::SHIFT_MASK) &&
-       !state.contains(gdk::MOD1_MASK) {
+    if state.contains(gdk::ModifierType::CONTROL_MASK) && !state.contains(gdk::ModifierType::SHIFT_MASK) &&
+        !state.contains(gdk::ModifierType::MOD1_MASK)
+    {
         if val == "6" {
             val = "^";
         } else if val == "2" {
@@ -34,7 +35,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
 
         // Remove SHIFT
         if ch.is_ascii() && !ch.is_alphanumeric() {
-            state.remove(gdk::SHIFT_MASK);
+            state.remove(gdk::ModifierType::SHIFT_MASK);
         }
     }
 
@@ -42,13 +43,13 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
         val = "lt";
     }
 
-    if state.contains(gdk::SHIFT_MASK) {
+    if state.contains(gdk::ModifierType::SHIFT_MASK) {
         input.push_str("S-");
     }
-    if state.contains(gdk::CONTROL_MASK) {
+    if state.contains(gdk::ModifierType::CONTROL_MASK) {
         input.push_str("C-");
     }
-    if state.contains(gdk::MOD1_MASK) {
+    if state.contains(gdk::ModifierType::MOD1_MASK) {
         input.push_str("A-");
     }
 
@@ -79,7 +80,14 @@ pub fn convert_key(ev: &EventKey) -> Option<String> {
 
 pub fn im_input(nvim: &mut Neovim, input: &str) {
     debug!("nvim_input -> {}", input);
-    nvim.input(input).expect("Error run input command to nvim");
+
+    let input: String = input
+        .chars()
+        .map(|ch| {
+            keyval_to_input_string(&ch.to_string(), gdk::ModifierType::empty())
+        })
+        .collect();
+    nvim.input(&input).expect("Error run input command to nvim");
 }
 
 pub fn gtk_key_press(nvim: &mut Neovim, ev: &EventKey) -> Inhibit {

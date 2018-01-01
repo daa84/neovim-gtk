@@ -30,7 +30,7 @@ impl<'a> Ui<'a> {
         let dlg = gtk::Dialog::new_with_buttons(
             Some("Plug"),
             Some(parent),
-            gtk::DIALOG_DESTROY_WITH_PARENT,
+            gtk::DialogFlags::DESTROY_WITH_PARENT,
             &[
                 ("Cancel", gtk::ResponseType::Cancel.into()),
                 ("Ok", gtk::ResponseType::Ok.into()),
@@ -43,7 +43,9 @@ impl<'a> Ui<'a> {
         let header_bar = gtk::HeaderBar::new();
 
         let add_plug_btn = gtk::Button::new_with_label("Add..");
-        add_plug_btn.get_style_context().map(|c| c.add_class("suggested-action"));
+        add_plug_btn.get_style_context().map(|c| {
+            c.add_class("suggested-action")
+        });
         header_bar.pack_end(&add_plug_btn);
 
 
@@ -116,7 +118,9 @@ impl<'a> Ui<'a> {
             let mut manager = self.manager.borrow_mut();
             manager.clear_removed();
             manager.save();
-            if let Some(config_path) = NvimConfig::new(manager.generate_config()).generate_config() {
+            if let Some(config_path) =
+                NvimConfig::new(manager.generate_config()).generate_config()
+            {
                 if let Some(path) = config_path.to_str() {
                     manager.vim_plug.reload(path);
                 }
@@ -156,8 +160,10 @@ fn create_up_down_btns(
     manager: &Arc<UiMutex<manager::Manager>>,
 ) -> gtk::Box {
     let buttons_panel = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-    let up_btn = gtk::Button::new_from_icon_name("go-up-symbolic", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
-    let down_btn = gtk::Button::new_from_icon_name("go-down-symbolic", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
+    let up_btn =
+        gtk::Button::new_from_icon_name("go-up-symbolic", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
+    let down_btn =
+        gtk::Button::new_from_icon_name("go-down-symbolic", gtk_sys::GTK_ICON_SIZE_BUTTON as i32);
 
     up_btn.connect_clicked(clone!(plugs_panel, manager => move |_| {
             if let Some(row) = plugs_panel.get_selected_row() {

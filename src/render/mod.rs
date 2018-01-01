@@ -9,10 +9,12 @@ use self::model_clip_iterator::{RowView, ModelClipIteratorFactory};
 use mode;
 use color;
 use sys::pango::*;
+use sys::pangocairo::*;
 use pango;
 use cairo;
+use pangocairo;
+
 use cursor;
-use pangocairo::CairoContextExt;
 use ui_model;
 
 pub fn render<RC: cursor::CursorRedrawCb + 'static>(
@@ -36,6 +38,15 @@ pub fn render<RC: cursor::CursorRedrawCb + 'static>(
 
     for cell_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
         let mut line_x = 0.0;
+
+        for (col, cell) in cell_view.line.line.iter().enumerate() {
+            draw_cell_bg(&cell_view, color_model, cell, col, line_x);
+            line_x += char_width;
+        }
+    }
+
+    for cell_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
+        let mut line_x = 0.0;
         let RowView { line, row, line_y, .. } = cell_view;
 
         for (col, cell) in line.line.iter().enumerate() {
@@ -43,7 +54,6 @@ pub fn render<RC: cursor::CursorRedrawCb + 'static>(
             draw_cell(&cell_view, color_model, cell, col, line_x);
 
             draw_underline(&cell_view, color_model, cell, line_x);
-
 
             if row == cursor_row && col == cursor_col {
                 let double_width = line.line.get(col + 1).map_or(
@@ -96,7 +106,7 @@ fn draw_underline(
             let undercurl_height = (underline_thickness * 4.0).min(max_undercurl_height);
             let undercurl_y = line_y + underline_position - undercurl_height / 2.0;
 
-            ctx.show_error_underline(line_x, undercurl_y, char_width, undercurl_height);
+            pangocairo::functions::error_underline_path(ctx, line_x, undercurl_y, char_width, undercurl_height);
         } else if cell.attrs.underline {
             let fg = color_model.actual_cell_fg(cell);
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
@@ -106,6 +116,48 @@ fn draw_underline(
             ctx.stroke();
         }
     }
+}
+
+fn draw_cell_bg(
+    cell_view: &RowView,
+    color_model: &color::ColorModel,
+    cell: &ui_model::Cell,
+    col: usize,
+    line_x: f64,
+) {
+    let &RowView {
+        ctx,
+        line,
+        line_y,
+        cell_metrics: &CellMetrics {
+            char_width,
+            line_height,
+            ..
+        },
+        ..
+    } = cell_view;
+
+    let bg = color_model.cell_bg(cell);
+
+    if let Some(bg) = bg {
+        if !line.is_binded_to_item(col) {
+            if bg != &color_model.bg_color {
+                ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                ctx.rectangle(line_x, line_y, char_width, line_height);
+                ctx.fill();
+            }
+        } else {
+            ctx.set_source_rgb(bg.0, bg.1, bg.2);
+            ctx.rectangle(
+                line_x,
+                line_y,
+                char_width * line.item_len_from_idx(col) as f64,
+                line_height,
+            );
+            ctx.fill();
+        }
+    }
+
 }
 
 fn draw_cell(
@@ -121,41 +173,22 @@ fn draw_cell(
         line,
         line_y,
         cell_metrics: &CellMetrics {
-            char_width,
-            line_height,
             ascent,
             ..
         },
         ..
     } = cell_view;
 
-    let (bg, fg) = color_model.cell_colors(cell);
-
     if let Some(item) = line.item_line[col].as_ref() {
-        if let Some(bg) = bg {
-            ctx.set_source_rgb(bg.0, bg.1, bg.2);
-            ctx.rectangle(
-                line_x,
-                line_y,
-                char_width * line.item_len_from_idx(col) as f64,
-                line_height,
-            );
-            ctx.fill();
-        }
-
         if let Some(ref glyphs) = item.glyphs {
+            let fg = color_model.actual_cell_fg(cell);
+
             ctx.move_to(line_x, line_y + ascent);
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
-            ctx.show_glyph_string(item.font(), glyphs);
+
+            show_glyph_string(ctx, item.font(), glyphs);
         }
 
-    } else if !line.is_binded_to_item(col) {
-        let bg = color_model.cell_bg(cell);
-        if let Some(bg) = bg {
-            ctx.set_source_rgb(bg.0, bg.1, bg.2);
-            ctx.rectangle(line_x, line_y, char_width, line_height);
-            ctx.fill();
-        }
     }
 }
 

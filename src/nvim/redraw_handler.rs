@@ -45,7 +45,7 @@ pub trait RedrawEvents {
 
     fn popupmenu_show(
         &mut self,
-        menu: Vec<Vec<String>>,
+        menu: &[CompleteItem],
         selected: i64,
         row: u64,
         col: u64,
@@ -208,7 +208,20 @@ pub fn call(
         "mouse_off" => ui.on_mouse(false),
         "busy_start" => ui.on_busy(true),
         "busy_stop" => ui.on_busy(false),
-        "popupmenu_show" => call!(ui->popupmenu_show(args: ext, int, uint, uint)),
+        "popupmenu_show" => {
+            let menu_items = map_array!(args[0], "Error get menu list array", |item| {
+                map_array!(item, "Error get menu item array", |col| {
+                    col.as_str().ok_or("Error get menu column")
+                })
+            })?;
+
+            ui.popupmenu_show(
+                &CompleteItem::map(&menu_items),
+                try_int!(args[1]),
+                try_uint!(args[2]),
+                try_uint!(args[3]),
+            )
+        }
         "popupmenu_hide" => ui.popupmenu_hide(),
         "popupmenu_select" => call!(ui->popupmenu_select(args: int)),
         "tabline_update" => {
@@ -251,3 +264,26 @@ pub fn call(
 
     Ok(repaint_mode)
 }
+
+pub struct CompleteItem<'a> {
+    pub word: &'a str,
+    pub kind: &'a str,
+    pub menu: &'a str,
+    pub info: &'a str,
+}
+
+impl<'a> CompleteItem<'a> {
+    fn map(menu: &'a [Vec<&str>]) -> Vec<Self> {
+        menu.iter()
+            .map(|menu| {
+                CompleteItem {
+                    word: menu[0],
+                    kind: menu[1],
+                    menu: menu[2],
+                    info: menu[3],
+                }
+            })
+            .collect()
+    }
+}
+

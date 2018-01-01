@@ -30,18 +30,22 @@ enum ProjectViewColumns {
 }
 
 const COLUMN_COUNT: usize = 6;
-const COLUMN_TYPES: [Type; COLUMN_COUNT] = [Type::String,
-                                            Type::String,
-                                            Type::String,
-                                            Type::String,
-                                            Type::Bool,
-                                            Type::Bool];
-const COLUMN_IDS: [u32; COLUMN_COUNT] = [ProjectViewColumns::Name as u32,
-                                         ProjectViewColumns::Path as u32,
-                                         ProjectViewColumns::Uri as u32,
-                                         ProjectViewColumns::Pixbuf as u32,
-                                         ProjectViewColumns::Project as u32,
-                                         ProjectViewColumns::ProjectStored as u32];
+const COLUMN_TYPES: [Type; COLUMN_COUNT] = [
+    Type::String,
+    Type::String,
+    Type::String,
+    Type::String,
+    Type::Bool,
+    Type::Bool,
+];
+const COLUMN_IDS: [u32; COLUMN_COUNT] = [
+    ProjectViewColumns::Name as u32,
+    ProjectViewColumns::Path as u32,
+    ProjectViewColumns::Uri as u32,
+    ProjectViewColumns::Pixbuf as u32,
+    ProjectViewColumns::Project as u32,
+    ProjectViewColumns::ProjectStored as u32,
+];
 
 pub struct Projects {
     shell: Rc<RefCell<Shell>>,
@@ -79,9 +83,10 @@ impl Projects {
         vbox.pack_start(&search_box, false, true, 0);
 
 
-        projects
-            .scroll
-            .set_policy(PolicyType::Never, PolicyType::Automatic);
+        projects.scroll.set_policy(
+            PolicyType::Never,
+            PolicyType::Automatic,
+        );
 
         projects.scroll.add(&projects.tree);
 
@@ -97,10 +102,9 @@ impl Projects {
         let projects = Rc::new(RefCell::new(projects));
 
         let prj_ref = projects.clone();
-        projects
-            .borrow()
-            .tree
-            .connect_size_allocate(move |_, _| on_treeview_allocate(prj_ref.clone()));
+        projects.borrow().tree.connect_size_allocate(move |_, _| {
+            on_treeview_allocate(prj_ref.clone())
+        });
 
         let prj_ref = projects.clone();
         search_box.connect_changed(move |search_box| {
@@ -115,45 +119,44 @@ impl Projects {
 
         let prj_ref = projects.clone();
         search_box.connect_activate(move |_| {
-                                        let model = prj_ref.borrow().tree.get_model().unwrap();
-                                        if let Some(iter) = model.get_iter_first() {
-                                            prj_ref.borrow().open_uri(&model, &iter);
-                                            let popup = prj_ref.borrow().popup.clone();
-                                            popup.popdown();
-                                        }
-                                    });
+            let model = prj_ref.borrow().tree.get_model().unwrap();
+            if let Some(iter) = model.get_iter_first() {
+                prj_ref.borrow().open_uri(&model, &iter);
+                let popup = prj_ref.borrow().popup.clone();
+                popup.popdown();
+            }
+        });
 
         let prj_ref = projects.clone();
-        projects
-            .borrow()
-            .tree
-            .connect_row_activated(move |tree, _, _| {
-                                       let selection = tree.get_selection();
-                                       if let Some((model, iter)) = selection.get_selected() {
-                                           prj_ref.borrow().open_uri(&model, &iter);
-                                           let popup = prj_ref.borrow().popup.clone();
-                                           popup.popdown();
-                                       }
-                                   });
+        projects.borrow().tree.connect_row_activated(
+            move |tree, _, _| {
+                let selection = tree.get_selection();
+                if let Some((model, iter)) = selection.get_selected() {
+                    prj_ref.borrow().open_uri(&model, &iter);
+                    let popup = prj_ref.borrow().popup.clone();
+                    popup.popdown();
+                }
+            },
+        );
 
         let prj_ref = projects.clone();
         open_btn.connect_clicked(move |_| {
-                                     prj_ref.borrow().show_open_file_dlg();
-                                     let popup = prj_ref.borrow().popup.clone();
-                                     popup.popdown();
-                                 });
+            prj_ref.borrow().show_open_file_dlg();
+            let popup = prj_ref.borrow().popup.clone();
+            popup.popdown();
+        });
 
         let prj_ref = projects.clone();
-        projects
-            .borrow()
-            .popup
-            .connect_closed(move |_| prj_ref.borrow_mut().clear());
+        projects.borrow().popup.connect_closed(
+            move |_| prj_ref.borrow_mut().clear(),
+        );
 
         let prj_ref = projects.clone();
-        projects
-            .borrow()
-            .toggle_renderer
-            .connect_toggled(move |_, path| prj_ref.borrow_mut().toggle_stored(&path));
+        projects.borrow().toggle_renderer.connect_toggled(
+            move |_, path| {
+                prj_ref.borrow_mut().toggle_stored(&path)
+            },
+        );
         projects
     }
 
@@ -165,9 +168,11 @@ impl Projects {
                 .get()
                 .unwrap();
 
-            list_store.set_value(&iter,
-                                 ProjectViewColumns::ProjectStored as u32,
-                                 &ToValue::to_value(&!value));
+            list_store.set_value(
+                &iter,
+                ProjectViewColumns::ProjectStored as u32,
+                &ToValue::to_value(&!value),
+            );
 
             let pixbuf = if value {
                 CURRENT_DIR_PIXBUF
@@ -175,9 +180,11 @@ impl Projects {
                 BOOKMARKED_PIXBUF
             };
 
-            list_store.set_value(&iter,
-                                 ProjectViewColumns::Pixbuf as u32,
-                                 &ToValue::to_value(pixbuf));
+            list_store.set_value(
+                &iter,
+                ProjectViewColumns::Pixbuf as u32,
+                &ToValue::to_value(pixbuf),
+            );
 
             let uri_value = list_store.get_value(&iter, ProjectViewColumns::Uri as i32);
             let uri: String = uri_value.get().unwrap();
@@ -194,8 +201,14 @@ impl Projects {
 
 
     fn open_uri(&self, model: &TreeModel, iter: &TreeIter) {
-        let uri: String = model.get_value(iter, ProjectViewColumns::Uri as i32).get().unwrap();
-        let project: bool = model.get_value(iter, ProjectViewColumns::Project as i32).get().unwrap();
+        let uri: String = model
+            .get_value(iter, ProjectViewColumns::Uri as i32)
+            .get()
+            .unwrap();
+        let project: bool = model
+            .get_value(iter, ProjectViewColumns::Project as i32)
+            .get()
+            .unwrap();
 
         let shell = self.shell.borrow();
         if project {
@@ -218,9 +231,11 @@ impl Projects {
             .unwrap()
             .downcast::<gtk::Window>()
             .ok();
-        let dlg = gtk::FileChooserDialog::new(Some("Open Document"),
-                                              window.as_ref(),
-                                              gtk::FileChooserAction::Open);
+        let dlg = gtk::FileChooserDialog::new(
+            Some("Open Document"),
+            window.as_ref(),
+            gtk::FileChooserAction::Open,
+        );
 
         const OPEN_ID: i32 = 0;
         const CANCEL_ID: i32 = 1;
@@ -268,9 +283,11 @@ impl Projects {
         let icon_renderer = CellRendererPixbuf::new();
         image_column.pack_start(&icon_renderer, true);
 
-        image_column.add_attribute(&icon_renderer,
-                                   "icon-name",
-                                   ProjectViewColumns::Pixbuf as i32);
+        image_column.add_attribute(
+            &icon_renderer,
+            "icon-name",
+            ProjectViewColumns::Pixbuf as i32,
+        );
 
         self.tree.append_column(&image_column);
 
@@ -278,18 +295,23 @@ impl Projects {
 
         self.name_renderer.set_property_width_chars(60);
         self.path_renderer.set_property_width_chars(60);
-        self.path_renderer
-            .set_property_ellipsize(pango::EllipsizeMode::Start);
+        self.path_renderer.set_property_ellipsize(
+            pango::EllipsizeMode::Start,
+        );
 
         text_column.pack_start(&self.name_renderer, true);
         text_column.pack_start(&self.path_renderer, true);
 
-        text_column.add_attribute(&self.name_renderer,
-                                  "markup",
-                                  ProjectViewColumns::Name as i32);
-        text_column.add_attribute(&self.path_renderer,
-                                  "markup",
-                                  ProjectViewColumns::Path as i32);
+        text_column.add_attribute(
+            &self.name_renderer,
+            "markup",
+            ProjectViewColumns::Name as i32,
+        );
+        text_column.add_attribute(
+            &self.path_renderer,
+            "markup",
+            ProjectViewColumns::Path as i32,
+        );
 
         let area = text_column
             .get_area()
@@ -306,12 +328,16 @@ impl Projects {
         self.toggle_renderer.set_padding(10, 0);
 
         toggle_column.pack_start(&self.toggle_renderer, true);
-        toggle_column.add_attribute(&self.toggle_renderer,
-                                    "visible",
-                                    ProjectViewColumns::Project as i32);
-        toggle_column.add_attribute(&self.toggle_renderer,
-                                    "active",
-                                    ProjectViewColumns::ProjectStored as i32);
+        toggle_column.add_attribute(
+            &self.toggle_renderer,
+            "visible",
+            ProjectViewColumns::Project as i32,
+        );
+        toggle_column.add_attribute(
+            &self.toggle_renderer,
+            "active",
+            ProjectViewColumns::ProjectStored as i32,
+        );
 
         self.tree.append_column(&toggle_column);
     }
@@ -333,19 +359,19 @@ fn on_treeview_allocate(projects: Rc<RefCell<Projects>>) {
     let treeview_height = projects.borrow().calc_treeview_height();
 
     idle_add(move || {
-                 let prj = projects.borrow();
+        let prj = projects.borrow();
 
-                 // strange solution to make gtk assertions happy
-                 let previous_height = prj.scroll.get_max_content_height();
-                 if previous_height < treeview_height {
-                     prj.scroll.set_max_content_height(treeview_height);
-                     prj.scroll.set_min_content_height(treeview_height);
-                 } else if previous_height > treeview_height {
-                     prj.scroll.set_min_content_height(treeview_height);
-                     prj.scroll.set_max_content_height(treeview_height);
-                 }
-                 Continue(false)
-             });
+        // strange solution to make gtk assertions happy
+        let previous_height = prj.scroll.get_max_content_height();
+        if previous_height < treeview_height {
+            prj.scroll.set_max_content_height(treeview_height);
+            prj.scroll.set_min_content_height(treeview_height);
+        } else if previous_height > treeview_height {
+            prj.scroll.set_min_content_height(treeview_height);
+            prj.scroll.set_max_content_height(treeview_height);
+        }
+        Continue(false)
+    });
 }
 
 
@@ -368,7 +394,7 @@ fn list_old_files(nvim: &mut Neovim) -> Vec<String> {
             }
         }
         err @ Err(_) => {
-            err.report_err(nvim);
+            err.report_err();
             vec![]
         }
     }
@@ -381,9 +407,7 @@ pub struct EntryStore {
 
 impl EntryStore {
     pub fn find_mut(&mut self, uri: &str) -> Option<&mut Entry> {
-        self.entries
-            .iter_mut()
-            .find(|e| e.project && e.uri == uri)
+        self.entries.iter_mut().find(|e| e.project && e.uri == uri)
     }
 
     pub fn load(nvim: &mut Neovim) -> EntryStore {
@@ -396,17 +420,14 @@ impl EntryStore {
         match nvim.call_function("getcwd", vec![]) {
             Ok(pwd) => {
                 if let Some(pwd) = pwd.as_str() {
-                    if entries
-                           .iter()
-                           .find(|e| e.project && e.uri == pwd)
-                           .is_none() {
+                    if entries.iter().find(|e| e.project && e.uri == pwd).is_none() {
                         entries.insert(0, Entry::new_current_project(pwd));
                     }
                 } else {
                     println!("Error get current directory");
                 }
             }
-            err @ Err(_) => err.report_err(nvim),
+            err @ Err(_) => err.report_err(),
         }
 
         let old_files = list_old_files(nvim);
@@ -420,24 +441,26 @@ impl EntryStore {
 
     pub fn save(&self) {
         if self.changed {
-            ProjectSettings::new(self.entries
-                                     .iter()
-                                     .filter(|e| e.project && e.stored)
-                                     .map(|p| p.to_entry_settings())
-                                     .collect())
-                    .save();
+            ProjectSettings::new(
+                self.entries
+                    .iter()
+                    .filter(|e| e.project && e.stored)
+                    .map(|p| p.to_entry_settings())
+                    .collect(),
+            ).save();
         }
     }
 
     pub fn populate(&self, list_store: &ListStore, filter: Option<&String>) {
         for file in &self.entries {
             if match filter.map(|f| f.to_uppercase()) {
-                   Some(ref filter) => {
-                       file.file_name.to_uppercase().contains(filter) ||
-                       file.path.to_uppercase().contains(filter)
-                   }
-                   None => true,
-               } {
+                Some(ref filter) => {
+                    file.file_name.to_uppercase().contains(filter) ||
+                        file.path.to_uppercase().contains(filter)
+                }
+                None => true,
+            }
+            {
                 list_store.insert_with_values(None, &COLUMN_IDS, &file.to_values());
             }
         }
@@ -465,7 +488,9 @@ impl Entry {
         Entry {
             uri: uri.to_owned(),
             path: path.parent()
-                .map(|s| format!("<small>{}</small>", encode_minimal(&s.to_string_lossy())))
+                .map(|s| {
+                    format!("<small>{}</small>", encode_minimal(&s.to_string_lossy()))
+                })
                 .unwrap_or_else(|| "".to_owned()),
             file_name: format!("<big>{}</big>", encode_minimal(name)),
             name: name.to_owned(),
@@ -484,7 +509,9 @@ impl Entry {
         Entry {
             uri: uri.to_owned(),
             path: path.parent()
-                .map(|s| format!("<small>{}</small>", encode_minimal(&s.to_string_lossy())))
+                .map(|s| {
+                    format!("<small>{}</small>", encode_minimal(&s.to_string_lossy()))
+                })
                 .unwrap_or_else(|| "".to_owned()),
             file_name: format!("<big>{}</big>", encode_minimal(&name)),
             name,
@@ -504,9 +531,8 @@ impl Entry {
             uri: uri.to_owned(),
             path: path.parent()
                 .map(|s| {
-                         format!("<small>{}</small>",
-                                 encode_minimal(&s.to_string_lossy()))
-                     })
+                    format!("<small>{}</small>", encode_minimal(&s.to_string_lossy()))
+                })
                 .unwrap_or_else(|| "".to_owned()),
             file_name: format!("<big>{}</big>", encode_minimal(&name)),
             name,
@@ -517,12 +543,16 @@ impl Entry {
     }
 
     fn to_values(&self) -> Box<[&gtk::ToValue]> {
-        Box::new([&self.file_name,
-                  &self.path,
-                  &self.uri,
-                  &self.pixbuf,
-                  &self.project,
-                  &self.stored])
+        Box::new(
+            [
+                &self.file_name,
+                &self.path,
+                &self.uri,
+                &self.pixbuf,
+                &self.project,
+                &self.stored,
+            ],
+        )
     }
 
     fn to_entry_settings(&self) -> ProjectEntrySettings {
@@ -576,4 +606,3 @@ impl ProjectSettings {
         ProjectSettings { projects }
     }
 }
-

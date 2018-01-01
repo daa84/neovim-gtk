@@ -10,6 +10,7 @@ use std::ptr;
 
 use pango;
 use pango_sys;
+use glib_ffi;
 
 use glib::translate::*;
 
@@ -22,15 +23,24 @@ pub fn pango_itemize(
     cached_iter: Option<&mut AttrIterator>,
 ) -> Vec<Item> {
     unsafe {
-        FromGlibPtrContainer::from_glib_container(pango_sys::pango_itemize(
+        //FromGlibPtrContainer::from_glib_full(pango_sys::pango_itemize(
+        from_glib_full_as_vec(pango_sys::pango_itemize(
             context.to_glib_none().0,
             text.as_ptr() as *const i8,
             start_index as i32,
             length as i32,
             attrs.to_glib_none().0,
-            cached_iter.map(|iter| iter.to_glib_none_mut().0).unwrap_or(ptr::null_mut()),
+            cached_iter
+                .map(|iter| iter.to_glib_none_mut().0)
+                .unwrap_or(ptr::null_mut()),
         ))
     }
+}
+
+
+unsafe fn from_glib_full_as_vec(ptr: *mut glib_ffi::GList) -> Vec<Item> {
+    let num = glib_ffi::g_list_length(ptr) as usize;
+    FromGlibContainer::from_glib_full_num(ptr, num)
 }
 
 pub fn pango_shape(
@@ -51,4 +61,3 @@ pub fn pango_shape(
         );
     }
 }
-

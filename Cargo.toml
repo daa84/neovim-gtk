@@ -5,16 +5,17 @@ authors = ["daa84 <daa84@inbox.ru>"]
 build = "build.rs"
 
 [dependencies]
-cairo-rs = "0.2"
-pango = "0.2"
-pango-sys = "0.4"
-pangocairo = "0.2"
-glib = "0.3"
-glib-sys = "0.4"
-gdk = "0.6"
-gdk-sys = "0.4"
-gio = "0.2"
-gobject-sys = "0.4"
+cairo-rs = "0.3"
+pango = "0.3"
+pango-sys = "0.5"
+pangocairo = "0.4"
+pangocairo-sys = "0.6"
+glib = "0.4"
+glib-sys = "0.5"
+gdk = "0.7"
+gdk-sys = "0.5"
+gio = "0.3"
+gobject-sys = "0.5"
 #gdk = { git = 'https://github.com/gtk-rs/gdk' }
 #gdk-sys = { git = 'https://github.com/gtk-rs/sys' }
 #glib = { git = 'https://github.com/gtk-rs/glib' }
@@ -27,7 +28,7 @@ gobject-sys = "0.4"
 #pangocairo = { git = 'https://github.com/RazrFalcon/pangocairo-rs' }
 neovim-lib = "0.5"
 phf = "0.7"
-log = "0.3"
+log = "0.4"
 env_logger = "0.4"
 htmlescape = "0.3"
 rmpv = "0.4"
@@ -44,12 +45,12 @@ serde_json = "1.0"
 phf_codegen = "0.7"
 
 [dependencies.gtk]
-version = "0.2"
+version = "0.3"
 features = ["v3_22"]
 #git = "https://github.com/gtk-rs/gtk"
 
 [dependencies.gtk-sys]
-version = "0.4"
+version = "0.5"
 features = ["v3_22"]
 #git = 'https://github.com/gtk-rs/sys'
 

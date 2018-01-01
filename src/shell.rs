@@ -1,12 +1,12 @@
-use std::cell::{RefCell, Cell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 use std::ops::Deref;
 use std::thread;
 use std::collections::HashMap;
+use std::time::Duration;
 
 use cairo;
-use pangocairo::CairoContextExt;
 use pango::{LayoutExt, FontDescription};
 use gdk;
 use gdk::{ModifierType, EventButton, EventMotion, EventType, EventScroll};
@@ -14,6 +14,7 @@ use gdk_sys;
 use glib;
 use gtk;
 use gtk::prelude::*;
+use pangocairo;
 
 use neovim_lib::{Neovim, NeovimApi, Value};
 use neovim_lib::neovim_api::Tabpage;
@@ -21,16 +22,15 @@ use neovim_lib::neovim_api::Tabpage;
 use settings::{Settings, FontSource};
 use ui_model::{UiModel, Attrs, ModelRect};
 use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
-
-use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, NeovimRef,
-           NeovimClientAsync};
-
-use input::{self, keyval_to_input_string};
+use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient,
+           NeovimRef, NeovimClientAsync, CompleteItem};
+use input;
+use input::keyval_to_input_string;
 use cursor::{Cursor, CursorRedrawCb};
 use ui::UiMutex;
 use popup_menu::{self, PopupMenu};
 use tabline::Tabline;
-use cmd_line::{self, CmdLine};
+use cmd_line::CmdLine;
 use error;
 use mode;
 use render;
@@ -52,11 +52,26 @@ macro_rules! idle_cb_call {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ResizeState {
-    NvimResizeTimer(glib::SourceId, usize, usize),
+enum ResizeStateEnum {
+    NvimResizeTimer(usize, usize),
     NvimResizeRequest(usize, usize),
     Wait,
 }
+
+pub struct ResizeState {
+    state: ResizeStateEnum,
+    timer: Option<glib::SourceId>,
+}
+
+impl ResizeState {
+    pub fn new() -> Self {
+        ResizeState {
+            state: ResizeStateEnum::Wait,
+            timer: None,
+        }
+    }
+}
+
 
 pub struct RenderState {
     pub font_ctx: render::Context,
@@ -86,12 +101,12 @@ pub struct State {
     render_state: Rc<RefCell<RenderState>>,
 
     stack: gtk::Stack,
-    drawing_area: gtk::DrawingArea,
+    pub drawing_area: gtk::DrawingArea,
     tabs: Tabline,
     im_context: gtk::IMMulticontext,
     error_area: error::ErrorArea,
 
-    resize_state: Rc<Cell<ResizeState>>,
+    resize_state: Rc<RefCell<ResizeState>>,
 
     options: ShellOptions,
 
@@ -124,13 +139,20 @@ impl State {
             im_context: gtk::IMMulticontext::new(),
             error_area: error::ErrorArea::new(),
 
-            resize_state: Rc::new(Cell::new(ResizeState::Wait)),
+            resize_state: Rc::new(RefCell::new(ResizeState::new())),
 
             options,
 
             detach_cb: None,
             nvim_started_cb: None,
         }
+    }
+
+    /// Return NeovimRef only if vim in non blocking state
+    ///
+    /// Note that this call also do neovim api call get_mode
+    pub fn nvim_non_blocked(&self) -> Option<NeovimRef> {
+        self.nvim().and_then(NeovimRef::non_blocked)
     }
 
     pub fn nvim(&self) -> Option<NeovimRef> {
@@ -183,20 +205,20 @@ impl State {
 
     pub fn open_file(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("e {}", path)).report_err(&mut *nvim);
+            nvim.command(&format!("e {}", path)).report_err();
         }
     }
 
     pub fn cd(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("cd {}", path)).report_err(&mut *nvim);
+            nvim.command(&format!("cd {}", path)).report_err();
         }
     }
 
     fn close_popup_menu(&self) {
         if self.popup_menu.is_open() {
             if let Some(mut nvim) = self.nvim() {
-                nvim.input("<Esc>").report_err(&mut *nvim);
+                nvim.input("<Esc>").report_err();
             }
         }
     }
@@ -282,24 +304,26 @@ impl State {
     fn try_nvim_resize(&self) {
         let (columns, rows) = self.calc_nvim_size();
 
+        let mut resize_state = self.resize_state.borrow_mut();
 
-        match self.resize_state.get() {
-            ResizeState::NvimResizeTimer(timer, req_columns, req_rows) => {
+        match resize_state.state {
+            ResizeStateEnum::NvimResizeTimer(req_columns, req_rows) => {
                 if req_columns == columns && req_rows == rows {
                     return;
                 }
-                glib::source_remove(timer);
+                glib::source_remove(resize_state.timer.take().unwrap());
+                resize_state.state = ResizeStateEnum::Wait;
             }
-            ResizeState::NvimResizeRequest(req_columns, req_rows) => {
+            ResizeStateEnum::NvimResizeRequest(req_columns, req_rows) => {
                 if req_columns == columns && req_rows == rows {
                     return;
                 }
             }
-            ResizeState::Wait => (),
+            ResizeStateEnum::Wait => (),
         }
 
 
-        let resize_state = self.resize_state.clone();
+        let resize_state_ref = self.resize_state.clone();
         let nvim = self.nvim.clone();
 
 
@@ -307,21 +331,19 @@ impl State {
             return;
         }
 
-        self.resize_state.set(ResizeState::NvimResizeTimer(
-            gtk::timeout_add(250, move || {
-                resize_state.set(ResizeState::NvimResizeRequest(columns, rows));
+        resize_state.state = ResizeStateEnum::NvimResizeTimer(columns, rows);
+        resize_state.timer = Some(gtk::timeout_add(250, move || {
+            let mut resize_state = resize_state_ref.borrow_mut();
+            resize_state.state = ResizeStateEnum::NvimResizeRequest(columns, rows);
+            resize_state.timer = None;
 
-                if let Some(mut nvim) = nvim.nvim() {
-                    if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
-                        error!("Error trying resize nvim {}", err);
-                    }
+            if let Some(mut nvim) = nvim.nvim().and_then(NeovimRef::non_blocked) {
+                if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
+                    error!("Error trying resize nvim {}", err);
                 }
-                Continue(false)
-            }),
-            columns,
-            rows,
-        ));
-
+            }
+            Continue(false)
+        }));
     }
 
     fn get_window(&self) -> gtk::Window {
@@ -361,10 +383,10 @@ impl State {
                 render_state.mode.is(&mode::NvimMode::Normal)
             {
                 let paste_code = format!("normal! \"{}P", clipboard);
-                nvim.command(&paste_code).report_err(&mut *nvim);
+                nvim.command(&paste_code).report_err();
             } else {
                 let paste_code = format!("<C-r>{}", clipboard);
-                nvim.input(&paste_code).report_err(&mut *nvim);
+                nvim.input(&paste_code).report_err();
             };
 
         }
@@ -373,11 +395,15 @@ impl State {
 
 pub struct UiState {
     mouse_pressed: bool,
+    scroll_delta: (f64, f64),
 }
 
 impl UiState {
     pub fn new() -> UiState {
-        UiState { mouse_pressed: false }
+        UiState {
+            mouse_pressed: false,
+            scroll_delta: (0.0, 0.0),
+        }
     }
 }
 
@@ -385,13 +411,19 @@ impl UiState {
 pub struct ShellOptions {
     nvim_bin_path: Option<String>,
     open_path: Option<String>,
+    timeout: Option<Duration>,
 }
 
 impl ShellOptions {
-    pub fn new(nvim_bin_path: Option<String>, open_path: Option<String>) -> Self {
+    pub fn new(
+        nvim_bin_path: Option<String>,
+        open_path: Option<String>,
+        timeout: Option<Duration>,
+    ) -> Self {
         ShellOptions {
             nvim_bin_path,
             open_path,
+            timeout,
         }
     }
 }
@@ -443,8 +475,8 @@ impl Shell {
 
         state.drawing_area.set_events(
             (gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
-                 gdk_sys::GDK_BUTTON_MOTION_MASK |
-                 gdk_sys::GDK_SCROLL_MASK)
+                 gdk_sys::GDK_BUTTON_MOTION_MASK | gdk_sys::GDK_SCROLL_MASK |
+                 gdk_sys::GDK_SMOOTH_SCROLL_MASK)
                 .bits() as i32,
         );
 
@@ -490,18 +522,19 @@ impl Shell {
 
         let ref_state = self.state.clone();
         state.drawing_area.connect_key_press_event(move |_, ev| {
-            let mut shell = ref_state.borrow_mut();
-            shell.cursor.as_mut().unwrap().reset_state();
-            // GtkIMContext will eat a Shift-Space and not tell us about shift.
-            // Also don't let IME eat any GDK_KEY_KP_ events
-            if !ev.get_state().contains(gdk::SHIFT_MASK) &&
-                ev.get_keyval() < gdk_sys::GDK_KEY_KP_Space as u32 &&
-                ev.get_keyval() > gdk_sys::GDK_KEY_KP_Divide as u32 &&
-                shell.im_context.filter_keypress(ev)
-            {
+            ref_state
+                .borrow_mut()
+                .cursor
+                .as_mut()
+                .unwrap()
+                .reset_state();
+
+            if ref_state.borrow().im_context.filter_keypress(ev) {
                 Inhibit(true)
             } else {
-                if let Some(mut nvim) = shell.nvim() {
+                let state = ref_state.borrow();
+                let nvim = state.nvim();
+                if let Some(mut nvim) = nvim {
                     input::gtk_key_press(&mut nvim, ev)
                 } else {
                     Inhibit(false)
@@ -515,8 +548,13 @@ impl Shell {
         });
 
         let ref_state = self.state.clone();
+        let ref_ui_state = self.ui_state.clone();
         state.drawing_area.connect_scroll_event(move |_, ev| {
-            gtk_scroll_event(&mut *ref_state.borrow_mut(), ev)
+            gtk_scroll_event(
+                &mut *ref_state.borrow_mut(),
+                &mut *ref_ui_state.borrow_mut(),
+                ev,
+            )
         });
 
         let ref_state = self.state.clone();
@@ -596,7 +634,7 @@ impl Shell {
 
         let nvim = state.nvim();
         if let Some(mut nvim) = nvim {
-            nvim.command(":wa").report_err(&mut *nvim);
+            nvim.command(":wa").report_err();
         }
     }
 
@@ -626,9 +664,9 @@ impl Deref for Shell {
 }
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
-    if let Some(mut nvim) = state.nvim() {
+    if let Some(mut nvim) = state.nvim_non_blocked() {
         nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif")
-            .report_err(&mut *nvim);
+            .report_err();
     }
 
     state.im_context.focus_in();
@@ -639,9 +677,9 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 }
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
-    if let Some(mut nvim) = state.nvim() {
+    if let Some(mut nvim) = state.nvim_non_blocked() {
         nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif")
-            .report_err(&mut *nvim);
+            .report_err();
     }
 
     state.im_context.focus_out();
@@ -652,25 +690,49 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
     Inhibit(false)
 }
 
-fn gtk_scroll_event(state: &mut State, ev: &EventScroll) -> Inhibit {
+fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll) -> Inhibit {
     if !state.mouse_enabled {
         return Inhibit(false);
     }
 
     state.close_popup_menu();
 
-    match ev.as_ref().direction {
-        gdk_sys::GdkScrollDirection::Right => {
+    match ev.get_direction() {
+        gdk::ScrollDirection::Right => {
             mouse_input(state, "ScrollWheelRight", ev.get_state(), ev.get_position())
         }
-        gdk_sys::GdkScrollDirection::Left => {
+        gdk::ScrollDirection::Left => {
             mouse_input(state, "ScrollWheelLeft", ev.get_state(), ev.get_position())
         }
-        gdk_sys::GdkScrollDirection::Up => {
+        gdk::ScrollDirection::Up => {
             mouse_input(state, "ScrollWheelUp", ev.get_state(), ev.get_position())
         }
-        gdk_sys::GdkScrollDirection::Down => {
+        gdk::ScrollDirection::Down => {
             mouse_input(state, "ScrollWheelDown", ev.get_state(), ev.get_position())
+        }
+        gdk::ScrollDirection::Smooth => {
+            // Remember and accumulate scroll deltas, so slow scrolling still
+            // works.
+            ui_state.scroll_delta.0 += ev.as_ref().delta_x;
+            ui_state.scroll_delta.1 += ev.as_ref().delta_y;
+            // Perform scroll action for deltas with abs(delta) >= 1.
+            let x = ui_state.scroll_delta.0 as isize;
+            let y = ui_state.scroll_delta.1 as isize;
+            for _ in 0..x {
+                mouse_input(state, "ScrollWheelRight", ev.get_state(), ev.get_position())
+            }
+            for _ in 0..-x {
+                mouse_input(state, "ScrollWheelLeft", ev.get_state(), ev.get_position())
+            }
+            for _ in 0..y {
+                mouse_input(state, "ScrollWheelDown", ev.get_state(), ev.get_position())
+            }
+            for _ in 0..-y {
+                mouse_input(state, "ScrollWheelUp", ev.get_state(), ev.get_position())
+            }
+            // Subtract performed scroll deltas.
+            ui_state.scroll_delta.0 -= x as f64;
+            ui_state.scroll_delta.1 -= y as f64;
         }
         _ => (),
     }
@@ -790,7 +852,11 @@ fn init_nvim_async(
     rows: usize,
 ) {
     // execute nvim
-    let nvim = match nvim::start(state_arc.clone(), options.nvim_bin_path.as_ref()) {
+    let nvim = match nvim::start(
+        state_arc.clone(),
+        options.nvim_bin_path.as_ref(),
+        options.timeout,
+    ) {
         Ok(nvim) => nvim,
         Err(err) => {
             show_nvim_start_error(&err, state_arc);
@@ -873,7 +939,7 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
 fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let render_state = state.render_state.borrow();
     let color_model = &render_state.color_model;
-    let layout = ctx.create_pango_layout();
+    let layout = pangocairo::functions::create_layout(ctx).unwrap();
     let desc = render_state.font_ctx.font_description();
     let alloc = state.drawing_area.get_allocation();
 
@@ -897,8 +963,8 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
         color_model.fg_color.1,
         color_model.fg_color.2,
     );
-    ctx.update_pango_layout(&layout);
-    ctx.show_pango_layout(&layout);
+    pangocairo::functions::update_layout(ctx, &layout);
+    pangocairo::functions::show_layout(ctx, &layout);
 
 
     ctx.move_to(x + width as f64, y);
@@ -917,9 +983,7 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
     if state.start_nvim_initialization() {
         let (cols, rows) = state.calc_nvim_size();
         state.model = UiModel::new(rows as u64, cols as u64);
-        state.resize_state.set(
-            ResizeState::NvimResizeRequest(cols, rows),
-        );
+        state.resize_state.borrow_mut().state = ResizeStateEnum::NvimResizeRequest(cols, rows);
 
         let state_arc = state_ref.clone();
         let options = state.options.clone();
@@ -951,16 +1015,17 @@ impl RedrawEvents for State {
     }
 
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
-        match self.resize_state.get() {
-            ResizeState::NvimResizeTimer(..) => {
+        let state = self.resize_state.borrow().state.clone();
+        match state {
+            ResizeStateEnum::NvimResizeTimer(..) => {
                 if self.model.columns != columns as usize || self.model.rows != rows as usize {
                     self.model = UiModel::new(rows, columns);
                 }
             }
-            ResizeState::Wait |
-            ResizeState::NvimResizeRequest(..) => {
+            ResizeStateEnum::Wait |
+            ResizeStateEnum::NvimResizeRequest(..) => {
                 if self.model.columns != columns as usize || self.model.rows != rows as usize {
-                    self.resize_state.set(ResizeState::Wait);
+                    self.resize_state.borrow_mut().state = ResizeStateEnum::Wait;
                     self.model = UiModel::new(rows, columns);
                     self.resize_main_window();
                 }
@@ -1054,7 +1119,7 @@ impl RedrawEvents for State {
 
     fn popupmenu_show(
         &mut self,
-        menu: Vec<Vec<String>>,
+        menu: &[CompleteItem],
         selected: i64,
         row: u64,
         col: u64,
@@ -1073,6 +1138,7 @@ impl RedrawEvents for State {
             y,
             width,
             height,
+            max_width: self.drawing_area.get_allocated_width() - 20,
         };
 
         self.popup_menu.show(context);

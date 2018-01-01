@@ -56,13 +56,13 @@ impl Manager {
                 }
             }
             PlugManageState::VimPlug => {
-                 if Store::is_config_exists() {
+                if Store::is_config_exists() {
                     self.store = Store::load();
                     self.plug_manage_state = PlugManageState::NvimGtk;
                 } else {
                     self.store = Store::empty();
                 }
-           }
+            }
         }
         if let PlugManageState::Unknown = self.plug_manage_state {
             if self.vim_plug.is_loaded() {
@@ -106,7 +106,11 @@ impl PlugManagerConfigSource {
 
         for plug in store.get_plugs() {
             if !plug.removed {
-                builder += &format!("Plug '{}', {{ 'as': '{}' }}\n", plug.get_plug_path(), plug.name);
+                builder += &format!(
+                    "Plug '{}', {{ 'as': '{}' }}\n",
+                    plug.get_plug_path(),
+                    plug.name
+                );
             }
         }
 
