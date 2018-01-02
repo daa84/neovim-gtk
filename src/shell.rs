@@ -1189,6 +1189,11 @@ impl RedrawEvents for State {
         self.cmd_line.show_level(content, pos, firstc, prompt, indent, level);
         RepaintMode::Nothing
     }
+
+    fn cmdline_hide(&mut self, level: u64) -> RepaintMode {
+        self.cmd_line.hide_level(level);
+        RepaintMode::Nothing
+    }
 }
 
 impl CursorRedrawCb for State {

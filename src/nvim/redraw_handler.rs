@@ -76,6 +76,11 @@ pub trait RedrawEvents {
         indent: u64,
         level: u64,
     ) -> RepaintMode;
+    
+    fn cmdline_hide(
+        &mut self,
+        level: u64,
+    ) -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -256,6 +261,7 @@ pub fn call(
             ui.mode_info_set(try_bool!(args[0]), mode_info)
         }
         "cmdline_show" => call!(ui->cmdline_show(args: ext, uint, str, str, uint, uint)),
+        "cmdline_hide" => call!(ui->cmdline_hide(args: uint)),
         _ => {
             println!("Event {}({:?})", method, args);
             RepaintMode::Nothing

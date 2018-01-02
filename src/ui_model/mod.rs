@@ -2,11 +2,13 @@ mod cell;
 mod line;
 mod item;
 mod model_rect;
+mod model_layout;
 
 pub use self::cell::{Cell, Attrs};
 pub use self::line::{Line, StyledLine};
 pub use self::item::Item;
 pub use self::model_rect::{ModelRect, ModelRectVec};
+pub use self::model_layout::ModelLayout;
 
 
 pub struct UiModel {

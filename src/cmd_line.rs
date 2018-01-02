@@ -9,19 +9,17 @@ use cairo;
 
 use neovim_lib::Value;
 
-use ui_model::{UiModel, Attrs};
+use ui_model::{Attrs, ModelLayout};
 use ui::UiMutex;
 use render;
 use shell;
 use cursor;
 
 pub struct Level {
-    model: UiModel,
+    model_layout: ModelLayout,
 }
 
 impl Level {
-    const COLUMNS_STEP: u64 = 50;
-    const ROWS_STEP: u64 = 10;
 
     pub fn from(
         content: Vec<(HashMap<String, Value>, String)>,
@@ -33,57 +31,41 @@ impl Level {
         //TODO: double width chars
         //TODO: im
 
-        let prompt = prompt_lines(firstc, prompt, indent);
-        let content: Vec<(Attrs, Vec<char>)> = content
+        let content_line: Vec<(Option<Attrs>, Vec<char>)> = content
             .iter()
-            .map(|c| (Attrs::from_value_map(&c.0), c.1.chars().collect()))
+            .map(|c| (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect()))
             .collect();
+        let prompt_lines = prompt_lines(firstc, prompt, indent);
 
-        let width = (content.iter().map(|c| c.1.len()).count() +
-                         prompt.last().map_or(0, |p| p.len())) as u64;
-        let columns = ((width / Level::COLUMNS_STEP) + 1) * Level::COLUMNS_STEP;
-        let rows = ((prompt.len() as u64 / Level::ROWS_STEP) + 1) * Level::ROWS_STEP;
+        let mut content: Vec<_> = prompt_lines.into_iter().map(|line| vec![line]).collect();
 
-        let mut model = UiModel::new(rows, columns);
-
-        for (row_idx, prompt_line) in prompt.iter().enumerate() {
-            for (col_idx, &ch) in prompt_line.iter().enumerate() {
-                model.set_cursor(row_idx, col_idx);
-                model.put(ch, false, None);
-            }
-        }
-
-        let mut col_idx = 0;
-        let row_idx = if prompt.len() > 0 {
-            prompt.len() - 1
+        if content.is_empty() {
+            content.push(content_line);
         } else {
-            0
-        };
-        for (attr, ch_list) in content {
-            for ch in ch_list {
-                model.set_cursor(row_idx, col_idx);
-                model.put(ch, false, Some(&attr));
-                col_idx += 1;
-            }
+            content.last_mut().map(|line| line.extend(content_line));
         }
 
-        Level { model }
+        let mut model_layout = ModelLayout::new();
+        // TODO: calculate width
+        model_layout.layout(content, 5);
+
+        Level { model_layout }
     }
 
     fn update_cache(&mut self, render_state: &shell::RenderState) {
         render::shape_dirty(
             &render_state.font_ctx,
-            &mut self.model,
+            &mut self.model_layout.model,
             &render_state.color_model,
         );
     }
 }
 
-fn prompt_lines(firstc: String, prompt: String, indent: u64) -> Vec<Vec<char>> {
+fn prompt_lines(firstc: String, prompt: String, indent: u64) -> Vec<(Option<Attrs>, Vec<char>)> {
     if !firstc.is_empty() {
-        vec![firstc.chars().chain((0..indent).map(|_| ' ')).collect()]
+        vec![(None, firstc.chars().chain((0..indent).map(|_| ' ')).collect())]
     } else if !prompt.is_empty() {
-        prompt.lines().map(|l| l.chars().collect()).collect()
+        prompt.lines().map(|l| (None, l.chars().collect())).collect()
     } else {
         vec![]
     }
@@ -121,10 +103,12 @@ impl CmdLine {
     pub fn new(drawing: &gtk::DrawingArea, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
         let popover = gtk::Popover::new(Some(drawing));
         popover.set_modal(false);
+        popover.set_position(gtk::PositionType::Top);
+
         let edit_frame = gtk::Frame::new(None);
         edit_frame.set_shadow_type(gtk::ShadowType::In);
         let drawing_area = gtk::DrawingArea::new();
-        drawing_area.set_size_request(50, 50);
+        drawing_area.set_size_request(150, 50);
         edit_frame.add(&drawing_area);
         edit_frame.show_all();
 
@@ -166,9 +150,30 @@ impl CmdLine {
         state.levels.push(level);
         if !self.displyed {
             self.displyed = true;
+            let allocation = self.popover.get_relative_to().unwrap().get_allocation();
+            self.popover.set_pointing_to(&gtk::Rectangle {
+                x: allocation.width / 2,
+                y: allocation.height / 2,
+                width: 1,
+                height: 1,
+            });
+
             self.popover.popup();
         } else {
             state.drawing_area.queue_draw()
+        }
+    }
+
+    pub fn hide_level(&mut self, level_idx: u64) {
+        let mut state = self.state.borrow_mut();
+
+        if level_idx as usize == state.levels.len() {
+            state.levels.pop();
+        }
+
+        if state.levels.is_empty() {
+            self.popover.hide();
+            self.displyed = false;
         }
     }
 }
@@ -188,7 +193,7 @@ fn gtk_draw(
             ctx,
             cursor,
             &render_state.font_ctx,
-            &level.model,
+            &level.model_layout.model,
             &render_state.color_model,
             &render_state.mode,
         );
