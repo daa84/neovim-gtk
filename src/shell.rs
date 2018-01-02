@@ -59,7 +59,8 @@ pub struct State {
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
-    pub clipboard: gtk::Clipboard,
+    pub clipboard_clipboard: gtk::Clipboard,
+    pub clipboard_primary: gtk::Clipboard,
 
     pub mode: mode::Mode,
 
@@ -91,7 +92,8 @@ impl State {
             cursor: None,
             popup_menu,
             settings,
-            clipboard: gtk::Clipboard::get(&gdk::Atom::intern("CLIPBOARD")),
+            clipboard_clipboard: gtk::Clipboard::get(&gdk::Atom::intern("CLIPBOARD")),
+            clipboard_primary: gtk::Clipboard::get(&gdk::Atom::intern("PRIMARY")),
 
             mode: mode::Mode::new(),
 
@@ -178,8 +180,12 @@ impl State {
         }
     }
 
-    pub fn clipboard_set(&self, text: &str) {
-        self.clipboard.set_text(text);
+    pub fn clipboard_clipboard_set(&self, text: &str) {
+        self.clipboard_clipboard.set_text(text);
+    }
+
+    pub fn clipboard_primary_set(&self, text: &str) {
+        self.clipboard_primary.set_text(text);
     }
 
     fn close_popup_menu(&self) {
