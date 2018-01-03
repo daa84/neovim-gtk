@@ -30,7 +30,7 @@ use cursor::{Cursor, CursorRedrawCb};
 use ui::UiMutex;
 use popup_menu::{self, PopupMenu};
 use tabline::Tabline;
-use cmd_line::CmdLine;
+use cmd_line::{CmdLine, CmdLineContext};
 use error;
 use mode;
 use render;
@@ -1186,7 +1186,24 @@ impl RedrawEvents for State {
         indent: u64,
         level: u64,
     ) -> RepaintMode {
-        self.cmd_line.show_level(content, pos, firstc, prompt, indent, level);
+        let cursor = self.model.cur_point();
+        let render_state = self.render_state.borrow();
+        let (x, y, width, height) = cursor.to_area(render_state.font_ctx.cell_metrics());
+        let ctx = CmdLineContext {
+            content,
+            pos,
+            firstc,
+            prompt,
+            indent,
+            level_idx: level,
+            x,
+            y,
+            width,
+            height,
+            max_width: self.drawing_area.get_allocated_width() - 20,
+        };
+
+        self.cmd_line.show_level(&ctx);
         RepaintMode::Nothing
     }
 
