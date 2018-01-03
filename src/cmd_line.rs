@@ -22,14 +22,15 @@ pub struct Level {
 }
 
 impl Level {
-
     pub fn from(ctx: &CmdLineContext, render_state: &shell::RenderState) -> Self {
         //TODO: double width chars render, also note in text wrapping
         //TODO: im
 
         let content_line: Vec<(Option<Attrs>, Vec<char>)> = ctx.content
             .iter()
-            .map(|c| (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect()))
+            .map(|c| {
+                (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect())
+            })
             .collect();
         let prompt_lines = prompt_lines(&ctx.firstc, &ctx.prompt, ctx.indent);
 
@@ -52,9 +53,20 @@ impl Level {
         let mut model_layout = ModelLayout::new();
         let (columns, rows) = model_layout.layout(content, max_width_chars);
 
+        let columns = if columns < 5 {
+            5
+        } else {
+            columns
+        };
+
         let preferred_width = (char_width * columns as f64) as i32;
         let preferred_height = (line_height * rows as f64) as i32;
-        Level { model_layout, preferred_width, preferred_height }
+
+        Level {
+            model_layout,
+            preferred_width,
+            preferred_height,
+        }
     }
 
     fn update_cache(&mut self, render_state: &shell::RenderState) {
@@ -68,9 +80,17 @@ impl Level {
 
 fn prompt_lines(firstc: &str, prompt: &str, indent: u64) -> Vec<(Option<Attrs>, Vec<char>)> {
     if !firstc.is_empty() {
-        vec![(None, firstc.chars().chain((0..indent).map(|_| ' ')).collect())]
+        vec![
+            (
+                None,
+                firstc.chars().chain((0..indent).map(|_| ' ')).collect()
+            ),
+        ]
     } else if !prompt.is_empty() {
-        prompt.lines().map(|l| (None, l.chars().collect())).collect()
+        prompt
+            .lines()
+            .map(|l| (None, l.chars().collect()))
+            .collect()
     } else {
         vec![]
     }
@@ -110,14 +130,9 @@ impl CmdLine {
         popover.set_modal(false);
         popover.set_position(gtk::PositionType::Right);
 
-        let edit_frame = gtk::Frame::new(None);
-        edit_frame.set_shadow_type(gtk::ShadowType::In);
         let drawing_area = gtk::DrawingArea::new();
-        drawing_area.set_size_request(150, 50);
-        edit_frame.add(&drawing_area);
-        edit_frame.show_all();
-
-        popover.add(&edit_frame);
+        drawing_area.show_all();
+        popover.add(&drawing_area);
 
         let state = Arc::new(UiMutex::new(State::new(drawing_area.clone(), render_state)));
         let weak_cb = Arc::downgrade(&state);
@@ -134,14 +149,19 @@ impl CmdLine {
         }
     }
 
-    pub fn show_level(
-        &mut self,
-        ctx: &CmdLineContext,
-    ) {
+    pub fn show_level(&mut self, ctx: &CmdLineContext) {
         let mut state = self.state.borrow_mut();
 
         let mut level = Level::from(ctx, &*state.render_state.borrow());
         level.update_cache(&*state.render_state.borrow());
+
+        let preferred_height = if level.preferred_height < 40 {
+            40
+        } else {
+            level.preferred_height
+        };
+
+        state.drawing_area.set_size_request(level.preferred_width, preferred_height);
 
         if ctx.level_idx as usize == state.levels.len() {
             // TODO: update level
@@ -187,6 +207,10 @@ fn gtk_draw(
 
     if let Some(level) = level {
         let render_state = state.render_state.borrow();
+        let gap = state.drawing_area.get_allocated_height() - level.preferred_height;
+        if gap > 0 {
+            ctx.translate(0.0, gap as f64 / 2.0);
+        }
 
         render::render(
             ctx,

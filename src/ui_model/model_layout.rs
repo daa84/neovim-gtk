@@ -16,6 +16,7 @@ impl ModelLayout {
     ///
     /// returns actual width
     pub fn layout(&mut self, lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>, max_columns: u64) -> (u64, u64) {
+        //FIXME: lines.len is not real lines count
         if lines.len() > self.model.rows || max_columns as usize > self.model.columns {
             let model_cols = ((max_columns / ModelLayout::COLUMNS_STEP) + 1) *
                 ModelLayout::COLUMNS_STEP;
