@@ -15,7 +15,7 @@ use gtk;
 use gtk::prelude::*;
 use pangocairo;
 
-use neovim_lib::{Neovim, NeovimApi, Value};
+use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 use neovim_lib::neovim_api::Tabpage;
 
 use settings::{Settings, FontSource};
@@ -112,6 +112,7 @@ impl State {
     /// Return NeovimRef only if vim in non blocking state
     ///
     /// Note that this call also do neovim api call get_mode
+    #[allow(dead_code)]
     pub fn nvim_non_blocked(&self) -> Option<NeovimRef> {
         self.nvim().and_then(NeovimRef::non_blocked)
     }
@@ -268,10 +269,10 @@ impl State {
             return;
         }
 
-        if let Some(mut nvim) = self.nvim_non_blocked() {
-            if let Err(err) = nvim.ui_try_resize(columns as u64, rows as u64) {
-                error!("Error trying resize nvim {}", err);
-            }
+        if let Some(mut nvim) = self.nvim() {
+            nvim.ui_try_resize_async(columns as u64, rows as u64)
+                .cb(|r| r.report_err())
+                .call();
         }
     }
 
@@ -280,10 +281,12 @@ impl State {
         if let Some(mut nvim) = nvim {
             if self.mode.is(&mode::NvimMode::Insert) || self.mode.is(&mode::NvimMode::Normal) {
                 let paste_code = format!("normal! \"{}P", clipboard);
-                nvim.command(&paste_code).report_err();
+                nvim.command_async(&paste_code)
+                    .cb(|r| r.report_err())
+                    .call();
             } else {
                 let paste_code = format!("<C-r>{}", clipboard);
-                nvim.input(&paste_code).report_err();
+                nvim.input_async(&paste_code).cb(|r| r.report_err()).call();
             };
 
         }
@@ -559,9 +562,10 @@ impl Deref for Shell {
 }
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
-    if let Some(mut nvim) = state.nvim_non_blocked() {
-        nvim.command("if exists('#FocusGained') | doautocmd FocusGained | endif")
-            .report_err();
+    if let Some(mut nvim) = state.nvim() {
+        nvim.command_async("if exists('#FocusGained') | doautocmd FocusGained | endif")
+            .cb(|r| r.report_err())
+            .call();
     }
 
     state.im_context.focus_in();
@@ -572,9 +576,10 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 }
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
-    if let Some(mut nvim) = state.nvim_non_blocked() {
-        nvim.command("if exists('#FocusLost') | doautocmd FocusLost | endif")
-            .report_err();
+    if let Some(mut nvim) = state.nvim() {
+        nvim.command_async("if exists('#FocusLost') | doautocmd FocusLost | endif")
+            .cb(|r| r.report_err())
+            .call();
     }
 
     state.im_context.focus_out();
