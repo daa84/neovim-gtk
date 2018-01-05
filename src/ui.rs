@@ -1,12 +1,13 @@
 use std::cell::{RefCell, Ref, RefMut};
 use std::{env, thread};
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk;
-use gtk_sys;
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, HeaderBar, ToolButton, Image, AboutDialog, SettingsExt};
+use gtk::{ApplicationWindow, HeaderBar, Button, AboutDialog, SettingsExt, Paned, Orientation};
+use gio;
 use gio::prelude::*;
 use gio::{Menu, MenuExt, MenuItem, SimpleAction};
 
@@ -15,6 +16,8 @@ use shell::{Shell, ShellOptions};
 use shell_dlg;
 use project::Projects;
 use plug_manager;
+use file_browser::FileBrowserWidget;
+use subscriptions::SubscriptionHandle;
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -40,20 +43,27 @@ pub struct Ui {
     shell: Rc<RefCell<Shell>>,
     projects: Rc<RefCell<Projects>>,
     plug_manager: Arc<UiMutex<plug_manager::Manager>>,
+    file_browser: Arc<UiMutex<FileBrowserWidget>>,
 }
 
 pub struct Components {
     window: Option<ApplicationWindow>,
-    open_btn: ToolButton,
+    open_btn: Button,
 }
 
 impl Components {
     fn new() -> Components {
-        let save_image =
-            Image::new_from_icon_name("document-open", gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32);
-
+        let open_btn = Button::new();
+        let open_btn_box = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+        open_btn_box.pack_start(&gtk::Label::new("Open"), false, false, 3);
+        open_btn_box.pack_start(
+            &gtk::Image::new_from_icon_name("pan-down-symbolic", gtk::IconSize::Menu.into()),
+            false, false, 3
+        );
+        open_btn.add(&open_btn_box);
+        open_btn.set_can_focus(false);
         Components {
-            open_btn: ToolButton::new(Some(&save_image), "Open"),
+            open_btn,
             window: None,
         }
     }
@@ -72,6 +82,7 @@ impl Ui {
         let plug_manager = plug_manager::Manager::new();
 
         let plug_manager = Arc::new(UiMutex::new(plug_manager));
+        let file_browser = Arc::new(UiMutex::new(FileBrowserWidget::new()));
         let comps = Arc::new(UiMutex::new(Components::new()));
         let settings = Rc::new(RefCell::new(Settings::new()));
         let shell = Rc::new(RefCell::new(Shell::new(settings.clone(), options)));
@@ -86,6 +97,7 @@ impl Ui {
             settings,
             projects,
             plug_manager,
+            file_browser,
         }
     }
 
@@ -98,11 +110,11 @@ impl Ui {
         let mut settings = self.settings.borrow_mut();
         settings.init();
 
-        let mut comps = self.comps.borrow_mut();
-
         self.shell.borrow_mut().init();
 
-        comps.window = Some(ApplicationWindow::new(app));
+        self.comps.borrow_mut().window = Some(ApplicationWindow::new(app));
+
+        let comps = self.comps.borrow();
         let window = comps.window.as_ref().unwrap();
 
         let prefer_dark_theme = env::var("NVIM_GTK_PREFER_DARK_THEME")
@@ -123,46 +135,57 @@ impl Ui {
             self.create_main_menu(app);
         }
 
-        if use_header_bar {
-            let header_bar = HeaderBar::new();
+        let update_subtitle = if use_header_bar {
+            Some(self.create_header_bar())
+        } else {
+            None
+        };
 
-            let projects = self.projects.clone();
-            header_bar.pack_start(&comps.open_btn);
-            comps.open_btn.connect_clicked(
-                move |_| projects.borrow_mut().show(),
-            );
+        let show_sidebar_action =
+            gio::SimpleAction::new_stateful("show-sidebar", None, &true.to_variant());
+        let file_browser_ref = self.file_browser.clone();
+        show_sidebar_action.connect_activate(move |action, _| {
+            if let Some(state) = action.get_state() {
+                let is_active = !state.get::<bool>().unwrap();
+                action.change_state(&(is_active).to_variant());
+                let file_browser = file_browser_ref.borrow();
+                file_browser.set_visible(is_active);
+            }
+        });
+        app.add_action(&show_sidebar_action);
 
-            let save_image = Image::new_from_icon_name(
-                "document-save",
-                gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32,
-            );
-            let save_btn = ToolButton::new(Some(&save_image), "Save");
+        window.set_default_size(1200, 800);
 
-            let shell = self.shell.clone();
-            save_btn.connect_clicked(move |_| shell.borrow_mut().edit_save_all());
-            header_bar.pack_start(&save_btn);
-
-            let paste_image = Image::new_from_icon_name(
-                "edit-paste",
-                gtk_sys::GTK_ICON_SIZE_SMALL_TOOLBAR as i32,
-            );
-            let paste_btn = ToolButton::new(Some(&paste_image), "Paste");
-            let shell = self.shell.clone();
-            paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
-            header_bar.pack_start(&paste_btn);
-
-            header_bar.set_show_close_button(true);
-
-            window.set_titlebar(Some(&header_bar));
-        }
-
-        window.set_default_size(800, 600);
-
+        let main = Paned::new(Orientation::Horizontal);
         let shell = self.shell.borrow();
-        window.add(&**shell);
+        let file_browser = self.file_browser.borrow();
+        main.pack1(&**file_browser, false, false);
+        main.pack2(&**shell, true, false);
+
+        window.add(&main);
 
         window.show_all();
-        window.set_title("NeovimGtk");
+
+        let comps_ref = self.comps.clone();
+        let update_title = shell.state.borrow()
+            .subscribe("BufEnter,DirChanged", &["expand('%:p')", "getcwd()"], move |args| {
+                let comps = comps_ref.borrow();
+                let window = comps.window.as_ref().unwrap();
+                let file_path = &args[0];
+                let dir = Path::new(&args[1]);
+                let filename = if file_path.is_empty() {
+                    "[No Name]"
+                } else if let Some(rel_path) = Path::new(&file_path)
+                    .strip_prefix(&dir)
+                    .ok()
+                    .and_then(|p| p.to_str())
+                {
+                    rel_path
+                } else {
+                    &file_path
+                };
+                window.set_title(filename);
+            });
 
         let comps_ref = self.comps.clone();
         let shell_ref = self.shell.clone();
@@ -180,12 +203,73 @@ impl Ui {
         }));
 
         let state_ref = self.shell.borrow().state.clone();
+        let file_browser_ref = self.file_browser.clone();
         let plug_manager_ref = self.plug_manager.clone();
         shell.set_nvim_started_cb(Some(move || {
-            plug_manager_ref.borrow_mut().init_nvim_client(
-                state_ref.borrow().nvim_clone(),
-            );
+            let state = state_ref.borrow();
+            plug_manager_ref.borrow_mut().init_nvim_client(state.nvim_clone());
+            file_browser_ref.borrow_mut().init(&state);
+            state.set_autocmds();
+            state.run_now(&update_title);
+            if let Some(ref update_subtitle) = update_subtitle {
+                state.run_now(&update_subtitle);
+            }
         }));
+    }
+
+    fn create_header_bar(&self) -> SubscriptionHandle {
+        let header_bar = HeaderBar::new();
+        let shell = self.shell.borrow();
+        let comps = self.comps.borrow();
+        let window = comps.window.as_ref().unwrap();
+
+        let projects = self.projects.clone();
+        header_bar.pack_start(&comps.open_btn);
+        comps.open_btn.connect_clicked(
+            move |_| projects.borrow_mut().show(),
+        );
+
+        let new_tab_btn = Button::new_from_icon_name(
+            "tab-new-symbolic",
+            gtk::IconSize::SmallToolbar.into(),
+        );
+        let shell_ref = Rc::clone(&self.shell);
+        new_tab_btn.connect_clicked(move |_| shell_ref.borrow_mut().new_tab());
+        new_tab_btn.set_can_focus(false);
+        header_bar.pack_start(&new_tab_btn);
+
+        let builder = gtk::Builder::new_from_string(include_str!("../resources/menu.ui"));
+        let menu: gio::MenuModel = builder.get_object("hamburger-menu").unwrap();
+
+        let paste_action = gio::SimpleAction::new("paste", None);
+        let shell_ref = self.shell.clone();
+        paste_action.connect_activate(move |_, _| shell_ref.borrow_mut().edit_paste());
+        window.add_action(&paste_action);
+
+        let save_all_action = gio::SimpleAction::new("save-all", None);
+        let shell_ref = self.shell.clone();
+        save_all_action.connect_activate(move |_, _| shell_ref.borrow_mut().edit_save_all());
+        window.add_action(&save_all_action);
+
+        let menu_btn = gtk::MenuButton::new();
+        menu_btn.set_image(&gtk::Image::new_from_icon_name(
+            "open-menu-symbolic",
+            gtk::IconSize::SmallToolbar.into(),
+        ));
+        menu_btn.set_menu_model(&menu);
+        menu_btn.set_can_focus(false);
+        header_bar.pack_end(&menu_btn);
+
+        header_bar.set_show_close_button(true);
+
+        window.set_titlebar(Some(&header_bar));
+
+        let update_subtitle = shell.state.borrow()
+            .subscribe("DirChanged", &["getcwd()"], move |args| {
+                header_bar.set_subtitle(&*args[0]);
+            });
+
+        update_subtitle
     }
 
     fn create_main_menu(&self, app: &gtk::Application) {
@@ -196,6 +280,10 @@ impl Ui {
 
         let section = Menu::new();
         section.append_item(&MenuItem::new("New Window", "app.new-window"));
+        menu.append_section(None, &section);
+
+        let section = Menu::new();
+        section.append_item(&MenuItem::new("Sidebar", "app.show-sidebar"));
         menu.append_section(None, &section);
 
         let section = Menu::new();

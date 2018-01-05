@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object class="GtkMenu" id="file_browser_context_menu">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="action_name">filebrowser.reload</property>
+        <property name="label" translatable="yes">Reload</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkCheckMenuItem" id="file_browser_show_hidden_checkbox">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="label">Show Hidden Files</property>
+      </object>
+    </child>
+  </object>
+  <object class="GtkTreeStore" id="file_browser_tree_store">
+    <columns>
+      <!-- Filename -->
+      <column type="gchararray"/>
+      <!-- Path -->
+      <column type="gchararray"/>
+      <!-- File type -->
+      <column type="guchar"/>
+      <!-- Icon name -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkImage" id="go_up_image">
+    <property name="can_focus">False</property>
+    <property name="icon_name">go-up-symbolic</property>
+  </object>
+  <object class="GtkBox" id="file_browser">
+    <property name="width_request">200</property>
+    <property name="can_focus">False</property>
+    <property name="orientation">vertical</property>
+    <child>
+      <object class="GtkToolbar" id="file_browser_toolbar">
+        <property name="can_focus">False</property>
+        <child>
+          <object class="GtkToolItem">
+            <property name="can_focus">False</property>
+            <property name="margin_right">8</property>
+            <child>
+              <object class="GtkButton" id="file_browser_go_up_button">
+                <property name="can_focus">False</property>
+                <property name="receives_default">False</property>
+                <property name="image">go_up_image</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkToolItem">
+            <property name="can_focus">False</property>
+            <property name="halign">start</property>
+            <child>
+              <object class="GtkLabel" id="file_browser_current_dir">
+                <property name="can_focus">False</property>
+                <property name="ellipsize">end</property>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">True</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkScrolledWindow" id="file_browser_scroll">
+        <property name="expand">True</property>
+        <property name="can_focus">False</property>
+        <child>
+          <object class="GtkTreeView" id="file_browser_tree_view">
+            <property name="can_focus">False</property>
+            <property name="model">file_browser_tree_store</property>
+            <property name="headers_visible">False</property>
+            <property name="activate_on_single_click">True</property>
+            <child>
+              <object class="GtkTreeViewColumn">
+                <child>
+                  <object class="GtkCellRendererPixbuf" id="cell_renderer_icon"/>
+                  <attributes>
+                    <attribute name="icon_name">3</attribute>
+                  </attributes>
+                </child>
+                <child>
+                  <object class="GtkCellRendererText" id="cell_renderer_filename"/>
+                  <attributes>
+                    <attribute name="text">0</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

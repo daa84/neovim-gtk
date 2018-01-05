@@ -59,7 +59,7 @@ pub struct Projects {
 }
 
 impl Projects {
-    pub fn new(ref_widget: &gtk::ToolButton, shell: Rc<RefCell<Shell>>) -> Rc<RefCell<Projects>> {
+    pub fn new(ref_widget: &gtk::Button, shell: Rc<RefCell<Shell>>) -> Rc<RefCell<Projects>> {
         let projects = Projects {
             shell,
             popup: Popover::new(Some(ref_widget)),
@@ -73,6 +73,9 @@ impl Projects {
 
         projects.setup_tree();
 
+        projects.tree.set_activate_on_single_click(true);
+        projects.tree.set_hover_selection(true);
+        projects.tree.set_grid_lines(gtk::TreeViewGridLines::Horizontal);
 
         let vbox = gtk::Box::new(Orientation::Vertical, 5);
         vbox.set_border_width(5);
@@ -89,11 +92,12 @@ impl Projects {
         );
 
         projects.scroll.add(&projects.tree);
+        projects.scroll.set_shadow_type(gtk::ShadowType::In);
 
         vbox.pack_start(&projects.scroll, true, true, 0);
 
         let open_btn = gtk::Button::new_with_label("Other Documents…");
-        vbox.pack_start(&open_btn, true, true, 0);
+        vbox.pack_start(&open_btn, true, true, 5);
 
         vbox.show_all();
         projects.popup.add(&vbox);
@@ -129,7 +133,12 @@ impl Projects {
 
         let prj_ref = projects.clone();
         projects.borrow().tree.connect_row_activated(
-            move |tree, _, _| {
+            move |tree, _, column| {
+                // Don't activate if the user clicked the checkbox.
+                let toggle_column = tree.get_column(2).unwrap();
+                if *column == toggle_column {
+                    return;
+                }
                 let selection = tree.get_selection();
                 if let Some((model, iter)) = selection.get_selected() {
                     prj_ref.borrow().open_uri(&model, &iter);
@@ -281,6 +290,7 @@ impl Projects {
         let image_column = TreeViewColumn::new();
 
         let icon_renderer = CellRendererPixbuf::new();
+        icon_renderer.set_padding(5, 0);
         image_column.pack_start(&icon_renderer, true);
 
         image_column.add_attribute(
@@ -293,18 +303,23 @@ impl Projects {
 
         let text_column = TreeViewColumn::new();
 
-        self.name_renderer.set_property_width_chars(60);
-        self.path_renderer.set_property_width_chars(60);
+        self.name_renderer.set_property_width_chars(40);
+        self.path_renderer.set_property_width_chars(40);
+        self.name_renderer.set_property_ellipsize(
+            pango::EllipsizeMode::Middle,
+        );
         self.path_renderer.set_property_ellipsize(
             pango::EllipsizeMode::Start,
         );
+        self.name_renderer.set_padding(0, 5);
+        self.path_renderer.set_padding(0, 5);
 
         text_column.pack_start(&self.name_renderer, true);
         text_column.pack_start(&self.path_renderer, true);
 
         text_column.add_attribute(
             &self.name_renderer,
-            "markup",
+            "text",
             ProjectViewColumns::Name as i32,
         );
         text_column.add_attribute(
@@ -492,7 +507,7 @@ impl Entry {
                     format!("<small>{}</small>", encode_minimal(&s.to_string_lossy()))
                 })
                 .unwrap_or_else(|| "".to_owned()),
-            file_name: format!("<big>{}</big>", encode_minimal(name)),
+            file_name: encode_minimal(name),
             name: name.to_owned(),
             pixbuf: BOOKMARKED_PIXBUF,
             project: true,
@@ -513,7 +528,7 @@ impl Entry {
                     format!("<small>{}</small>", encode_minimal(&s.to_string_lossy()))
                 })
                 .unwrap_or_else(|| "".to_owned()),
-            file_name: format!("<big>{}</big>", encode_minimal(&name)),
+            file_name: encode_minimal(&name),
             name,
             pixbuf: CURRENT_DIR_PIXBUF,
             project: true,
@@ -534,7 +549,7 @@ impl Entry {
                     format!("<small>{}</small>", encode_minimal(&s.to_string_lossy()))
                 })
                 .unwrap_or_else(|| "".to_owned()),
-            file_name: format!("<big>{}</big>", encode_minimal(&name)),
+            file_name: encode_minimal(&name),
             name,
             pixbuf: PLAIN_FILE_PIXBUF,
             project: false,
