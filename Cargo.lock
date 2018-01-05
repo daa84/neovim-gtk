@@ -302,10 +302,10 @@ dependencies = [
 
 [[package]]
 name = "neovim-lib"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.5.1"
+source = "git+https://github.com/daa84/neovim-lib?branch=async#d3991cf0c81329baaa78dea905b9845ac1667a45"
 dependencies = [
- "log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rmp 0.8.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "rmpv 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "unix_socket 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -332,7 +332,7 @@ dependencies = [
  "gtk-sys 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "htmlescape 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "neovim-lib 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "neovim-lib 0.5.1 (git+https://github.com/daa84/neovim-lib?branch=async)",
  "pango 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pango-sys 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pangocairo 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -643,7 +643,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
 "checksum log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "89f010e843f2b1a31dbd316b3b8d443758bc634bed37aabade59c686d644e0a2"
 "checksum memchr 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "796fba70e76612589ed2ce7f45282f5af869e0fdd7cc6199fa1aa1f1d591ba9d"
-"checksum neovim-lib 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1889b79fccec66b11f3f9d3a266ffd97c0944af82a62843ca2b9529fedd82fec"
+"checksum neovim-lib 0.5.1 (git+https://github.com/daa84/neovim-lib?branch=async)" = "<none>"
 "checksum num-traits 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)" = "cacfcab5eb48250ee7d0c7896b51a2c5eec99c1feea5f32025635f5ae4b00070"
 "checksum pango 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3e81c404ab81ea7ea2fc2431a0a7672507b80e4b8bf4b41eac3fc83cc665104e"
 "checksum pango-sys 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "34f34a1be107fe16abb2744e0e206bee4b3b07460b5fddd3009a6aaf60bd69ab"
