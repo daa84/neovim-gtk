@@ -1,15 +1,17 @@
 " A Neovim plugin that implements GUI helper commands
 if !has('nvim') || exists('g:GuiLoaded')
-  finish
+	finish
 endif
 let g:GuiLoaded = 1
 
 if exists('g:GuiInternalClipboard')
+	let s:LastRegType = 'v'
 	function! provider#clipboard#Call(method, args) abort
 		if a:method == 'get'
-			return [rpcrequest(1, 'Gui', 'Clipboard', 'Get'), 'v']
+			return [rpcrequest(1, 'Gui', 'Clipboard', 'Get', a:args[0]), s:LastRegType]
 		elseif a:method == 'set'
-			call rpcnotify(1, 'Gui', 'Clipboard', 'Set', join(a:args[0], ''))
+			let s:LastRegType = a:args[1]
+			call rpcnotify(1, 'Gui', 'Clipboard', 'Set', a:args[2], join(a:args[0], ''))
 		endif
 	endfunction
 endif

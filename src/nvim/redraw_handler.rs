@@ -117,7 +117,10 @@ pub fn call_gui_event(
         "Clipboard" => {
             match try_str!(args[0]) {
                 "Set" => {
-                    ui.clipboard_set(try_str!(args[1]));
+                    match try_str!(args[1]) {
+                        "*" => ui.clipboard_primary_set(try_str!(args[2])),
+                        _ => ui.clipboard_clipboard_set(try_str!(args[2])),
+                    }
                 },
                 opt => error!("Unknown option {}", opt),
             }
@@ -162,7 +165,10 @@ pub fn call_gui_request(
                     // mutably twice!
                     let clipboard = {
                         let ui = &mut ui.borrow_mut();
-                        ui.clipboard.clone()
+                        match try_str!(args[1]) {
+                            "*" => ui.clipboard_primary.clone(),
+                            _ => ui.clipboard_clipboard.clone(),
+                        }
                     };
                     let t = clipboard.wait_for_text().unwrap_or_else(|| String::new());
                     Ok(Value::Array(t.split("\n").map(|s| s.into()).collect::<Vec<Value>>()))
