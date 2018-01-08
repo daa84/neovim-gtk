@@ -87,41 +87,37 @@ impl State {
     }
 
     fn limit_column_widths(&self, menu: &[CompleteItem], shell: &shell::State) {
+        const DEFAULT_PADDING: i32 = 5;
+
         let layout = shell.font_ctx.create_layout();
-        let kind_chars = menu.iter().map(|i| i.kind.len()).max().unwrap();
+        let kind_exists = menu.iter().find(|i| i.kind.len() > 0).is_some();
         let max_width = self.scroll.get_max_content_width();
         let (xpad, _) = self.renderer.get_padding();
 
-        const DEFAULT_PADDING: i32 = 5;
+        let max_word_line = menu.iter().max_by_key(|m| m.word.len()).unwrap();
+        layout.set_text(max_word_line.word);
+        let (word_max_width, _) = layout.get_pixel_size();
+        let word_column_width = word_max_width + xpad * 2 + DEFAULT_PADDING;
 
-        if kind_chars > 0 {
+
+        if kind_exists {
             layout.set_text("[v]");
             let (kind_width, _) = layout.get_pixel_size();
 
-            self.word_column.set_fixed_width(max_width - kind_width);
-
             self.kind_column.set_fixed_width(kind_width + xpad * 2 + DEFAULT_PADDING);
             self.kind_column.set_visible(true);
+
+            self.word_column.set_fixed_width(min(max_width - kind_width, word_column_width));
         } else {
-            let max_line = menu.iter().max_by_key(|m| m.word.len()).unwrap();
-            layout.set_text(max_line.word);
-            let (word_max_width, _) = layout.get_pixel_size();
-
             self.kind_column.set_visible(false);
-
-            let word_column_width = word_max_width + xpad * 2 + DEFAULT_PADDING;
-            if word_column_width > max_width {
-                self.word_column.set_fixed_width(max_width);
-            } else {
-                self.word_column.set_fixed_width(word_column_width);
-            }
+            self.word_column.set_fixed_width(min(max_width, word_column_width));
         }
 
 
-        let max_line = menu.iter().max_by_key(|m| m.menu.len()).unwrap();
+        let max_menu_line = menu.iter().max_by_key(|m| m.menu.len()).unwrap();
 
-        if max_line.menu.len() > 0 {
-            layout.set_text(max_line.menu);
+        if max_menu_line.menu.len() > 0 {
+            layout.set_text(max_menu_line.menu);
             let (menu_max_width, _) = layout.get_pixel_size();
             self.menu_column.set_fixed_width(menu_max_width + xpad * 2 + DEFAULT_PADDING);
             self.menu_column.set_visible(true);
