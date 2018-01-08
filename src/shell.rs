@@ -836,9 +836,8 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
 }
 
 fn draw_initializing(state: &State, ctx: &cairo::Context) {
-    let layout = pangocairo::functions::create_layout(ctx).unwrap();
-    let desc = state.get_font_desc();
     let alloc = state.drawing_area.get_allocation();
+    let layout = state.font_ctx.create_layout();
 
     ctx.set_source_rgb(
         state.color_model.bg_color.0,
@@ -847,7 +846,6 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     );
     ctx.paint();
 
-    layout.set_font_description(desc);
     layout.set_text("Loading->");
     let (width, height) = layout.get_pixel_size();
 

@@ -6,6 +6,7 @@ use gtk;
 use gtk::prelude::*;
 use glib;
 use gdk::{EventButton, EventType};
+use pango::{self, LayoutExt};
 
 use neovim_lib::{Neovim, NeovimApi};
 
@@ -23,6 +24,9 @@ struct State {
     scroll: gtk::ScrolledWindow,
     css_provider: gtk::CssProvider,
     info_label: gtk::Label,
+    word_column: gtk::TreeViewColumn,
+    kind_column: gtk::TreeViewColumn,
+    menu_column: gtk::TreeViewColumn,
 }
 
 impl State {
@@ -34,24 +38,25 @@ impl State {
         style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
         let renderer = gtk::CellRendererText::new();
+        renderer.set_property_ellipsize(pango::EllipsizeMode::End);
 
         // word
-        let column = gtk::TreeViewColumn::new();
-        column.pack_start(&renderer, true);
-        column.add_attribute(&renderer, "text", 0);
-        tree.append_column(&column);
+        let word_column = gtk::TreeViewColumn::new();
+        word_column.pack_start(&renderer, true);
+        word_column.add_attribute(&renderer, "text", 0);
+        tree.append_column(&word_column);
 
         // kind
-        let column = gtk::TreeViewColumn::new();
-        column.pack_start(&renderer, true);
-        column.add_attribute(&renderer, "text", 1);
-        tree.append_column(&column);
+        let kind_column = gtk::TreeViewColumn::new();
+        kind_column.pack_start(&renderer, true);
+        kind_column.add_attribute(&renderer, "text", 1);
+        tree.append_column(&kind_column);
 
         // menu
-        let column = gtk::TreeViewColumn::new();
-        column.pack_start(&renderer, true);
-        column.add_attribute(&renderer, "text", 2);
-        tree.append_column(&column);
+        let menu_column = gtk::TreeViewColumn::new();
+        menu_column.pack_start(&renderer, true);
+        menu_column.add_attribute(&renderer, "text", 2);
+        tree.append_column(&menu_column);
 
         let info_label = gtk::Label::new(None);
         info_label.set_line_wrap(true);
@@ -63,6 +68,9 @@ impl State {
             renderer,
             css_provider,
             info_label,
+            word_column,
+            kind_column,
+            menu_column,
         }
     }
 
@@ -78,10 +86,56 @@ impl State {
         self.select(selected);
     }
 
+    fn limit_column_widths(&self, menu: &[CompleteItem], shell: &shell::State) {
+        let layout = shell.font_ctx.create_layout();
+        let kind_chars = menu.iter().map(|i| i.kind.len()).max().unwrap();
+        let max_width = self.scroll.get_max_content_width();
+        let (xpad, _) = self.renderer.get_padding();
+
+        const DEFAULT_PADDING: i32 = 5;
+
+        if kind_chars > 0 {
+            layout.set_text("[v]");
+            let (kind_width, _) = layout.get_pixel_size();
+
+            self.word_column.set_fixed_width(max_width - kind_width);
+
+            self.kind_column.set_fixed_width(kind_width + xpad * 2 + DEFAULT_PADDING);
+            self.kind_column.set_visible(true);
+        } else {
+            let max_line = menu.iter().max_by_key(|m| m.word.len()).unwrap();
+            layout.set_text(max_line.word);
+            let (word_max_width, _) = layout.get_pixel_size();
+
+            self.kind_column.set_visible(false);
+
+            let word_column_width = word_max_width + xpad * 2 + DEFAULT_PADDING;
+            if word_column_width > max_width {
+                self.word_column.set_fixed_width(max_width);
+            } else {
+                self.word_column.set_fixed_width(word_column_width);
+            }
+        }
+
+
+        let max_line = menu.iter().max_by_key(|m| m.menu.len()).unwrap();
+
+        if max_line.menu.len() > 0 {
+            layout.set_text(max_line.menu);
+            let (menu_max_width, _) = layout.get_pixel_size();
+            self.menu_column.set_fixed_width(menu_max_width + xpad * 2 + DEFAULT_PADDING);
+            self.menu_column.set_visible(true);
+        } else {
+            self.menu_column.set_visible(false);
+        }
+    }
+
     fn update_tree(&self, menu: &[CompleteItem], shell: &shell::State) {
         if menu.is_empty() {
             return;
         }
+
+        self.limit_column_widths(menu, shell);
 
         self.renderer.set_property_font(
             Some(&shell.get_font_desc().to_string()),
