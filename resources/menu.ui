@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<interface>
+  <menu id="hamburger-menu">
+    <section>
+      <attribute name="id">file-section</attribute>
+      <item>
+        <attribute name="label">Paste</attribute>
+        <attribute name="action">win.paste</attribute>
+      </item>
+      <item>
+        <attribute name="label">Save All</attribute>
+        <attribute name="action">win.save-all</attribute>
+      </item>
+    </section>
+  </menu>
+</interface>
