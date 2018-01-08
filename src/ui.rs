@@ -11,7 +11,7 @@ use gio::prelude::*;
 use gio::{Menu, MenuExt, MenuItem, SimpleAction};
 
 use settings::Settings;
-use shell::{Shell, ShellOptions};
+use shell::{self, Shell, ShellOptions};
 use shell_dlg;
 use project::Projects;
 use plug_manager;
@@ -233,6 +233,13 @@ fn on_help_about(comps: &Components) {
     about.set_version(env!("CARGO_PKG_VERSION"));
     about.set_logo_icon_name("org.daa.NeovimGtk");
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
+    about.set_comments(
+        format!(
+            "Build on top of neovim\n\
+            Minimum supported neovim version: {}",
+            shell::MINIMUM_SUPPORTED_NVIM_VERSION
+        ).as_str(),
+    );
 
     about.connect_response(|about, _| about.destroy());
     about.show();
