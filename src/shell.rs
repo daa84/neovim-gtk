@@ -35,7 +35,7 @@ use render;
 use render::CellMetrics;
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
-pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2.1";
+pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2.2";
 
 macro_rules! idle_cb_call {
     ($state:ident.$cb:ident($( $x:expr ),*)) => (
