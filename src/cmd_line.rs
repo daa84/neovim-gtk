@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::cell::RefCell;
+use std::cmp::max;
 
 use gtk;
 use gtk::prelude::*;
@@ -22,9 +23,10 @@ pub struct Level {
 }
 
 impl Level {
-    pub fn from(ctx: &CmdLineContext, render_state: &shell::RenderState) -> Self {
+    pub fn from_ctx(ctx: &CmdLineContext, render_state: &shell::RenderState) -> Self {
         //TODO: double width chars render, also note in text wrapping
         //TODO: im
+        //TODO: cursor
 
         let content_line: Vec<(Option<Attrs>, Vec<char>)> = ctx.content
             .iter()
@@ -53,11 +55,7 @@ impl Level {
         let mut model_layout = ModelLayout::new();
         let (columns, rows) = model_layout.layout(content, max_width_chars);
 
-        let columns = if columns < 5 {
-            5
-        } else {
-            columns
-        };
+        let columns = max(columns, 5);
 
         let preferred_width = (char_width * columns as f64) as i32;
         let preferred_height = (line_height * rows as f64) as i32;
@@ -98,6 +96,7 @@ fn prompt_lines(firstc: &str, prompt: &str, indent: u64) -> Vec<(Option<Attrs>, 
 
 struct State {
     levels: Vec<Level>,
+    block: Option<Level>,
     render_state: Rc<RefCell<shell::RenderState>>,
     drawing_area: gtk::DrawingArea,
 }
@@ -106,6 +105,7 @@ impl State {
     fn new(drawing_area: gtk::DrawingArea, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
         State {
             levels: Vec::new(),
+            block: None,
             render_state,
             drawing_area,
         }
@@ -152,16 +152,10 @@ impl CmdLine {
     pub fn show_level(&mut self, ctx: &CmdLineContext) {
         let mut state = self.state.borrow_mut();
 
-        let mut level = Level::from(ctx, &*state.render_state.borrow());
+        let mut level = Level::from_ctx(ctx, &*state.render_state.borrow());
         level.update_cache(&*state.render_state.borrow());
 
-        let preferred_height = if level.preferred_height < 40 {
-            40
-        } else {
-            level.preferred_height
-        };
-
-        state.drawing_area.set_size_request(level.preferred_width, preferred_height);
+        state.drawing_area.set_size_request(level.preferred_width, max(level.preferred_height, 40));
 
         if ctx.level_idx as usize == state.levels.len() {
             // TODO: update level
@@ -194,6 +188,10 @@ impl CmdLine {
             self.popover.hide();
             self.displyed = false;
         }
+    }
+
+
+    pub fn show_block(&mut self, content: Vec<Vec<(HashMap<String, Value>, String)>>) {
     }
 }
 

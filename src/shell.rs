@@ -1211,6 +1211,21 @@ impl RedrawEvents for State {
         self.cmd_line.hide_level(level);
         RepaintMode::Nothing
     }
+
+    fn cmdline_block_show(
+        &mut self,
+        content: Vec<Vec<(HashMap<String, Value>, String)>>,
+    ) -> RepaintMode {
+        self.cmd_line.show_block(content);
+        RepaintMode::Nothing
+    }
+
+    fn cmdline_block_append(
+        &mut self,
+        content: Vec<Vec<(HashMap<String, Value>, String)>>,
+    ) -> RepaintMode {
+        RepaintMode::Nothing
+    }
 }
 
 impl CursorRedrawCb for State {

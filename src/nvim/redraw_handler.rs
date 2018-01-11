@@ -76,10 +76,17 @@ pub trait RedrawEvents {
         indent: u64,
         level: u64,
     ) -> RepaintMode;
-    
-    fn cmdline_hide(
+
+    fn cmdline_hide(&mut self, level: u64) -> RepaintMode;
+
+    fn cmdline_block_show(
         &mut self,
-        level: u64,
+        content: Vec<Vec<(HashMap<String, Value>, String)>>,
+    ) -> RepaintMode;
+
+    fn cmdline_block_append(
+        &mut self,
+        content: Vec<Vec<(HashMap<String, Value>, String)>>,
     ) -> RepaintMode;
 }
 
@@ -261,6 +268,8 @@ pub fn call(
             ui.mode_info_set(try_bool!(args[0]), mode_info)
         }
         "cmdline_show" => call!(ui->cmdline_show(args: ext, uint, str, str, uint, uint)),
+        "cmdline_block_show" => call!(ui->cmdline_block_show(args: ext)),
+        "cmdline_block_append" => call!(ui->cmdline_block_append(args: ext)),
         "cmdline_hide" => call!(ui->cmdline_hide(args: uint)),
         _ => {
             println!("Event {}({:?})", method, args);
@@ -292,4 +301,3 @@ impl<'a> CompleteItem<'a> {
             .collect()
     }
 }
-
