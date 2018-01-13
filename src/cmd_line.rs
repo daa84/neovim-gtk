@@ -30,7 +30,18 @@ impl Level {
 
     pub fn append_line(&mut self,
         content: &Vec<Vec<(HashMap<String, Value>, String)>>) {
-        // TODO: implement
+        let lines: Vec<Vec<(Option<Attrs>, Vec<char>)>> = content
+            .iter()
+            .map(|line_chars| {
+                line_chars
+                    .iter()
+                    .map(|c| {
+                        (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect())
+                    })
+                    .collect()
+            })
+            .collect();
+            //TODO: implement
     }
 
     pub fn from_multiline_content(
@@ -64,7 +75,7 @@ impl Level {
             ..
         } = render_state.font_ctx.cell_metrics();
 
-        let max_width_chars = (max_width as f64 / char_width) as u64;
+        let max_width_chars = (max_width as f64 / char_width) as usize;
 
         let mut model_layout = ModelLayout::new();
         let (columns, rows) = model_layout.layout(lines, max_width_chars);

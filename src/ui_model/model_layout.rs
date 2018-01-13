@@ -1,15 +1,31 @@
-use ui_model::{UiModel, Attrs};
+use ui_model::{Attrs, UiModel};
 
 pub struct ModelLayout {
     pub model: UiModel,
+    rows_filled: usize,
 }
 
 impl ModelLayout {
-    const COLUMNS_STEP: u64 = 50;
-    const ROWS_STEP: u64 = 10;
+    const COLUMNS_STEP: usize = 50;
+    const ROWS_STEP: usize = 10;
 
     pub fn new() -> Self {
-        ModelLayout { model: UiModel::new(ModelLayout::ROWS_STEP, ModelLayout::COLUMNS_STEP) }
+        ModelLayout {
+            model: UiModel::new(ModelLayout::ROWS_STEP as u64, ModelLayout::COLUMNS_STEP as u64),
+            rows_filled: 0,
+        }
+    }
+
+    fn check_model_size(&mut self, rows: usize, columns: usize) {
+        if rows > self.model.rows || columns > self.model.columns {
+            let model_cols =
+                ((columns / ModelLayout::COLUMNS_STEP) + 1) * ModelLayout::COLUMNS_STEP;
+
+            let model_rows = ((rows / ModelLayout::ROWS_STEP) + 1) * ModelLayout::ROWS_STEP;
+
+            let mut model = UiModel::new(model_rows as u64, model_cols as u64);
+            self.model.copy_rows(&mut model, self.rows_filled);
+        }
     }
 
     /// Wrap all lines into model
@@ -18,19 +34,12 @@ impl ModelLayout {
     pub fn layout(
         &mut self,
         lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>,
-        max_columns: u64,
-    ) -> (u64, u64) {
+        max_columns: usize,
+    ) -> (usize, usize) {
         let rows = ModelLayout::count_lines(&lines, max_columns);
 
-        if rows as usize > self.model.rows || max_columns as usize > self.model.columns {
-            let model_cols = ((max_columns / ModelLayout::COLUMNS_STEP) + 1) *
-                ModelLayout::COLUMNS_STEP;
-
-            let model_rows = ((rows as u64 / ModelLayout::ROWS_STEP) + 1) * ModelLayout::ROWS_STEP;
-
-            self.model = UiModel::new(model_rows, model_cols);
-        }
-
+        self.check_model_size(rows, max_columns);
+        self.rows_filled = rows;
 
         let mut max_col_idx = 0;
         let mut col_idx = 0;
@@ -59,12 +68,12 @@ impl ModelLayout {
         (max_col_idx + 1, rows)
     }
 
-    fn count_lines(lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>, max_columns: u64) -> u64 {
+    fn count_lines(lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>, max_columns: usize) -> usize {
         let mut row_count = 0;
 
         for line in lines {
             let len: usize = line.iter().map(|c| c.1.len()).sum();
-            row_count += len as u64 / (max_columns + 1) + 1;
+            row_count += len / (max_columns + 1) + 1;
         }
 
         row_count
