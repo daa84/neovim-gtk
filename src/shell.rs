@@ -391,6 +391,10 @@ impl State {
 
         }
     }
+
+    fn max_popup_width(&self) -> i32 {
+        self.drawing_area.get_allocated_width() - 20
+    }
 }
 
 pub struct UiState {
@@ -1138,7 +1142,7 @@ impl RedrawEvents for State {
             y,
             width,
             height,
-            max_width: self.drawing_area.get_allocated_width() - 20,
+            max_width: self.max_popup_width(),
         };
 
         self.popup_menu.show(context);
@@ -1200,7 +1204,7 @@ impl RedrawEvents for State {
             y,
             width,
             height,
-            max_width: self.drawing_area.get_allocated_width() - 20,
+            max_width: self.max_popup_width(),
         };
 
         self.cmd_line.show_level(&ctx);
@@ -1216,7 +1220,8 @@ impl RedrawEvents for State {
         &mut self,
         content: Vec<Vec<(HashMap<String, Value>, String)>>,
     ) -> RepaintMode {
-        self.cmd_line.show_block(content);
+        let max_width = self.max_popup_width();
+        self.cmd_line.show_block(&content, max_width);
         RepaintMode::Nothing
     }
 
@@ -1224,6 +1229,12 @@ impl RedrawEvents for State {
         &mut self,
         content: Vec<Vec<(HashMap<String, Value>, String)>>,
     ) -> RepaintMode {
+        self.cmd_line.block_append(&content);
+        RepaintMode::Nothing
+    }
+
+    fn cmdline_block_hide(&mut self) -> RepaintMode {
+        self.cmd_line.block_hide();
         RepaintMode::Nothing
     }
 }

@@ -88,6 +88,8 @@ pub trait RedrawEvents {
         &mut self,
         content: Vec<Vec<(HashMap<String, Value>, String)>>,
     ) -> RepaintMode;
+
+    fn cmdline_block_hide(&mut self) -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -271,6 +273,7 @@ pub fn call(
         "cmdline_block_show" => call!(ui->cmdline_block_show(args: ext)),
         "cmdline_block_append" => call!(ui->cmdline_block_append(args: ext)),
         "cmdline_hide" => call!(ui->cmdline_hide(args: uint)),
+        "cmdline_block_hide" => ui.cmdline_block_hide(),
         _ => {
             println!("Event {}({:?})", method, args);
             RepaintMode::Nothing
