@@ -5,8 +5,6 @@ use gdk::EventKey;
 use phf;
 use neovim_lib::{Neovim, NeovimApi};
 
-use std::ascii::AsciiExt;
-
 include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
 

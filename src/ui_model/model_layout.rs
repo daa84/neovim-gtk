@@ -6,21 +6,29 @@ pub struct ModelLayout {
 }
 
 impl ModelLayout {
-    const COLUMNS_STEP: usize = 50;
     const ROWS_STEP: usize = 10;
 
-    pub fn new() -> Self {
+    pub fn new(columns: u64) -> Self {
         ModelLayout {
-            model: UiModel::new(ModelLayout::ROWS_STEP as u64, ModelLayout::COLUMNS_STEP as u64),
+            model: UiModel::new(ModelLayout::ROWS_STEP as u64, columns),
             rows_filled: 0,
         }
     }
 
-    fn check_model_size(&mut self, rows: usize, columns: usize) {
-        if rows > self.model.rows || columns > self.model.columns {
-            let model_cols =
-                ((columns / ModelLayout::COLUMNS_STEP) + 1) * ModelLayout::COLUMNS_STEP;
+    pub fn layout_append(&mut self, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>) -> (usize, usize) {
+        let rows_filled = self.rows_filled;
+        self.layout_replace(rows_filled, lines)
+    }
 
+    pub fn layout(&mut self,
+        lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>,
+        ) -> (usize, usize) {
+        self.layout_replace(0, lines)
+    }
+
+    fn check_model_size(&mut self, rows: usize) {
+        if rows > self.model.rows {
+            let model_cols = self.model.columns;
             let model_rows = ((rows / ModelLayout::ROWS_STEP) + 1) * ModelLayout::ROWS_STEP;
 
             let mut model = UiModel::new(model_rows as u64, model_cols as u64);
@@ -31,23 +39,23 @@ impl ModelLayout {
     /// Wrap all lines into model
     ///
     /// returns actual width
-    pub fn layout(
+    fn layout_replace(
         &mut self,
-        lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>,
-        max_columns: usize,
+        row_offset: usize,
+        lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>,
     ) -> (usize, usize) {
-        let rows = ModelLayout::count_lines(&lines, max_columns);
+        let rows = ModelLayout::count_lines(&lines, self.model.columns);
 
-        self.check_model_size(rows, max_columns);
-        self.rows_filled = rows;
+        self.check_model_size(rows + row_offset);
+        self.rows_filled = rows + row_offset;
 
         let mut max_col_idx = 0;
         let mut col_idx = 0;
-        let mut row_idx = 0;
+        let mut row_idx = row_offset;
         for content in lines {
-            for (attr, ch_list) in content {
+            for &(ref attr, ref ch_list) in content {
                 for ch in ch_list {
-                    if col_idx >= max_columns {
+                    if col_idx >= self.model.columns {
                         col_idx = 0;
                         row_idx += 1;
                     } else {
@@ -59,7 +67,7 @@ impl ModelLayout {
                     }
 
                     self.model.set_cursor(row_idx, col_idx as usize);
-                    self.model.put(ch, false, attr.as_ref());
+                    self.model.put(*ch, false, attr.as_ref());
                 }
             }
             row_idx += 1;
