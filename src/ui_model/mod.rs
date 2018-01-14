@@ -127,7 +127,7 @@ impl UiModel {
     pub fn copy_rows(&self, target: &mut UiModel, to_row: usize) {
         for (row_idx, line) in self.model[0..to_row + 1].iter().enumerate() {
             let mut target_row = &mut target.model[row_idx];
-            line.copy_to(target_row, 0, self.columns);
+            line.copy_to(target_row, 0, self.columns - 1);
         }
     }
 

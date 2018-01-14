@@ -20,11 +20,6 @@ glib_wrapper! {
 }
 
 impl Item {
-    #[cfg(test)]
-    pub fn new() -> Self {
-        unsafe { from_glib_full(pango_sys::pango_item_new()) }
-    }
-
     pub fn analysis(&self) -> analysis::Analysis {
         analysis::Analysis::from(&self.0.analysis)
     }

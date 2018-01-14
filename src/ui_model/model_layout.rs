@@ -29,10 +29,11 @@ impl ModelLayout {
     fn check_model_size(&mut self, rows: usize) {
         if rows > self.model.rows {
             let model_cols = self.model.columns;
-            let model_rows = ((rows / ModelLayout::ROWS_STEP) + 1) * ModelLayout::ROWS_STEP;
+            let model_rows = ((rows / (ModelLayout::ROWS_STEP + 1)) + 1) * ModelLayout::ROWS_STEP;
 
             let mut model = UiModel::new(model_rows as u64, model_cols as u64);
-            self.model.copy_rows(&mut model, self.rows_filled);
+            self.model.copy_rows(&mut model, self.rows_filled - 1);
+            self.model = model;
         }
     }
 
@@ -55,25 +56,25 @@ impl ModelLayout {
         for content in lines {
             for &(ref attr, ref ch_list) in content {
                 for ch in ch_list {
-                    if col_idx >= self.model.columns {
-                        col_idx = 0;
-                        row_idx += 1;
-                    } else {
-                        col_idx += 1;
-                    }
+                    self.model.set_cursor(row_idx, col_idx as usize);
+                    self.model.put(*ch, false, attr.as_ref());
 
                     if max_col_idx < col_idx {
                         max_col_idx = col_idx;
                     }
 
-                    self.model.set_cursor(row_idx, col_idx as usize);
-                    self.model.put(*ch, false, attr.as_ref());
+                    col_idx += 1;
+
+                    if col_idx >= self.model.columns {
+                        col_idx = 0;
+                        row_idx += 1;
+                    }
                 }
             }
             row_idx += 1;
         }
 
-        (max_col_idx + 1, rows)
+        (max_col_idx + 1, self.rows_filled)
     }
 
     fn count_lines(lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>, max_columns: usize) -> usize {
@@ -98,5 +99,20 @@ mod tests {
 
         let rows = ModelLayout::count_lines(&lines, 4);
         assert_eq!(2, rows);
+    }
+
+    #[test]
+    fn test_resize() {
+        let lines = vec![vec![(None, vec!['a'; 5])]; ModelLayout::ROWS_STEP];
+        let mut model = ModelLayout::new(5);
+
+        let (cols, rows) = model.layout(&lines);
+        assert_eq!(5, cols);
+        assert_eq!(ModelLayout::ROWS_STEP, rows);
+
+        let (cols, rows) = model.layout_append(&lines);
+        assert_eq!(5, cols);
+        assert_eq!(ModelLayout::ROWS_STEP * 2, rows);
+        assert_eq!(ModelLayout::ROWS_STEP * 2, model.model.rows);
     }
 }
