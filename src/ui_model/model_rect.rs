@@ -56,8 +56,8 @@ pub struct ModelRect {
 
 impl ModelRect {
     pub fn new(top: usize, bot: usize, left: usize, right: usize) -> ModelRect {
-        debug_assert!(top <= bot);
-        debug_assert!(left <= right);
+        debug_assert!(top <= bot, "{} <= {}", top, bot);
+        debug_assert!(left <= right, "{} <= {}", left, right);
 
         ModelRect {
             top: top,

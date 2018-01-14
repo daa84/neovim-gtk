@@ -158,6 +158,20 @@ impl State {
             drawing_area,
         }
     }
+
+    fn request_area_size(&self) {
+        let drawing_area = self.drawing_area.clone();
+        let block = self.block.as_ref();
+        let level = self.levels.last();
+
+        let (block_width, block_height) = block.map(|b| (b.preferred_width, b.preferred_height)).unwrap_or((0, 0));
+        let (level_width, level_height) = level.map(|l| (l.preferred_width, l.preferred_height)).unwrap_or((0, 0));
+
+        drawing_area.set_size_request(
+            max(level_width, block_width),
+            max(block_height + level_height, 40),
+        );
+    }
 }
 
 impl cursor::CursorRedrawCb for State {
@@ -201,31 +215,16 @@ impl CmdLine {
         let render_state = render_state.borrow();
 
         if ctx.level_idx as usize == state.levels.len() {
-            state
-                .levels
-                .last_mut()
-                .unwrap()
-                .replace_from_ctx(ctx, &*render_state);
+            let level = state.levels.last_mut().unwrap();
+            level.replace_from_ctx(ctx, &*render_state);
+            level.update_cache(&*render_state);
         } else {
-            let level = Level::from_ctx(ctx, &*render_state);
+            let mut level = Level::from_ctx(ctx, &*render_state);
+            level.update_cache(&*render_state);
             state.levels.push(level);
         }
 
-
-
-        let drawing_area = state.drawing_area.clone();
-        let block_height = state
-            .block
-            .as_ref()
-            .map(|b| b.preferred_height)
-            .unwrap_or(0);
-        let level = state.levels.last_mut().unwrap();
-
-        level.update_cache(&*render_state);
-        drawing_area.set_size_request(
-            level.preferred_width,
-            max(block_height + level.preferred_height, 40),
-        );
+        state.request_area_size();
 
         if !self.displyed {
             self.displyed = true;
@@ -238,7 +237,7 @@ impl CmdLine {
 
             self.popover.popup();
         } else {
-            drawing_area.queue_draw()
+            state.drawing_area.queue_draw()
         }
     }
 
@@ -265,21 +264,23 @@ impl CmdLine {
             Level::from_multiline_content(content, max_width, &*state.render_state.borrow());
         block.update_cache(&*state.render_state.borrow());
         state.block = Some(block);
-        //TODO: drawing size update
+        state.request_area_size();
     }
 
 
     pub fn block_append(&mut self, content: &Vec<Vec<(HashMap<String, Value>, String)>>) {
         let mut state = self.state.borrow_mut();
         let render_state = state.render_state.clone();
-        let block = state.block.as_mut().unwrap();
-        block.replace_line(
-            &Level::to_attributed_content(content),
-            &*render_state.borrow(),
-            true,
-        );
-        block.update_cache(&*render_state.borrow());
-        //TODO: drawing size update
+        {
+            let block = state.block.as_mut().unwrap();
+            block.replace_line(
+                &Level::to_attributed_content(content),
+                &*render_state.borrow(),
+                true,
+            );
+            block.update_cache(&*render_state.borrow());
+        }
+        state.request_area_size();
     }
 
     pub fn block_hide(&mut self) {
@@ -294,15 +295,33 @@ fn gtk_draw(
 ) -> Inhibit {
     let state = state.borrow();
     let level = state.levels.last();
+    let block = state.block.as_ref();
 
-    //TODO: draw block
+    let preferred_height = level.map(|l| l.preferred_height).unwrap_or(0) 
+        + block.as_ref().map(|b| b.preferred_height).unwrap_or(0);
+
+    let render_state = state.render_state.borrow();
+
+    let gap = state.drawing_area.get_allocated_height() - preferred_height;
+    if gap > 0 {
+        ctx.translate(0.0, gap as f64 / 2.0);
+    }
+
+    if let Some(block) = block {
+        // TODO: disable cursor
+        render::render(
+            ctx,
+            cursor,
+            &render_state.font_ctx,
+            &block.model_layout.model,
+            &render_state.color_model,
+            &render_state.mode,
+        );
+
+        ctx.translate(0.0, block.preferred_height as f64);
+    }
+
     if let Some(level) = level {
-        let render_state = state.render_state.borrow();
-        let gap = state.drawing_area.get_allocated_height() - level.preferred_height;
-        if gap > 0 {
-            ctx.translate(0.0, gap as f64 / 2.0);
-        }
-
         //TODO: limit model to row filled
         render::render(
             ctx,
