@@ -1227,7 +1227,7 @@ impl RedrawEvents for State {
 
     fn cmdline_block_append(
         &mut self,
-        content: Vec<Vec<(HashMap<String, Value>, String)>>,
+        content: Vec<(HashMap<String, Value>, String)>,
     ) -> RepaintMode {
         self.cmd_line.block_append(&content);
         RepaintMode::Nothing

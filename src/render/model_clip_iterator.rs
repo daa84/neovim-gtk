@@ -1,4 +1,6 @@
+use std::cmp::min;
 use std::slice::Iter;
+
 use cairo;
 
 use super::context::CellMetrics;
@@ -76,17 +78,17 @@ impl ModelClipIteratorFactory for ui_model::UiModel {
         let model = self.model();
 
         let (x1, y1, x2, y2) = ctx.clip_extents();
-        let model_clip = ui_model::ModelRect::from_area(cell_metrics, x1, y1, x2, y2);
-        let model_clip_top = if model_clip.top <= 0 {
+
+        // in case ctx.translate is used y1 can be less then 0
+        // in this case just use 0 as top value
+        let model_clip = ui_model::ModelRect::from_area(cell_metrics, x1, y1.max(0.0), x2, y2);
+
+        let model_clip_top = if model_clip.top == 0 {
             0
         } else {
             model_clip.top - 1
         };
-        let model_clip_bot = if model_clip.bot >= model.len() - 1 {
-            model.len() - 1
-        } else {
-            model_clip.bot + 1
-        };
+        let model_clip_bot = min(model.len() - 1, model_clip.bot + 1);
 
         ModelClipIterator {
             model_idx: model_clip_top,

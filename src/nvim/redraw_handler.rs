@@ -86,7 +86,7 @@ pub trait RedrawEvents {
 
     fn cmdline_block_append(
         &mut self,
-        content: Vec<Vec<(HashMap<String, Value>, String)>>,
+        content: Vec<(HashMap<String, Value>, String)>,
     ) -> RepaintMode;
 
     fn cmdline_block_hide(&mut self) -> RepaintMode;

@@ -164,8 +164,12 @@ impl State {
         let block = self.block.as_ref();
         let level = self.levels.last();
 
-        let (block_width, block_height) = block.map(|b| (b.preferred_width, b.preferred_height)).unwrap_or((0, 0));
-        let (level_width, level_height) = level.map(|l| (l.preferred_width, l.preferred_height)).unwrap_or((0, 0));
+        let (block_width, block_height) = block
+            .map(|b| (b.preferred_width, b.preferred_height))
+            .unwrap_or((0, 0));
+        let (level_width, level_height) = level
+            .map(|l| (l.preferred_width, l.preferred_height))
+            .unwrap_or((0, 0));
 
         drawing_area.set_size_request(
             max(level_width, block_width),
@@ -268,16 +272,19 @@ impl CmdLine {
     }
 
 
-    pub fn block_append(&mut self, content: &Vec<Vec<(HashMap<String, Value>, String)>>) {
+    pub fn block_append(&mut self, content: &Vec<(HashMap<String, Value>, String)>) {
         let mut state = self.state.borrow_mut();
         let render_state = state.render_state.clone();
         {
+            let attr_content = content
+                .iter()
+                .map(|c| {
+                    (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect())
+                })
+                .collect();
+
             let block = state.block.as_mut().unwrap();
-            block.replace_line(
-                &Level::to_attributed_content(content),
-                &*render_state.borrow(),
-                true,
-            );
+            block.replace_line(&vec![attr_content], &*render_state.borrow(), true);
             block.update_cache(&*render_state.borrow());
         }
         state.request_area_size();
@@ -297,7 +304,7 @@ fn gtk_draw(
     let level = state.levels.last();
     let block = state.block.as_ref();
 
-    let preferred_height = level.map(|l| l.preferred_height).unwrap_or(0) 
+    let preferred_height = level.map(|l| l.preferred_height).unwrap_or(0)
         + block.as_ref().map(|b| b.preferred_height).unwrap_or(0);
 
     let render_state = state.render_state.borrow();
