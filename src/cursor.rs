@@ -50,7 +50,7 @@ struct State<CB: CursorRedrawCb> {
     timer: Option<glib::SourceId>,
 }
 
-impl <CB: CursorRedrawCb> State <CB> {
+impl<CB: CursorRedrawCb> State<CB> {
     fn new(redraw_cb: Weak<UiMutex<CB>>) -> Self {
         State {
             alpha: Alpha(1.0),
@@ -69,13 +69,48 @@ impl <CB: CursorRedrawCb> State <CB> {
     }
 }
 
-pub struct Cursor <CB: CursorRedrawCb> {
+pub trait Cursor {
+    fn draw(
+        &self,
+        ctx: &cairo::Context,
+        font_ctx: &render::Context,
+        mode: &mode::Mode,
+        line_y: f64,
+        double_width: bool,
+        bg: &Color,
+    );
+}
+
+pub struct EmptyCursor;
+
+impl EmptyCursor {
+    pub fn new() -> Self {
+        EmptyCursor {  }
+    }
+}
+
+impl Cursor for EmptyCursor {
+    fn draw(
+        &self,
+        _ctx: &cairo::Context,
+        _font_ctx: &render::Context,
+        _mode: &mode::Mode,
+        _line_y: f64,
+        _double_width: bool,
+        _bg: &Color,
+    ) {
+    }
+}
+
+pub struct BlinkCursor<CB: CursorRedrawCb> {
     state: Arc<UiMutex<State<CB>>>,
 }
 
-impl <CB: CursorRedrawCb + 'static> Cursor <CB> {
+impl<CB: CursorRedrawCb + 'static> BlinkCursor<CB> {
     pub fn new(redraw_cb: Weak<UiMutex<CB>>) -> Self {
-        Cursor { state: Arc::new(UiMutex::new(State::new(redraw_cb))) }
+        BlinkCursor {
+            state: Arc::new(UiMutex::new(State::new(redraw_cb))),
+        }
     }
 
     pub fn start(&mut self) {
@@ -110,8 +145,10 @@ impl <CB: CursorRedrawCb + 'static> Cursor <CB> {
     pub fn busy_off(&mut self) {
         self.start();
     }
+}
 
-    pub fn draw(
+impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
+    fn draw(
         &self,
         ctx: &cairo::Context,
         font_ctx: &render::Context,
@@ -120,7 +157,6 @@ impl <CB: CursorRedrawCb + 'static> Cursor <CB> {
         double_width: bool,
         bg: &Color,
     ) {
-
         let state = self.state.borrow();
 
         if state.anim_phase == AnimPhase::Busy {
@@ -155,9 +191,7 @@ fn cursor_rect(
 
     if let Some(mode_info) = mode.mode_info() {
         match mode_info.cursor_shape() {
-            None |
-            Some(&nvim::CursorShape::Unknown) |
-            Some(&nvim::CursorShape::Block) => {
+            None | Some(&nvim::CursorShape::Unknown) | Some(&nvim::CursorShape::Block) => {
                 let cursor_width = if double_width {
                     char_width * 2.0
                 } else {
@@ -203,7 +237,7 @@ fn cursor_rect(
     }
 }
 
-fn anim_step<CB: CursorRedrawCb + 'static> (state: &Arc<UiMutex<State<CB>>>) -> glib::Continue {
+fn anim_step<CB: CursorRedrawCb + 'static>(state: &Arc<UiMutex<State<CB>>>) -> glib::Continue {
     let mut mut_state = state.borrow_mut();
 
     let next_event = match mut_state.anim_phase {
@@ -211,30 +245,26 @@ fn anim_step<CB: CursorRedrawCb + 'static> (state: &Arc<UiMutex<State<CB>>>) -> 
             mut_state.anim_phase = AnimPhase::Hide;
             Some(60)
         }
-        AnimPhase::Hide => {
-            if !mut_state.alpha.hide(0.3) {
-                mut_state.anim_phase = AnimPhase::Hidden;
+        AnimPhase::Hide => if !mut_state.alpha.hide(0.3) {
+            mut_state.anim_phase = AnimPhase::Hidden;
 
-                Some(300)
-            } else {
-                None
-            }
-        }
+            Some(300)
+        } else {
+            None
+        },
         AnimPhase::Hidden => {
             mut_state.anim_phase = AnimPhase::Show;
 
             Some(60)
         }
-        AnimPhase::Show => {
-            if !mut_state.alpha.show(0.3) {
-                mut_state.anim_phase = AnimPhase::Shown;
+        AnimPhase::Show => if !mut_state.alpha.show(0.3) {
+            mut_state.anim_phase = AnimPhase::Shown;
 
-                Some(500)
-            } else {
-                None
-            }
-        }
-        AnimPhase::NoFocus => None, 
+            Some(500)
+        } else {
+            None
+        },
+        AnimPhase::NoFocus => None,
         AnimPhase::Busy => None,
     };
 
@@ -251,10 +281,9 @@ fn anim_step<CB: CursorRedrawCb + 'static> (state: &Arc<UiMutex<State<CB>>>) -> 
     } else {
         glib::Continue(true)
     }
-
 }
 
-impl <CB: CursorRedrawCb> Drop for Cursor<CB> {
+impl<CB: CursorRedrawCb> Drop for BlinkCursor<CB> {
     fn drop(&mut self) {
         if let Some(timer_id) = self.state.borrow_mut().timer.take() {
             glib::source_remove(timer_id);

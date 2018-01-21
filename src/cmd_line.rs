@@ -26,6 +26,7 @@ impl Level {
     //TODO: double width chars render, also note in text wrapping
     //TODO: im
     //TODO: cursor
+    //TODO: delete
 
     pub fn replace_from_ctx(&mut self, ctx: &CmdLineContext, render_state: &shell::RenderState) {
         self.replace_line(&ctx.get_lines(), render_state, false);
@@ -147,6 +148,7 @@ struct State {
     block: Option<Level>,
     render_state: Rc<RefCell<shell::RenderState>>,
     drawing_area: gtk::DrawingArea,
+    cursor: Option<cursor::BlinkCursor<State>>,
 }
 
 impl State {
@@ -156,6 +158,7 @@ impl State {
             block: None,
             render_state,
             drawing_area,
+            cursor: None,
         }
     }
 
@@ -180,7 +183,19 @@ impl State {
 
 impl cursor::CursorRedrawCb for State {
     fn queue_redraw_cursor(&mut self) {
-        // TODO: implement
+        // TODO: take gap and preview offset here
+        if let Some(ref level) = self.levels.last() {
+            let model = &level.model_layout.model;
+
+            let mut cur_point = model.cur_point();
+            cur_point.extend_by_items(model);
+
+            let render_state = self.render_state.borrow();
+            let cell_metrics = render_state.font_ctx.cell_metrics();
+
+            let (x, y, width, height) = cur_point.to_area_extend_ink(model, cell_metrics);
+            self.drawing_area.queue_draw_area(x, y, width, height);
+        }
     }
 }
 
@@ -202,9 +217,10 @@ impl CmdLine {
 
         let state = Arc::new(UiMutex::new(State::new(drawing_area.clone(), render_state)));
         let weak_cb = Arc::downgrade(&state);
-        let cursor = cursor::Cursor::new(weak_cb);
+        let cursor = cursor::BlinkCursor::new(weak_cb);
+        state.borrow_mut().cursor = Some(cursor);
 
-        drawing_area.connect_draw(clone!(state => move |_, ctx| gtk_draw(ctx, &state, &cursor)));
+        drawing_area.connect_draw(clone!(state => move |_, ctx| gtk_draw(ctx, &state)));
 
         CmdLine {
             popover,
@@ -240,6 +256,7 @@ impl CmdLine {
             });
 
             self.popover.popup();
+            state.cursor.as_mut().unwrap().start();
         } else {
             state.drawing_area.queue_draw()
         }
@@ -255,6 +272,7 @@ impl CmdLine {
         if state.levels.is_empty() {
             self.popover.hide();
             self.displyed = false;
+            state.cursor.as_mut().unwrap().leave_focus();
         }
     }
 
@@ -298,7 +316,6 @@ impl CmdLine {
 fn gtk_draw(
     ctx: &cairo::Context,
     state: &Arc<UiMutex<State>>,
-    cursor: &cursor::Cursor<State>,
 ) -> Inhibit {
     let state = state.borrow();
     let level = state.levels.last();
@@ -314,11 +331,12 @@ fn gtk_draw(
         ctx.translate(0.0, gap as f64 / 2.0);
     }
 
+    render::clear(ctx, &render_state.color_model);
+
     if let Some(block) = block {
-        // TODO: disable cursor
         render::render(
             ctx,
-            cursor,
+            &cursor::EmptyCursor::new(),
             &render_state.font_ctx,
             &block.model_layout.model,
             &render_state.color_model,
@@ -332,7 +350,7 @@ fn gtk_draw(
         //TODO: limit model to row filled
         render::render(
             ctx,
-            cursor,
+            state.cursor.as_ref().unwrap(),
             &render_state.font_ctx,
             &level.model_layout.model,
             &render_state.color_model,

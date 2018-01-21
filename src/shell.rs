@@ -26,7 +26,7 @@ use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient,
            NeovimRef, NeovimClientAsync, CompleteItem};
 use input;
 use input::keyval_to_input_string;
-use cursor::{Cursor, CursorRedrawCb};
+use cursor::{BlinkCursor, Cursor, CursorRedrawCb};
 use ui::UiMutex;
 use popup_menu::{self, PopupMenu};
 use tabline::Tabline;
@@ -94,7 +94,7 @@ pub struct State {
     cur_attrs: Option<Attrs>,
     mouse_enabled: bool,
     nvim: Rc<NeovimClient>,
-    cursor: Option<Cursor<State>>,
+    cursor: Option<BlinkCursor<State>>,
     popup_menu: PopupMenu,
     cmd_line: CmdLine,
     settings: Rc<RefCell<Settings>>,
@@ -449,7 +449,7 @@ impl Shell {
         };
 
         let shell_ref = Arc::downgrade(&shell.state);
-        shell.state.borrow_mut().cursor = Some(Cursor::new(shell_ref));
+        shell.state.borrow_mut().cursor = Some(BlinkCursor::new(shell_ref));
 
         shell
     }
@@ -807,6 +807,7 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     let state = state_arc.borrow();
     if state.nvim.is_initialized() {
         let render_state = state.render_state.borrow();
+        render::clear(ctx, &render_state.color_model);
         render::render(
             ctx,
             state.cursor.as_ref().unwrap(),

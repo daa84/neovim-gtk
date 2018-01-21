@@ -4,7 +4,7 @@ mod model_clip_iterator;
 
 pub use self::context::Context;
 pub use self::context::CellMetrics;
-use self::model_clip_iterator::{RowView, ModelClipIteratorFactory};
+use self::model_clip_iterator::{ModelClipIteratorFactory, RowView};
 
 use mode;
 use color;
@@ -14,24 +14,26 @@ use pango;
 use cairo;
 use pangocairo;
 
-use cursor;
+use cursor::Cursor;
 use ui_model;
 
-pub fn render<RC: cursor::CursorRedrawCb + 'static>(
-    ctx: &cairo::Context,
-    cursor: &cursor::Cursor<RC>,
-    font_ctx: &context::Context,
-    ui_model: &ui_model::UiModel,
-    color_model: &color::ColorModel,
-    mode: &mode::Mode,
-) {
+pub fn clear(ctx: &cairo::Context, color_model: &color::ColorModel) {
     ctx.set_source_rgb(
         color_model.bg_color.0,
         color_model.bg_color.1,
         color_model.bg_color.2,
     );
     ctx.paint();
+}
 
+pub fn render<C: Cursor>(
+    ctx: &cairo::Context,
+    cursor: &C,
+    font_ctx: &context::Context,
+    ui_model: &ui_model::UiModel,
+    color_model: &color::ColorModel,
+    mode: &mode::Mode,
+) {
     let cell_metrics = font_ctx.cell_metrics();
     let &CellMetrics { char_width, .. } = cell_metrics;
     let (cursor_row, cursor_col) = ui_model.get_cursor();
@@ -47,19 +49,19 @@ pub fn render<RC: cursor::CursorRedrawCb + 'static>(
 
     for cell_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
         let mut line_x = 0.0;
-        let RowView { line, row, line_y, .. } = cell_view;
+        let RowView {
+            line, row, line_y, ..
+        } = cell_view;
 
         for (col, cell) in line.line.iter().enumerate() {
-
             draw_cell(&cell_view, color_model, cell, col, line_x);
 
             draw_underline(&cell_view, color_model, cell, line_x);
 
             if row == cursor_row && col == cursor_col {
-                let double_width = line.line.get(col + 1).map_or(
-                    false,
-                    |c| c.attrs.double_width,
-                );
+                let double_width = line.line
+                    .get(col + 1)
+                    .map_or(false, |c| c.attrs.double_width);
                 ctx.move_to(line_x, line_y);
                 cursor.draw(
                     ctx,
@@ -82,19 +84,18 @@ fn draw_underline(
     cell: &ui_model::Cell,
     line_x: f64,
 ) {
-
     if cell.attrs.underline || cell.attrs.undercurl {
-
         let &RowView {
             ctx,
             line_y,
-            cell_metrics: &CellMetrics {
-                line_height,
-                char_width,
-                underline_position,
-                underline_thickness,
-                ..
-            },
+            cell_metrics:
+                &CellMetrics {
+                    line_height,
+                    char_width,
+                    underline_position,
+                    underline_thickness,
+                    ..
+                },
             ..
         } = cell_view;
 
@@ -106,7 +107,13 @@ fn draw_underline(
             let undercurl_height = (underline_thickness * 4.0).min(max_undercurl_height);
             let undercurl_y = line_y + underline_position - undercurl_height / 2.0;
 
-            pangocairo::functions::error_underline_path(ctx, line_x, undercurl_y, char_width, undercurl_height);
+            pangocairo::functions::error_underline_path(
+                ctx,
+                line_x,
+                undercurl_y,
+                char_width,
+                undercurl_height,
+            );
         } else if cell.attrs.underline {
             let fg = color_model.actual_cell_fg(cell);
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
@@ -129,11 +136,12 @@ fn draw_cell_bg(
         ctx,
         line,
         line_y,
-        cell_metrics: &CellMetrics {
-            char_width,
-            line_height,
-            ..
-        },
+        cell_metrics:
+            &CellMetrics {
+                char_width,
+                line_height,
+                ..
+            },
         ..
     } = cell_view;
 
@@ -157,7 +165,6 @@ fn draw_cell_bg(
             ctx.fill();
         }
     }
-
 }
 
 fn draw_cell(
@@ -167,15 +174,11 @@ fn draw_cell(
     col: usize,
     line_x: f64,
 ) {
-
     let &RowView {
         ctx,
         line,
         line_y,
-        cell_metrics: &CellMetrics {
-            ascent,
-            ..
-        },
+        cell_metrics: &CellMetrics { ascent, .. },
         ..
     } = cell_view;
 
@@ -188,7 +191,6 @@ fn draw_cell(
 
             show_glyph_string(ctx, item.font(), glyphs);
         }
-
     }
 }
 
