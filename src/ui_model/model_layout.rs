@@ -70,6 +70,10 @@ impl ModelLayout {
                         row_idx += 1;
                     }
                 }
+
+                if col_idx < self.model.columns {
+                    self.model.model[row_idx].clear(col_idx, self.model.columns - 1);
+                }
             }
             row_idx += 1;
         }

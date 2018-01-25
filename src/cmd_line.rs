@@ -179,12 +179,22 @@ impl State {
             max(block_height + level_height, 40),
         );
     }
+
+    fn preferred_height(&self) -> i32 {
+        let level = self.levels.last();
+        level.map(|l| l.preferred_height).unwrap_or(0)
+            + self.block.as_ref().map(|b| b.preferred_height).unwrap_or(0)
+    }
 }
 
 impl cursor::CursorRedrawCb for State {
     fn queue_redraw_cursor(&mut self) {
-        // TODO: take gap and preview offset here
         if let Some(ref level) = self.levels.last() {
+            let level_preferred_height = level.preferred_height;
+            let block_preferred_height = self.block.as_ref().map(|b| b.preferred_height).unwrap_or(0);
+
+            let gap = self.drawing_area.get_allocated_height() - level_preferred_height - block_preferred_height;
+
             let model = &level.model_layout.model;
 
             let mut cur_point = model.cur_point();
@@ -194,7 +204,12 @@ impl cursor::CursorRedrawCb for State {
             let cell_metrics = render_state.font_ctx.cell_metrics();
 
             let (x, y, width, height) = cur_point.to_area_extend_ink(model, cell_metrics);
-            self.drawing_area.queue_draw_area(x, y, width, height);
+
+            if gap > 0 {
+                self.drawing_area.queue_draw_area(x, y + gap / 2, width, height);
+            } else {
+                self.drawing_area.queue_draw_area(x, y + block_preferred_height, width, height);
+            }
         }
     }
 }
@@ -313,16 +328,11 @@ impl CmdLine {
     }
 }
 
-fn gtk_draw(
-    ctx: &cairo::Context,
-    state: &Arc<UiMutex<State>>,
-) -> Inhibit {
+fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
     let state = state.borrow();
+    let preferred_height = state.preferred_height();
     let level = state.levels.last();
     let block = state.block.as_ref();
-
-    let preferred_height = level.map(|l| l.preferred_height).unwrap_or(0)
-        + block.as_ref().map(|b| b.preferred_height).unwrap_or(0);
 
     let render_state = state.render_state.borrow();
 
