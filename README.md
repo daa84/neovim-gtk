@@ -34,6 +34,10 @@ makepkg -si
 ## flatpak
 Flatpak package available [here](https://github.com/daa84/neovim-gtk-flatpak)
 
+## windows
+Windows binaries on appveyor
+[latest build](https://ci.appveyor.com/api/projects/daa84/neovim-gtk/artifacts/nvim-gtk-mingw64.7z?branch=master)
+
 # Build
 ## Linux
 Install GTK development packages. Install latest rust compiler, better use *rustup* tool. Build command:
