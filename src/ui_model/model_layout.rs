@@ -56,6 +56,11 @@ impl ModelLayout {
         for content in lines {
             for &(ref attr, ref ch_list) in content {
                 for ch in ch_list {
+                    if col_idx >= self.model.columns {
+                        col_idx = 0;
+                        row_idx += 1;
+                    }
+
                     self.model.set_cursor(row_idx, col_idx as usize);
                     self.model.put(*ch, false, attr.as_ref());
 
@@ -64,11 +69,6 @@ impl ModelLayout {
                     }
 
                     col_idx += 1;
-
-                    if col_idx >= self.model.columns {
-                        col_idx = 0;
-                        row_idx += 1;
-                    }
                 }
 
                 if col_idx < self.model.columns {
