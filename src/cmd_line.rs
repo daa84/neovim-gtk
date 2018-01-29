@@ -338,7 +338,7 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
 
     let gap = state.drawing_area.get_allocated_height() - preferred_height;
     if gap > 0 {
-        ctx.translate(0.0, gap as f64 / 2.0);
+        ctx.translate(0.0, (gap / 2) as f64);
     }
 
     render::clear(ctx, &render_state.color_model);
