@@ -127,12 +127,19 @@ impl Level {
 
 fn prompt_lines(firstc: &str, prompt: &str, indent: u64) -> Vec<(Option<Attrs>, Vec<char>)> {
     if !firstc.is_empty() {
-        vec![
-            (
-                None,
-                firstc.chars().chain((0..indent).map(|_| ' ')).collect(),
-            ),
-        ]
+        if firstc.len() >= indent as usize {
+            vec![(None, firstc.chars().collect())]
+        } else {
+            vec![
+                (
+                    None,
+                    firstc
+                        .chars()
+                        .chain((firstc.len()..indent as usize).map(|_| ' '))
+                        .collect(),
+                ),
+            ]
+        }
     } else if !prompt.is_empty() {
         prompt
             .lines()
@@ -191,9 +198,11 @@ impl cursor::CursorRedrawCb for State {
     fn queue_redraw_cursor(&mut self) {
         if let Some(ref level) = self.levels.last() {
             let level_preferred_height = level.preferred_height;
-            let block_preferred_height = self.block.as_ref().map(|b| b.preferred_height).unwrap_or(0);
+            let block_preferred_height =
+                self.block.as_ref().map(|b| b.preferred_height).unwrap_or(0);
 
-            let gap = self.drawing_area.get_allocated_height() - level_preferred_height - block_preferred_height;
+            let gap = self.drawing_area.get_allocated_height() - level_preferred_height
+                - block_preferred_height;
 
             let model = &level.model_layout.model;
 
@@ -206,9 +215,11 @@ impl cursor::CursorRedrawCb for State {
             let (x, y, width, height) = cur_point.to_area_extend_ink(model, cell_metrics);
 
             if gap > 0 {
-                self.drawing_area.queue_draw_area(x, y + gap / 2, width, height);
+                self.drawing_area
+                    .queue_draw_area(x, y + gap / 2, width, height);
             } else {
-                self.drawing_area.queue_draw_area(x, y + block_preferred_height, width, height);
+                self.drawing_area
+                    .queue_draw_area(x, y + block_preferred_height, width, height);
             }
         }
     }

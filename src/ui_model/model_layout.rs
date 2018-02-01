@@ -1,8 +1,11 @@
+use std::cmp::max;
+
 use ui_model::{Attrs, UiModel};
 
 pub struct ModelLayout {
     pub model: UiModel,
     rows_filled: usize,
+    cols_filled: usize,
 }
 
 impl ModelLayout {
@@ -12,6 +15,7 @@ impl ModelLayout {
         ModelLayout {
             model: UiModel::new(ModelLayout::ROWS_STEP as u64, columns),
             rows_filled: 0,
+            cols_filled: 0,
         }
     }
 
@@ -78,7 +82,8 @@ impl ModelLayout {
             row_idx += 1;
         }
 
-        (max_col_idx + 1, self.rows_filled)
+        self.cols_filled = max(self.cols_filled, max_col_idx + 1);
+        (self.cols_filled, self.rows_filled)
     }
 
     fn count_lines(lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>, max_columns: usize) -> usize {
@@ -118,5 +123,18 @@ mod tests {
         assert_eq!(5, cols);
         assert_eq!(ModelLayout::ROWS_STEP * 2, rows);
         assert_eq!(ModelLayout::ROWS_STEP * 2, model.model.rows);
+    }
+
+    #[test]
+    fn test_cols_filled() {
+        let lines = vec![vec![(None, vec!['a'; 3])]; 1];
+        let mut model = ModelLayout::new(5);
+
+        let (cols, _) = model.layout(&lines);
+        assert_eq!(3, cols);
+
+        let lines = vec![vec![(None, vec!['a'; 2])]; 1];
+        let (cols, _) = model.layout_append(&lines);
+        assert_eq!(3, cols);
     }
 }
