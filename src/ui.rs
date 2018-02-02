@@ -129,7 +129,7 @@ impl Ui {
                 .unwrap_or(true);
 
             if app.prefers_app_menu() || use_header_bar {
-                self.create_main_menu(app);
+                self.create_main_menu(app, &window);
             }
 
             if use_header_bar {
@@ -220,8 +220,7 @@ impl Ui {
         }));
     }
 
-    fn create_main_menu(&self, app: &gtk::Application) {
-        let comps = self.comps.clone();
+    fn create_main_menu(&self, app: &gtk::Application, window: &gtk::ApplicationWindow) {
         let plug_manager = self.plug_manager.clone();
 
         let menu = Menu::new();
@@ -240,17 +239,11 @@ impl Ui {
 
         let plugs_action = SimpleAction::new("Plugins", None);
         plugs_action.connect_activate(
-            clone!(comps => move |_, _| plug_manager::Ui::new(&plug_manager).show(
-                    comps
-                    .borrow()
-                    .window
-                    .as_ref()
-                    .unwrap(),
-                    )),
+            clone!(window => move |_, _| plug_manager::Ui::new(&plug_manager).show(&window)),
         );
 
         let about_action = SimpleAction::new("HelpAbout", None);
-        about_action.connect_activate(move |_, _| on_help_about(&*comps.borrow()));
+        about_action.connect_activate(clone!(window => move |_, _| on_help_about(&window)));
         about_action.set_enabled(true);
 
         app.add_action(&about_action);
@@ -258,9 +251,9 @@ impl Ui {
     }
 }
 
-fn on_help_about(comps: &Components) {
+fn on_help_about(window: &gtk::ApplicationWindow) {
     let about = AboutDialog::new();
-    about.set_transient_for(comps.window.as_ref());
+    about.set_transient_for(window);
     about.set_program_name("NeovimGtk");
     about.set_version(env!("CARGO_PKG_VERSION"));
     about.set_logo_icon_name("org.daa.NeovimGtk");
