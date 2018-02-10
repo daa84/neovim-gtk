@@ -337,6 +337,10 @@ impl CmdLine {
     pub fn block_hide(&mut self) {
         self.state.borrow_mut().block = None;
     }
+
+    pub fn pos(&mut self, pos: u64, level: u64) {
+        //TODO: move cursor
+    }
 }
 
 fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {

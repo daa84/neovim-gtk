@@ -1238,6 +1238,11 @@ impl RedrawEvents for State {
         self.cmd_line.block_hide();
         RepaintMode::Nothing
     }
+
+    fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintMode {
+        self.cmd_line.pos(pos, level);
+        RepaintMode::Nothing
+    }
 }
 
 impl CursorRedrawCb for State {
