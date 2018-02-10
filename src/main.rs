@@ -67,6 +67,8 @@ fn main() {
 
     let app_flags = gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::NON_UNIQUE;
 
+    glib::set_program_name(Some("NeovimGtk"));
+
     let app = if cfg!(debug_assertions) {
         gtk::Application::new(Some("org.daa.NeovimGtkDebug"), app_flags)
     } else {
