@@ -19,24 +19,41 @@ impl ModelLayout {
         }
     }
 
-    pub fn layout_append(&mut self, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>) -> (usize, usize) {
+    pub fn layout_append(&mut self, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
         let rows_filled = self.rows_filled;
-        self.layout_replace(rows_filled, lines)
+        self.layout_replace(rows_filled, lines);
     }
 
-    pub fn layout(&mut self,
-        lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>,
-        ) -> (usize, usize) {
-        self.layout_replace(0, lines)
+    pub fn layout(&mut self, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
+        self.layout_replace(0, lines);
+    }
+
+    pub fn set_cursor(&mut self, col: usize) {
+        let row = if self.rows_filled > 0 {
+            self.rows_filled - 1
+        } else {
+            0
+        };
+
+        self.model.set_cursor(row, col);
+    }
+
+    pub fn size(&self) -> (usize, usize) {
+        (
+            max(self.cols_filled, self.model.get_cursor().1 + 1),
+            self.rows_filled,
+        )
     }
 
     fn check_model_size(&mut self, rows: usize) {
         if rows > self.model.rows {
             let model_cols = self.model.columns;
             let model_rows = ((rows / (ModelLayout::ROWS_STEP + 1)) + 1) * ModelLayout::ROWS_STEP;
+            let (cur_row, cur_col) = self.model.get_cursor();
 
             let mut model = UiModel::new(model_rows as u64, model_cols as u64);
             self.model.copy_rows(&mut model, self.rows_filled - 1);
+            model.set_cursor(cur_row, cur_col);
             self.model = model;
         }
     }
@@ -44,11 +61,7 @@ impl ModelLayout {
     /// Wrap all lines into model
     ///
     /// returns actual width
-    fn layout_replace(
-        &mut self,
-        row_offset: usize,
-        lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>,
-    ) -> (usize, usize) {
+    fn layout_replace(&mut self, row_offset: usize, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
         let rows = ModelLayout::count_lines(&lines, self.model.columns);
 
         self.check_model_size(rows + row_offset);
@@ -83,7 +96,6 @@ impl ModelLayout {
         }
 
         self.cols_filled = max(self.cols_filled, max_col_idx + 1);
-        (self.cols_filled, self.rows_filled)
     }
 
     fn count_lines(lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>, max_columns: usize) -> usize {
@@ -115,11 +127,13 @@ mod tests {
         let lines = vec![vec![(None, vec!['a'; 5])]; ModelLayout::ROWS_STEP];
         let mut model = ModelLayout::new(5);
 
-        let (cols, rows) = model.layout(&lines);
+        model.layout(&lines);
+        let (cols, rows) = model.size();
         assert_eq!(5, cols);
         assert_eq!(ModelLayout::ROWS_STEP, rows);
 
-        let (cols, rows) = model.layout_append(&lines);
+        model.layout_append(&lines);
+        let (cols, rows) = model.size();
         assert_eq!(5, cols);
         assert_eq!(ModelLayout::ROWS_STEP * 2, rows);
         assert_eq!(ModelLayout::ROWS_STEP * 2, model.model.rows);
@@ -130,11 +144,14 @@ mod tests {
         let lines = vec![vec![(None, vec!['a'; 3])]; 1];
         let mut model = ModelLayout::new(5);
 
-        let (cols, _) = model.layout(&lines);
-        assert_eq!(3, cols);
+        model.layout(&lines);
+        let (cols, _) = model.size();
+        assert_eq!(4, cols); // size is 3 and 4 - is with cursor position
 
         let lines = vec![vec![(None, vec!['a'; 2])]; 1];
-        let (cols, _) = model.layout_append(&lines);
+
+        model.layout_append(&lines);
+        let (cols, _) = model.size();
         assert_eq!(3, cols);
     }
 }

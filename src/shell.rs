@@ -1240,7 +1240,8 @@ impl RedrawEvents for State {
     }
 
     fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintMode {
-        self.cmd_line.pos(pos, level);
+        let render_state = self.render_state.borrow();
+        self.cmd_line.pos(&* render_state, pos, level);
         RepaintMode::Nothing
     }
 }

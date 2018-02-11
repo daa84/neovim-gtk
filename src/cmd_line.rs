@@ -18,6 +18,7 @@ use cursor;
 
 pub struct Level {
     model_layout: ModelLayout,
+    prompt_offset: usize,
     preferred_width: i32,
     preferred_height: i32,
 }
@@ -29,27 +30,43 @@ impl Level {
     //TODO: delete
 
     pub fn replace_from_ctx(&mut self, ctx: &CmdLineContext, render_state: &shell::RenderState) {
-        self.replace_line(&ctx.get_lines(), render_state, false);
+        let content = ctx.get_lines();
+        self.replace_line(&content.lines, false);
+        self.prompt_offset = content.prompt_offset;
+        self.model_layout
+            .set_cursor(self.prompt_offset + ctx.pos as usize);
+        self.update_preferred_size(render_state);
     }
 
-    fn replace_line(
-        &mut self,
-        lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>,
-        render_state: &shell::RenderState,
-        append: bool,
-    ) {
+    pub fn from_ctx(ctx: &CmdLineContext, render_state: &shell::RenderState) -> Self {
+        let content = ctx.get_lines();
+        let mut level = Level::from_lines(&content.lines, ctx.max_width, render_state);
+
+        level.prompt_offset = content.prompt_offset;
+        level
+            .model_layout
+            .set_cursor(level.prompt_offset + ctx.pos as usize);
+        level.update_preferred_size(render_state);
+
+        level
+    }
+
+    fn replace_line(&mut self, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>, append: bool) {
+        if append {
+            self.model_layout.layout_append(lines);
+        } else {
+            self.model_layout.layout(lines);
+        }
+    }
+
+    fn update_preferred_size(&mut self, render_state: &shell::RenderState) {
         let &CellMetrics {
             line_height,
             char_width,
             ..
         } = render_state.font_ctx.cell_metrics();
 
-        let (columns, rows) = if append {
-            self.model_layout.layout_append(lines)
-        } else {
-            self.model_layout.layout(lines)
-        };
-
+        let (columns, rows) = self.model_layout.size();
         let columns = max(columns, 5);
 
         self.preferred_width = (char_width * columns as f64) as i32;
@@ -89,31 +106,22 @@ impl Level {
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
-        let &CellMetrics {
-            line_height,
-            char_width,
-            ..
-        } = render_state.font_ctx.cell_metrics();
+        let &CellMetrics { char_width, .. } = render_state.font_ctx.cell_metrics();
 
         let max_width_chars = (max_width as f64 / char_width) as u64;
 
         let mut model_layout = ModelLayout::new(max_width_chars);
-        let (columns, rows) = model_layout.layout(lines);
+        model_layout.layout(lines);
 
-        let columns = max(columns, 5);
-
-        let preferred_width = (char_width * columns as f64) as i32;
-        let preferred_height = (line_height * rows as f64) as i32;
-
-        Level {
+        let mut level = Level {
             model_layout,
-            preferred_width,
-            preferred_height,
-        }
-    }
+            preferred_width: -1,
+            preferred_height: -1,
+            prompt_offset: 0,
+        };
 
-    pub fn from_ctx(ctx: &CmdLineContext, render_state: &shell::RenderState) -> Self {
-        Level::from_lines(&ctx.get_lines(), ctx.max_width, render_state)
+        level.update_preferred_size(render_state);
+        level
     }
 
     fn update_cache(&mut self, render_state: &shell::RenderState) {
@@ -123,10 +131,19 @@ impl Level {
             &render_state.color_model,
         );
     }
+
+    fn set_cursor(&mut self, render_state: &shell::RenderState, pos: usize) {
+        self.model_layout.set_cursor(self.prompt_offset + pos);
+        self.update_preferred_size(render_state);
+    }
 }
 
-fn prompt_lines(firstc: &str, prompt: &str, indent: u64) -> Vec<(Option<Attrs>, Vec<char>)> {
-    if !firstc.is_empty() {
+fn prompt_lines(
+    firstc: &str,
+    prompt: &str,
+    indent: u64,
+) -> (usize, Vec<(Option<Attrs>, Vec<char>)>) {
+    let prompt: Vec<(Option<Attrs>, Vec<char>)> = if !firstc.is_empty() {
         if firstc.len() >= indent as usize {
             vec![(None, firstc.chars().collect())]
         } else {
@@ -147,7 +164,11 @@ fn prompt_lines(firstc: &str, prompt: &str, indent: u64) -> Vec<(Option<Attrs>, 
             .collect()
     } else {
         vec![]
-    }
+    };
+
+    let prompt_offset = prompt.last().map(|l| l.1.len()).unwrap_or(0);
+
+    (prompt_offset, prompt)
 }
 
 struct State {
@@ -192,9 +213,18 @@ impl State {
         level.map(|l| l.preferred_height).unwrap_or(0)
             + self.block.as_ref().map(|b| b.preferred_height).unwrap_or(0)
     }
-}
 
-impl cursor::CursorRedrawCb for State {
+    fn set_cursor(&mut self, render_state: &shell::RenderState, pos: usize, level: usize) {
+        debug_assert!(level > 0);
+
+        // queue old cursor position
+        self.queue_redraw_cursor();
+
+        self.levels
+            .get_mut(level - 1)
+            .map(|l| l.set_cursor(render_state, pos));
+    }
+
     fn queue_redraw_cursor(&mut self) {
         if let Some(ref level) = self.levels.last() {
             let level_preferred_height = level.preferred_height;
@@ -222,6 +252,13 @@ impl cursor::CursorRedrawCb for State {
                     .queue_draw_area(x, y + block_preferred_height, width, height);
             }
         }
+    }
+}
+
+impl cursor::CursorRedrawCb for State {
+
+    fn queue_redraw_cursor(&mut self) {
+        self.queue_redraw_cursor();
     }
 }
 
@@ -328,7 +365,8 @@ impl CmdLine {
                 .collect();
 
             let block = state.block.as_mut().unwrap();
-            block.replace_line(&vec![attr_content], &*render_state.borrow(), true);
+            block.replace_line(&vec![attr_content], true);
+            block.update_preferred_size(&*render_state.borrow());
             block.update_cache(&*render_state.borrow());
         }
         state.request_area_size();
@@ -338,8 +376,10 @@ impl CmdLine {
         self.state.borrow_mut().block = None;
     }
 
-    pub fn pos(&mut self, pos: u64, level: u64) {
-        //TODO: move cursor
+    pub fn pos(&mut self, render_state: &shell::RenderState, pos: u64, level: u64) {
+        self.state
+            .borrow_mut()
+            .set_cursor(render_state, pos as usize, level as usize);
     }
 }
 
@@ -400,14 +440,14 @@ pub struct CmdLineContext {
 }
 
 impl CmdLineContext {
-    fn get_lines(&self) -> Vec<Vec<(Option<Attrs>, Vec<char>)>> {
+    fn get_lines(&self) -> LineContent {
         let content_line: Vec<(Option<Attrs>, Vec<char>)> = self.content
             .iter()
             .map(|c| {
                 (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect())
             })
             .collect();
-        let prompt_lines = prompt_lines(&self.firstc, &self.prompt, self.indent);
+        let (prompt_offset, prompt_lines) = prompt_lines(&self.firstc, &self.prompt, self.indent);
 
         let mut content: Vec<_> = prompt_lines.into_iter().map(|line| vec![line]).collect();
 
@@ -417,6 +457,14 @@ impl CmdLineContext {
             content.last_mut().map(|line| line.extend(content_line));
         }
 
-        content
+        LineContent {
+            lines: content,
+            prompt_offset,
+        }
     }
+}
+
+struct LineContent {
+    lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>,
+    prompt_offset: usize,
 }
