@@ -1,29 +1,29 @@
-extern crate gtk;
-extern crate gtk_sys;
-extern crate gio;
+extern crate cairo;
+extern crate env_logger;
 extern crate gdk;
 extern crate gdk_sys;
+extern crate gio;
 #[macro_use]
 extern crate glib;
 extern crate glib_sys as glib_ffi;
 extern crate gobject_sys as gobject_ffi;
-extern crate cairo;
-extern crate pango;
-extern crate pango_sys;
-extern crate pangocairo;
-extern crate pango_cairo_sys;
-extern crate neovim_lib;
-extern crate phf;
+extern crate gtk;
+extern crate gtk_sys;
+extern crate htmlescape;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
-extern crate htmlescape;
+extern crate neovim_lib;
+extern crate pango;
+extern crate pango_cairo_sys;
+extern crate pango_sys;
+extern crate pangocairo;
+extern crate phf;
 
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate toml;
 extern crate serde_json;
+extern crate toml;
 
 mod sys;
 
@@ -49,7 +49,6 @@ mod project;
 mod tabline;
 mod error;
 
-
 use std::env;
 use std::time::Duration;
 use std::str::FromStr;
@@ -61,6 +60,7 @@ use shell::ShellOptions;
 
 const BIN_PATH_ARG: &str = "--nvim-bin-path";
 const TIMEOUT_ARG: &str = "--timeout";
+const DISABLE_WIN_STATE_RESTORE: &str = "--disable-win-restore";
 
 fn main() {
     env_logger::init().expect("Can't initialize env_logger");
@@ -89,6 +89,7 @@ fn main() {
     let argv: Vec<String> = args.iter()
         .filter(|a| !a.starts_with(BIN_PATH_ARG))
         .filter(|a| !a.starts_with(TIMEOUT_ARG))
+        .filter(|a| !a.starts_with(DISABLE_WIN_STATE_RESTORE))
         .cloned()
         .collect();
     app.run(&argv);
@@ -102,7 +103,7 @@ fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
             nvim_timeout(std::env::args()),
         ));
 
-        ui.init(app);
+        ui.init(app, !nvim_disable_win_state(std::env::args()));
     }
 }
 
@@ -113,16 +114,15 @@ fn activate(app: &gtk::Application) {
         nvim_timeout(std::env::args()),
     ));
 
-    ui.init(app);
+    ui.init(app, !nvim_disable_win_state(std::env::args()));
 }
 
 fn nvim_bin_path<I>(mut args: I) -> Option<String>
 where
     I: Iterator<Item = String>,
 {
-    args.find(|a| a.starts_with(BIN_PATH_ARG)).and_then(|p| {
-        p.split('=').nth(1).map(str::to_owned)
-    })
+    args.find(|a| a.starts_with(BIN_PATH_ARG))
+        .and_then(|p| p.split('=').nth(1).map(str::to_owned))
 }
 
 fn nvim_timeout<I>(mut args: I) -> Option<Duration>
@@ -141,6 +141,15 @@ where
         .map(|timeout| Duration::from_secs(timeout))
 }
 
+fn nvim_disable_win_state<I>(mut args: I) -> bool
+where
+    I: Iterator<Item = String>,
+{
+    args.find(|a| a.starts_with(DISABLE_WIN_STATE_RESTORE))
+        .map(|_| true)
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,14 +166,15 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_timeout_arg() {
         assert_eq!(
             Some(Duration::from_secs(100)),
-            nvim_timeout(vec!["neovim-gtk", "--timeout=100"].iter().map(
-                |s| s.to_string(),
-            ))
+            nvim_timeout(
+                vec!["neovim-gtk", "--timeout=100"]
+                    .iter()
+                    .map(|s| s.to_string(),)
+            )
         );
     }
 }

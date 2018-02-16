@@ -35,6 +35,9 @@ macro_rules! clone {
     );
 }
 
+const DEFAULT_WIDTH: i32 = 800;
+const DEFAULT_HEIGHT: i32 = 600;
+
 pub struct Ui {
     initialized: bool,
     comps: Arc<UiMutex<Components>>,
@@ -93,7 +96,7 @@ impl Ui {
         }
     }
 
-    pub fn init(&mut self, app: &gtk::Application) {
+    pub fn init(&mut self, app: &gtk::Application, restore_win_state: bool) {
         if self.initialized {
             return;
         }
@@ -165,12 +168,17 @@ impl Ui {
                 window.set_titlebar(Some(&header_bar));
             }
 
-            window.set_default_size(
-                comps.window_state.current_width,
-                comps.window_state.current_height,
-            );
-            if comps.window_state.is_maximized {
-                window.maximize();
+            if restore_win_state {
+                if comps.window_state.is_maximized {
+                    window.maximize();
+                }
+
+                window.set_default_size(
+                    comps.window_state.current_width,
+                    comps.window_state.current_height,
+                );
+            } else {
+                window.set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
             }
         }
 
@@ -309,8 +317,8 @@ struct WindowState {
 impl WindowState {
     pub fn new() -> Self {
         WindowState {
-            current_width: 800,
-            current_height: 600,
+            current_width: DEFAULT_WIDTH,
+            current_height: DEFAULT_HEIGHT,
             is_maximized: false,
         }
     }
@@ -327,7 +335,6 @@ impl SettingsLoader for WindowState {
         toml::from_str(&s).map_err(|e| format!("{}", e))
     }
 }
-
 
 pub struct UiMutex<T: ?Sized> {
     thread: thread::ThreadId,
