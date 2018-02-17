@@ -835,6 +835,9 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
         let mut state = state_arc.borrow_mut();
         state.nvim.async_to_sync();
         state.nvim.set_initialized();
+        // in some case resize can happens while initilization in progress
+        // so force resize here
+        state.try_nvim_resize();
         state.cursor.as_mut().unwrap().start();
 
         Continue(false)
