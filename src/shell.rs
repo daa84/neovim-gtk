@@ -276,6 +276,8 @@ impl State {
         }
 
         if let Some(mut nvim) = self.nvim() {
+            debug!("ui_try_resize {}/{}", columns, rows);
+
             nvim.ui_try_resize_async(columns as u64, rows as u64)
                 .cb(|r| r.report_err())
                 .call();
@@ -491,7 +493,8 @@ impl Shell {
         });
 
         let ref_state = self.state.clone();
-        state.drawing_area.connect_configure_event(move |_, _| {
+        state.drawing_area.connect_configure_event(move |_, ev| {
+            debug!("configure_event {:?}", ev.get_size());
             ref_state.borrow_mut().try_nvim_resize();
             false
         });
@@ -883,6 +886,9 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
     let mut state = state_ref.borrow_mut();
     if state.start_nvim_initialization() {
         let (cols, rows) = state.calc_nvim_size();
+
+        debug!("Init nvim {}/{}", cols, rows);
+
         state.model = UiModel::new(rows as u64, cols as u64);
 
         let state_arc = state_ref.clone();
@@ -913,6 +919,8 @@ impl RedrawEvents for State {
     }
 
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
+        debug!("on_resize {}/{}", columns, rows);
+
         if self.model.columns != columns as usize || self.model.rows != rows as usize {
             self.model = UiModel::new(rows, columns);
         }
