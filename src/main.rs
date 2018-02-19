@@ -63,7 +63,7 @@ const TIMEOUT_ARG: &str = "--timeout";
 const DISABLE_WIN_STATE_RESTORE: &str = "--disable-win-restore";
 
 fn main() {
-    env_logger::init().expect("Can't initialize env_logger");
+    env_logger::init();
 
     let app_flags = gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::NON_UNIQUE;
 

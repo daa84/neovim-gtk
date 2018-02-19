@@ -29,7 +29,7 @@ gobject-sys = "0.5"
 neovim-lib = "0.5"
 phf = "0.7"
 log = "0.4"
-env_logger = "0.4"
+env_logger = "0.5"
 htmlescape = "0.3"
 
 serde = "1.0"

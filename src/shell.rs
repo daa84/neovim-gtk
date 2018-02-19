@@ -287,7 +287,9 @@ impl State {
 
         let resize_id = gtk::timeout_add(200, move || {
             resize_timer.set(None);
+
             if let Some(mut nvim) = nvim.nvim() {
+                debug!("ui_try_resize {}/{}", columns, rows);
                 nvim.ui_try_resize_async(columns as u64, rows as u64)
                     .cb(|r| r.report_err())
                     .call();
@@ -507,7 +509,8 @@ impl Shell {
             .connect_commit(move |_, ch| ref_state.borrow().im_commit(ch));
 
         let ref_state = self.state.clone();
-        state.drawing_area.connect_configure_event(move |_, _| {
+        state.drawing_area.connect_configure_event(move |_, ev| {
+            debug!("configure_event {:?}", ev.get_size());
             ref_state.borrow_mut().try_nvim_resize();
             false
         });
@@ -841,6 +844,9 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
         let mut state = state_arc.borrow_mut();
         state.nvim.async_to_sync();
         state.nvim.set_initialized();
+        // in some case resize can happens while initilization in progress
+        // so force resize here
+        state.try_nvim_resize();
         state.cursor.as_mut().unwrap().start();
 
         Continue(false)
@@ -890,6 +896,9 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
     let mut state = state_ref.borrow_mut();
     if state.start_nvim_initialization() {
         let (cols, rows) = state.calc_nvim_size();
+
+        debug!("Init nvim {}/{}", cols, rows);
+
         state.model = UiModel::new(rows as u64, cols as u64);
 
         let state_arc = state_ref.clone();
@@ -919,6 +928,8 @@ impl RedrawEvents for State {
     }
 
     fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
+        debug!("on_resize {}/{}", columns, rows);
+
         if self.model.columns != columns as usize || self.model.rows != rows as usize {
             self.model = UiModel::new(rows, columns);
         }
