@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 use std::ops::Deref;
@@ -6,9 +6,9 @@ use std::thread;
 use std::time::Duration;
 
 use cairo;
-use pango::{LayoutExt, FontDescription};
+use pango::{FontDescription, LayoutExt};
 use gdk;
-use gdk::{ModifierType, EventButton, EventMotion, EventType, EventScroll};
+use gdk::{EventButton, EventMotion, EventScroll, EventType, ModifierType};
 use gdk_sys;
 use glib;
 use gtk;
@@ -18,11 +18,11 @@ use pangocairo;
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 use neovim_lib::neovim_api::Tabpage;
 
-use settings::{Settings, FontSource};
-use ui_model::{UiModel, Attrs, ModelRect};
-use color::{ColorModel, Color, COLOR_BLACK, COLOR_WHITE, COLOR_RED};
-use nvim::{self, RedrawEvents, GuiApi, RepaintMode, ErrorReport, NeovimClient, NeovimRef,
-           NeovimClientAsync, CompleteItem};
+use settings::{FontSource, Settings};
+use ui_model::{Attrs, ModelRect, UiModel};
+use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
+use nvim::{self, CompleteItem, ErrorReport, GuiApi, NeovimClient, NeovimClientAsync, NeovimRef,
+           RedrawEvents, RepaintMode};
 use input;
 use input::keyval_to_input_string;
 use cursor::Cursor;
@@ -59,6 +59,7 @@ pub struct State {
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
+    resize_timer: Rc<Cell<Option<glib::SourceId>>>,
     pub clipboard_clipboard: gtk::Clipboard,
     pub clipboard_primary: gtk::Clipboard,
 
@@ -92,6 +93,7 @@ impl State {
             cursor: None,
             popup_menu,
             settings,
+            resize_timer: Rc::new(Cell::new(None)),
             clipboard_clipboard: gtk::Clipboard::get(&gdk::Atom::intern("CLIPBOARD")),
             clipboard_primary: gtk::Clipboard::get(&gdk::Atom::intern("PRIMARY")),
 
@@ -275,11 +277,25 @@ impl State {
             return;
         }
 
-        if let Some(mut nvim) = self.nvim() {
-            nvim.ui_try_resize_async(columns as u64, rows as u64)
-                .cb(|r| r.report_err())
-                .call();
+        let resize_timer = self.resize_timer.take();
+        if let Some(resize_timer) = resize_timer {
+            glib::source_remove(resize_timer);
         }
+
+        let nvim = self.nvim.clone();
+        let resize_timer = self.resize_timer.clone();
+
+        let resize_id = gtk::timeout_add(200, move || {
+            resize_timer.set(None);
+            if let Some(mut nvim) = nvim.nvim() {
+                nvim.ui_try_resize_async(columns as u64, rows as u64)
+                    .cb(|r| r.report_err())
+                    .call();
+            }
+            Continue(false)
+        });
+
+        self.resize_timer.set(Some(resize_id));
     }
 
     fn edit_paste(&self, clipboard: &str) {
@@ -294,7 +310,6 @@ impl State {
                 let paste_code = format!("<C-r>{}", clipboard);
                 nvim.input_async(&paste_code).cb(|r| r.report_err()).call();
             };
-
         }
     }
 }
@@ -379,12 +394,14 @@ impl Shell {
 
         self.widget.pack_start(&state.stack, true, true, 0);
 
-        state.drawing_area.set_events(
-            (gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK |
-                 gdk_sys::GDK_BUTTON_MOTION_MASK | gdk_sys::GDK_SCROLL_MASK |
-                 gdk_sys::GDK_SMOOTH_SCROLL_MASK)
-                .bits() as i32,
-        );
+        state
+            .drawing_area
+            .set_events(
+                (gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK
+                    | gdk_sys::GDK_BUTTON_MOTION_MASK | gdk_sys::GDK_SCROLL_MASK
+                    | gdk_sys::GDK_SMOOTH_SCROLL_MASK)
+                    .bits() as i32,
+            );
 
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
@@ -398,33 +415,32 @@ impl Shell {
 
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
-        state.drawing_area.connect_button_release_event(
-            move |_, ev| {
+        state
+            .drawing_area
+            .connect_button_release_event(move |_, ev| {
                 gtk_button_release(
                     &mut *ref_state.borrow_mut(),
                     &mut *ref_ui_state.borrow_mut(),
                     ev,
                 )
-            },
-        );
-
+            });
 
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
-        state.drawing_area.connect_motion_notify_event(
-            move |_, ev| {
+        state
+            .drawing_area
+            .connect_motion_notify_event(move |_, ev| {
                 gtk_motion_notify(
                     &mut *ref_state.borrow_mut(),
                     &mut *ref_ui_state.borrow_mut(),
                     ev,
                 )
-            },
-        );
+            });
 
         let ref_state = self.state.clone();
-        state.drawing_area.connect_draw(
-            move |_, ctx| gtk_draw(&ref_state, ctx),
-        );
+        state
+            .drawing_area
+            .connect_draw(move |_, ctx| gtk_draw(&ref_state, ctx));
 
         let ref_state = self.state.clone();
         state.drawing_area.connect_key_press_event(move |_, ev| {
@@ -464,14 +480,14 @@ impl Shell {
         });
 
         let ref_state = self.state.clone();
-        state.drawing_area.connect_focus_in_event(move |_, _| {
-            gtk_focus_in(&mut *ref_state.borrow_mut())
-        });
+        state
+            .drawing_area
+            .connect_focus_in_event(move |_, _| gtk_focus_in(&mut *ref_state.borrow_mut()));
 
         let ref_state = self.state.clone();
-        state.drawing_area.connect_focus_out_event(move |_, _| {
-            gtk_focus_out(&mut *ref_state.borrow_mut())
-        });
+        state
+            .drawing_area
+            .connect_focus_out_event(move |_, _| gtk_focus_out(&mut *ref_state.borrow_mut()));
 
         let ref_state = self.state.clone();
         state.drawing_area.connect_realize(move |w| {
@@ -486,9 +502,9 @@ impl Shell {
         });
 
         let ref_state = self.state.clone();
-        state.im_context.connect_commit(move |_, ch| {
-            ref_state.borrow().im_commit(ch)
-        });
+        state
+            .im_context
+            .connect_commit(move |_, ch| ref_state.borrow().im_commit(ch));
 
         let ref_state = self.state.clone();
         state.drawing_area.connect_configure_event(move |_, _| {
@@ -497,10 +513,9 @@ impl Shell {
         });
 
         let ref_state = self.state.clone();
-        state.drawing_area.connect_size_allocate(
-            move |_, _| { init_nvim(&ref_state); },
-        );
-
+        state.drawing_area.connect_size_allocate(move |_, _| {
+            init_nvim(&ref_state);
+        });
     }
 
     #[cfg(unix)]
@@ -676,9 +691,8 @@ fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f
 
     let nvim = shell.nvim();
     if let Some(mut nvim) = nvim {
-        nvim.input(&input_str).expect(
-            "Can't send mouse input event",
-        );
+        nvim.input(&input_str)
+            .expect("Can't send mouse input event");
     }
 }
 
@@ -705,7 +719,6 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
 }
 
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
-
     let state = state_arc.borrow();
     if state.nvim.is_initialized() {
         render::render(
@@ -788,12 +801,8 @@ fn init_nvim_async(
     });
 
     // attach ui
-    if let Err(err) = nvim::post_start_init(
-        nvim,
-        options.open_path.as_ref(),
-        cols as u64,
-        rows as u64,
-    )
+    if let Err(err) =
+        nvim::post_start_init(nvim, options.open_path.as_ref(), cols as u64, rows as u64)
     {
         show_nvim_init_error(&err, state_arc.clone());
     } else {
@@ -837,7 +846,6 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
         Continue(false)
     }));
 
-
     idle_cb_call!(state_arc.nvim_started_cb());
 }
 
@@ -867,7 +875,6 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     pangocairo::functions::update_layout(ctx, &layout);
     pangocairo::functions::show_layout(ctx, &layout);
 
-
     ctx.move_to(x + width as f64, y);
     state.cursor.as_ref().unwrap().draw(
         ctx,
@@ -890,7 +897,6 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
         thread::spawn(move || init_nvim_async(state_arc, options, cols, rows));
     }
 }
-
 
 impl RedrawEvents for State {
     fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
@@ -1037,15 +1043,9 @@ impl RedrawEvents for State {
         let point = ModelRect::point(col as usize, row as usize);
         let (x, y, width, height) = point.to_area(self.font_ctx.cell_metrics());
 
-        self.popup_menu.borrow_mut().show(
-            self,
-            menu,
-            selected,
-            x,
-            y,
-            width,
-            height,
-        );
+        self.popup_menu
+            .borrow_mut()
+            .show(self, menu, selected, x, y, width, height);
 
         RepaintMode::Nothing
     }
@@ -1059,7 +1059,6 @@ impl RedrawEvents for State {
         self.popup_menu.borrow().select(selected);
         RepaintMode::Nothing
     }
-
 
     fn tabline_update(
         &mut self,
