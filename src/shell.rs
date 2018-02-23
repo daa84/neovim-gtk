@@ -59,7 +59,10 @@ pub struct State {
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
+
+    resize_request: (i64, i64),
     resize_timer: Rc<Cell<Option<glib::SourceId>>>,
+
     pub clipboard_clipboard: gtk::Clipboard,
     pub clipboard_primary: gtk::Clipboard,
 
@@ -93,7 +96,10 @@ impl State {
             cursor: None,
             popup_menu,
             settings,
+
+            resize_request: (-1, -1),
             resize_timer: Rc::new(Cell::new(None)),
+
             clipboard_clipboard: gtk::Clipboard::get(&gdk::Atom::intern("CLIPBOARD")),
             clipboard_primary: gtk::Clipboard::get(&gdk::Atom::intern("PRIMARY")),
 
@@ -277,10 +283,18 @@ impl State {
             return;
         }
 
+        let (requested_rows, requested_cols) = self.resize_request;
+
+        if requested_rows == rows as i64 && requested_cols == columns as i64 {
+            return;
+        }
+
         let resize_timer = self.resize_timer.take();
         if let Some(resize_timer) = resize_timer {
             glib::source_remove(resize_timer);
         }
+
+        self.resize_request = (rows as i64, columns as i64);
 
         let nvim = self.nvim.clone();
         let resize_timer = self.resize_timer.clone();
