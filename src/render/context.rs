@@ -40,6 +40,10 @@ impl Context {
             .collect()
     }
 
+    pub fn create_layout(&self) -> pango::Layout {
+        pango::Layout::new(&self.state.pango_context)
+    }
+
     #[inline]
     pub fn font_description(&self) -> &pango::FontDescription {
         &self.state.font_desc

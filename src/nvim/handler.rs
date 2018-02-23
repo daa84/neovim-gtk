@@ -1,5 +1,5 @@
 use std::result;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 
 use neovim_lib::{Handler, Value};
 
@@ -24,6 +24,7 @@ impl NvimHandler {
         match method {
             "redraw" => {
                 self.safe_call(move |ui| {
+                    let ui = &mut ui.borrow_mut();
                     let mut repaint_mode = RepaintMode::Nothing;
 
                     for ev in params {
@@ -63,6 +64,7 @@ impl NvimHandler {
                         if let Value::String(ev_name) = ev_name {
                             let args = params_iter.collect();
                             self.safe_call(move |ui| {
+                                let ui = &mut ui.borrow_mut();
                                 redraw_handler::call_gui_event(
                                     ui,
                                     ev_name.as_str().ok_or_else(|| "Event name does not exists")?,
@@ -87,14 +89,56 @@ impl NvimHandler {
         }
     }
 
+    fn nvim_cb_req (&self, method: &str, params: Vec<Value>) -> result::Result<Value, Value> {
+        match method {
+            "Gui" => {
+                if !params.is_empty() {
+                    let mut params_iter = params.into_iter();
+                    if let Some(req_name) = params_iter.next() {
+                        if let Value::String(req_name) = req_name {
+                            let args = params_iter.collect();
+                            let (sender, receiver) = mpsc::channel();
+                            self.safe_call(move |ui| {
+                                sender.send(redraw_handler::call_gui_request(
+                                    &ui.clone(),
+                                    req_name.as_str().ok_or_else(|| "Event name does not exists")?,
+                                    &args,
+                                )).unwrap();
+                                {
+                                    let ui = &mut ui.borrow_mut();
+                                    ui.on_redraw(&RepaintMode::All);
+                                }
+                                Ok(())
+                            });
+                            Ok(receiver.recv().unwrap()?)
+                        } else {
+                            error!("Unsupported request");
+                            Err(Value::Nil)
+                        }
+                    } else {
+                        error!("Request name does not exist");
+                        Err(Value::Nil)
+                    }
+                } else {
+                    error!("Unsupported request {:?}", params);
+                    Err(Value::Nil)
+                }
+            },
+            _ => {
+                error!("Request {}({:?})", method, params);
+                Err(Value::Nil)
+            }
+        }
+    }
+ 
     fn safe_call<F>(&self, cb: F)
     where
-        F: FnOnce(&mut shell::State) -> result::Result<(), String> + 'static + Send,
+        F: FnOnce(&Arc<UiMutex<shell::State>>) -> result::Result<(), String> + 'static + Send,
     {
         let mut cb = Some(cb);
         let shell = self.shell.clone();
         glib::idle_add(move || {
-            if let Err(msg) = cb.take().unwrap()(&mut shell.borrow_mut()) {
+            if let Err(msg) = cb.take().unwrap()(&shell) {
                 error!("Error call function: {}", msg);
             }
             glib::Continue(false)
@@ -105,5 +149,9 @@ impl NvimHandler {
 impl Handler for NvimHandler {
     fn handle_notify(&mut self, name: &str, args: Vec<Value>) {
         self.nvim_cb(name, args);
+    }
+
+    fn handle_request(&mut self, name: &str, args: Vec<Value>) -> result::Result<Value, Value> {
+        self.nvim_cb_req(name, args)
     }
 }
