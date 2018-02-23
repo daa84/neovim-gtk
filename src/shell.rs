@@ -738,14 +738,31 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     let state = state_arc.borrow();
     if state.nvim.is_initialized() {
+        // create buffer surface
+        let (x1, y1, x2, y2) = ctx.clip_extents();
+        let alloc = state.drawing_area.get_allocation();
+        let surface = state
+            .drawing_area
+            .get_window()
+            .unwrap()
+            .create_similar_surface(cairo::Content::Color, alloc.width, alloc.height)
+            .unwrap();
+
+        let buf_ctx = cairo::Context::new(&surface);
+        buf_ctx.rectangle(x1, y1, x2 - x1, y2 - y1);
+        buf_ctx.clip();
+
         render::render(
-            ctx,
+            &buf_ctx,
             state.cursor.as_ref().unwrap(),
             &state.font_ctx,
             &state.model,
             &state.color_model,
             &state.mode,
         );
+
+        ctx.set_source_surface(&surface, 0.0, 0.0);
+        ctx.paint();
     } else if state.nvim.is_initializing() {
         draw_initializing(&*state, ctx);
     }
