@@ -180,9 +180,10 @@ impl State {
     }
 
     pub fn set_font_desc(&mut self, desc: &str) {
-        self.render_state.borrow_mut().font_ctx.update(
-            FontDescription::from_string(desc),
-        );
+        self.render_state
+            .borrow_mut()
+            .font_ctx
+            .update(FontDescription::from_string(desc));
         self.model.clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintMode::All);
@@ -328,8 +329,8 @@ impl State {
         let nvim = self.nvim();
         if let Some(mut nvim) = nvim {
             let render_state = self.render_state.borrow();
-            if render_state.mode.is(&mode::NvimMode::Insert) ||
-                render_state.mode.is(&mode::NvimMode::Normal)
+            if render_state.mode.is(&mode::NvimMode::Insert)
+                || render_state.mode.is(&mode::NvimMode::Normal)
             {
                 let paste_code = format!("normal! \"{}P", clipboard);
                 nvim.command_async(&paste_code)
@@ -1124,30 +1125,33 @@ impl RedrawEvents for State {
         indent: u64,
         level: u64,
     ) -> RepaintMode {
-        let cursor = self.model.cur_point();
-        let render_state = self.render_state.borrow();
-        let (x, y, width, height) = cursor.to_area(render_state.font_ctx.cell_metrics());
-        let ctx = CmdLineContext {
-            content,
-            pos,
-            firstc,
-            prompt,
-            indent,
-            level_idx: level,
-            x,
-            y,
-            width,
-            height,
-            max_width: self.max_popup_width(),
-        };
+        {
+            let cursor = self.model.cur_point();
+            let render_state = self.render_state.borrow();
+            let (x, y, width, height) = cursor.to_area(render_state.font_ctx.cell_metrics());
+            let ctx = CmdLineContext {
+                content,
+                pos,
+                firstc,
+                prompt,
+                indent,
+                level_idx: level,
+                x,
+                y,
+                width,
+                height,
+                max_width: self.max_popup_width(),
+            };
 
-        self.cmd_line.show_level(&ctx);
-        RepaintMode::Nothing
+            self.cmd_line.show_level(&ctx);
+        }
+
+        self.on_busy(true)
     }
 
     fn cmdline_hide(&mut self, level: u64) -> RepaintMode {
         self.cmd_line.hide_level(level);
-        RepaintMode::Nothing
+        self.on_busy(false)
     }
 
     fn cmdline_block_show(
@@ -1156,7 +1160,7 @@ impl RedrawEvents for State {
     ) -> RepaintMode {
         let max_width = self.max_popup_width();
         self.cmd_line.show_block(&content, max_width);
-        RepaintMode::Nothing
+        self.on_busy(true)
     }
 
     fn cmdline_block_append(
@@ -1169,12 +1173,12 @@ impl RedrawEvents for State {
 
     fn cmdline_block_hide(&mut self) -> RepaintMode {
         self.cmd_line.block_hide();
-        RepaintMode::Nothing
+        self.on_busy(false)
     }
 
     fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintMode {
         let render_state = self.render_state.borrow();
-        self.cmd_line.pos(&* render_state, pos, level);
+        self.cmd_line.pos(&*render_state, pos, level);
         RepaintMode::Nothing
     }
 }
