@@ -324,7 +324,7 @@ pub fn call(
         "cmdline_block_hide" => ui.cmdline_block_hide(),
         "cmdline_pos" => call!(ui->cmdline_pos(args: uint, uint)),
         _ => {
-            println!("Event {}({:?})", method, args);
+            warn!("Event {}({:?})", method, args);
             RepaintMode::Nothing
         }
     };

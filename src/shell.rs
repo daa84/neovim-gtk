@@ -971,6 +971,8 @@ impl RedrawEvents for State {
     }
 
     fn on_clear(&mut self) -> RepaintMode {
+        debug!("clear model");
+
         self.model.clear();
         RepaintMode::All
     }
