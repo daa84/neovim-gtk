@@ -39,6 +39,12 @@ impl State {
             }
         }
     }
+
+    fn close_tab(&self, idx: u32) {
+        if let Some(mut nvim) = self.nvim.as_ref().unwrap().nvim() {
+            nvim.command(&format!(":tabc {}", idx + 1)).report_err();
+        }
+    }
 }
 
 pub struct Tabline {
@@ -55,6 +61,7 @@ impl Tabline {
         tabs.set_scrollable(true);
         tabs.set_show_border(false);
         tabs.set_border_width(0);
+        tabs.set_hexpand(true);
         tabs.hide();
 
         let state = Rc::new(RefCell::new(State::new()));
@@ -113,7 +120,33 @@ impl Tabline {
                 let title = gtk::Label::new(None);
                 title.set_ellipsize(pango::EllipsizeMode::Middle);
                 title.set_width_chars(25);
-                self.tabs.append_page(&empty, Some(&title));
+                let close_btn = gtk::Button::new_from_icon_name(
+                    "window-close-symbolic",
+                    gtk::IconSize::Menu.into(),
+                );
+                close_btn.set_relief(gtk::ReliefStyle::None);
+                close_btn.get_style_context().unwrap().add_class("small-button");
+                close_btn.set_focus_on_click(false);
+                let label_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+                label_box.pack_start(&title, true, false, 0);
+                label_box.pack_start(&close_btn, false, false, 0);
+                title.show();
+                close_btn.show();
+                self.tabs.append_page(&empty, Some(&label_box));
+
+                let tabs = self.tabs.clone();
+                let state_ref = Rc::clone(&self.state);
+                close_btn.connect_clicked(move |btn| {
+                    let current_label = btn
+                        .get_parent().unwrap();
+                    for i in 0..tabs.get_n_pages() {
+                        let page = tabs.get_nth_page(Some(i)).unwrap();
+                        let label = tabs.get_tab_label(&page).unwrap();
+                        if label == current_label {
+                            state_ref.borrow().close_tab(i);
+                        }
+                    }
+                });
             }
         } else if count > tabs.len() {
             for _ in tabs.len()..count {
@@ -125,6 +158,12 @@ impl Tabline {
             let tab_child = self.tabs.get_nth_page(Some(idx as u32));
             let tab_label = self.tabs
                 .get_tab_label(&tab_child.unwrap())
+                .unwrap()
+                .downcast::<gtk::Box>()
+                .unwrap()
+                .get_children()
+                .into_iter()
+                .next()
                 .unwrap()
                 .downcast::<gtk::Label>()
                 .unwrap();
