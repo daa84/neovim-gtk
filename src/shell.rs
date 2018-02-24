@@ -6,6 +6,7 @@ use std::thread;
 use std::time::Duration;
 
 use cairo;
+use cairo::prelude::*;
 use pango::{FontDescription, LayoutExt};
 use gdk;
 use gdk::{EventButton, EventMotion, EventScroll, EventType, ModifierType};
@@ -49,6 +50,34 @@ macro_rules! idle_cb_call {
     )
 }
 
+/// Double buffer surface
+pub struct Surface {
+    surface: cairo::Surface,
+    ctx: cairo::Context,
+    width: i32,
+    height: i32,
+}
+
+impl Surface {
+    pub fn new(drawing_area: &gtk::DrawingArea) -> Self {
+        let alloc = drawing_area.get_allocation();
+        let surface = drawing_area
+            .get_window()
+            .unwrap()
+            .create_similar_surface(cairo::Content::Color, alloc.width, alloc.height)
+            .unwrap();
+
+        let ctx = cairo::Context::new(&surface);
+
+        Surface {
+            surface,
+            ctx,
+            width: alloc.width,
+            height: alloc.height,
+        }
+    }
+}
+
 pub struct State {
     pub model: UiModel,
     pub color_model: ColorModel,
@@ -59,6 +88,8 @@ pub struct State {
     cursor: Option<Cursor>,
     popup_menu: RefCell<PopupMenu>,
     settings: Rc<RefCell<Settings>>,
+
+    surface: Option<Surface>,
 
     resize_request: (i64, i64),
     resize_timer: Rc<Cell<Option<glib::SourceId>>>,
@@ -97,6 +128,8 @@ impl State {
             popup_menu,
             settings,
 
+            surface: None,
+
             resize_request: (-1, -1),
             resize_timer: Rc::new(Cell::new(None)),
 
@@ -116,6 +149,18 @@ impl State {
 
             detach_cb: None,
             nvim_started_cb: None,
+        }
+    }
+
+    fn resize_surface(&mut self) {
+        if let Some(Surface { width, height, .. }) = self.surface {
+            let alloc = self.drawing_area.get_allocation();
+
+            if width != alloc.width || height != alloc.height {
+                self.surface = Some(Surface::new(&self.drawing_area));
+            }
+        } else {
+            self.surface = Some(Surface::new(&self.drawing_area));
         }
     }
 
@@ -525,7 +570,11 @@ impl Shell {
         let ref_state = self.state.clone();
         state.drawing_area.connect_configure_event(move |_, ev| {
             debug!("configure_event {:?}", ev.get_size());
-            ref_state.borrow_mut().try_nvim_resize();
+
+            let mut state = ref_state.borrow_mut();
+            state.resize_surface();
+            state.try_nvim_resize();
+
             false
         });
 
@@ -738,17 +787,14 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     let state = state_arc.borrow();
     if state.nvim.is_initialized() {
-        // create buffer surface
-        let (x1, y1, x2, y2) = ctx.clip_extents();
-        let alloc = state.drawing_area.get_allocation();
-        let surface = state
-            .drawing_area
-            .get_window()
-            .unwrap()
-            .create_similar_surface(cairo::Content::Color, alloc.width, alloc.height)
-            .unwrap();
 
-        let buf_ctx = cairo::Context::new(&surface);
+        let (x1, y1, x2, y2) = ctx.clip_extents();
+        let surface = state.surface.as_ref().unwrap();
+        let buf_ctx = &surface.ctx;
+
+        surface.surface.flush();
+
+        buf_ctx.save();
         buf_ctx.rectangle(x1, y1, x2 - x1, y2 - y1);
         buf_ctx.clip();
 
@@ -761,8 +807,9 @@ fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
             &state.mode,
         );
 
-        ctx.set_source_surface(&surface, 0.0, 0.0);
+        ctx.set_source_surface(&surface.surface, 0.0, 0.0);
         ctx.paint();
+        buf_ctx.restore();
     } else if state.nvim.is_initializing() {
         draw_initializing(&*state, ctx);
     }
