@@ -33,6 +33,7 @@ use error;
 use mode;
 use render;
 use render::CellMetrics;
+use subscriptions::{Subscriptions, SubscriptionHandle};
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2.2";
@@ -78,6 +79,8 @@ pub struct State {
 
     detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
     nvim_started_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
+
+    subscriptions: RefCell<Subscriptions>,
 }
 
 impl State {
@@ -116,6 +119,8 @@ impl State {
 
             detach_cb: None,
             nvim_started_cb: None,
+
+            subscriptions: RefCell::new(Subscriptions::new()),
         }
     }
 
@@ -327,6 +332,25 @@ impl State {
                 nvim.input_async(&paste_code).cb(|r| r.report_err()).call();
             };
         }
+    }
+
+    pub fn subscribe<F>(&self, event_name: &str, args: &[&str], cb: F) -> SubscriptionHandle
+    where
+        F: Fn(Vec<String>) + 'static,
+    {
+        self.subscriptions.borrow_mut().subscribe(event_name, args, cb)
+    }
+
+    pub fn set_autocmds(&self) {
+        self.subscriptions.borrow().set_autocmds(&mut self.nvim().unwrap());
+    }
+
+    pub fn notify(&self, params: Vec<Value>) -> Result<(), String> {
+        self.subscriptions.borrow().notify(params)
+    }
+
+    pub fn run_now(&self, handle: &SubscriptionHandle) {
+        self.subscriptions.borrow().run_now(handle, &mut self.nvim().unwrap());
     }
 }
 
@@ -571,6 +595,15 @@ impl Shell {
         let nvim = state.nvim();
         if let Some(mut nvim) = nvim {
             nvim.command(":wa").report_err();
+        }
+    }
+
+    pub fn new_tab(&self) {
+        let state = self.state.borrow();
+
+        let nvim = state.nvim();
+        if let Some(mut nvim) = nvim {
+            nvim.command(":tabe").report_err();
         }
     }
 

@@ -59,7 +59,7 @@ pub struct Projects {
 }
 
 impl Projects {
-    pub fn new(ref_widget: &gtk::ToolButton, shell: Rc<RefCell<Shell>>) -> Rc<RefCell<Projects>> {
+    pub fn new(ref_widget: &gtk::Button, shell: Rc<RefCell<Shell>>) -> Rc<RefCell<Projects>> {
         let projects = Projects {
             shell,
             popup: Popover::new(Some(ref_widget)),

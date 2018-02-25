@@ -48,6 +48,7 @@ mod popup_menu;
 mod project;
 mod tabline;
 mod error;
+mod subscriptions;
 
 use std::env;
 use std::time::Duration;
