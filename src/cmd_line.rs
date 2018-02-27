@@ -26,8 +26,6 @@ pub struct Level {
 impl Level {
     //TODO: double width chars render, also note in text wrapping
     //TODO: im
-    //TODO: cursor
-    //TODO: delete
 
     pub fn replace_from_ctx(&mut self, ctx: &CmdLineContext, render_state: &shell::RenderState) {
         let content = ctx.get_lines();

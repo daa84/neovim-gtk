@@ -95,7 +95,11 @@ impl ModelLayout {
             row_idx += 1;
         }
 
-        self.cols_filled = max(self.cols_filled, max_col_idx + 1);
+        if self.rows_filled == 1 {
+            self.cols_filled = max_col_idx + 1;
+        } else {
+            self.cols_filled = max(self.cols_filled, max_col_idx + 1);
+        }
     }
 
     fn count_lines(lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>, max_columns: usize) -> usize {
