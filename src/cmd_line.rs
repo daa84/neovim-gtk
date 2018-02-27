@@ -27,6 +27,11 @@ impl Level {
     //TODO: double width chars render, also note in text wrapping
     //TODO: im
 
+    pub fn insert(&mut self, c: &str, shift: bool, render_state: &shell::RenderState) {
+        self.model_layout.insert(c, shift);
+        self.update_preferred_size(render_state);
+    }
+
     pub fn replace_from_ctx(&mut self, ctx: &CmdLineContext, render_state: &shell::RenderState) {
         let content = ctx.get_lines();
         self.replace_line(&content.lines, false);
@@ -79,9 +84,7 @@ impl Level {
             .map(|line_chars| {
                 line_chars
                     .iter()
-                    .map(|c| {
-                        (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect())
-                    })
+                    .map(|c| (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect()))
                     .collect()
             })
             .collect()
@@ -254,7 +257,6 @@ impl State {
 }
 
 impl cursor::CursorRedrawCb for State {
-
     fn queue_redraw_cursor(&mut self) {
         self.queue_redraw_cursor();
     }
@@ -323,6 +325,26 @@ impl CmdLine {
         }
     }
 
+    pub fn special_char(
+        &self,
+        render_state: &shell::RenderState,
+        c: String,
+        shift: bool,
+        level: u64,
+    ) {
+        let mut state = self.state.borrow_mut();
+
+        if let Some(level) = state.levels.get_mut((level - 1) as usize) {
+            level.insert(&c, shift, render_state);
+            level.update_cache(&*render_state);
+        } else {
+            error!("Level {} does not exists", level);
+        }
+
+        state.request_area_size();
+        state.drawing_area.queue_draw()
+    }
+
     pub fn hide_level(&mut self, level_idx: u64) {
         let mut state = self.state.borrow_mut();
 
@@ -350,16 +372,13 @@ impl CmdLine {
         state.request_area_size();
     }
 
-
     pub fn block_append(&mut self, content: &Vec<(HashMap<String, Value>, String)>) {
         let mut state = self.state.borrow_mut();
         let render_state = state.render_state.clone();
         {
             let attr_content = content
                 .iter()
-                .map(|c| {
-                    (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect())
-                })
+                .map(|c| (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect()))
                 .collect();
 
             let block = state.block.as_mut().unwrap();
@@ -441,9 +460,7 @@ impl CmdLineContext {
     fn get_lines(&self) -> LineContent {
         let content_line: Vec<(Option<Attrs>, Vec<char>)> = self.content
             .iter()
-            .map(|c| {
-                (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect())
-            })
+            .map(|c| (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect()))
             .collect();
         let (prompt_offset, prompt_lines) = prompt_lines(&self.firstc, &self.prompt, self.indent);
 

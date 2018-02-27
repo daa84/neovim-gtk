@@ -58,6 +58,18 @@ impl ModelLayout {
         }
     }
 
+    pub fn insert(&mut self, c: &str, shift: bool) {
+        if c.is_empty() {
+            return;
+        }
+
+        if shift {
+            //TODO: insert special char
+        } else {
+            self.model.put(c.chars().next().unwrap(), false, None);
+        }
+    }
+
     /// Wrap all lines into model
     ///
     /// returns actual width

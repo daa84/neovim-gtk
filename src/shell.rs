@@ -1197,6 +1197,12 @@ impl RedrawEvents for State {
         self.cmd_line.pos(&*render_state, pos, level);
         RepaintMode::Nothing
     }
+
+    fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RepaintMode {
+        let render_state = self.render_state.borrow();
+        self.cmd_line.special_char(&*render_state, c, shift, level);
+        RepaintMode::Nothing
+    }
 }
 
 impl CursorRedrawCb for State {

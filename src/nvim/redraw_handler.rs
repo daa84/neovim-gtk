@@ -95,6 +95,8 @@ pub trait RedrawEvents {
     fn cmdline_block_hide(&mut self) -> RepaintMode;
 
     fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintMode;
+
+    fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RepaintMode;
 }
 
 pub trait GuiApi {
@@ -323,6 +325,7 @@ pub fn call(
         "cmdline_hide" => call!(ui->cmdline_hide(args: uint)),
         "cmdline_block_hide" => ui.cmdline_block_hide(),
         "cmdline_pos" => call!(ui->cmdline_pos(args: uint, uint)),
+        "cmdline_special_char" => call!(ui->cmdline_special_char(args: str, bool, uint)),
         _ => {
             warn!("Event {}({:?})", method, args);
             RepaintMode::Nothing
