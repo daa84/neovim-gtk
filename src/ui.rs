@@ -255,6 +255,7 @@ impl Ui {
         let shell_ref = Rc::clone(&self.shell);
         new_tab_btn.connect_clicked(move |_| shell_ref.borrow_mut().new_tab());
         new_tab_btn.set_can_focus(false);
+        new_tab_btn.set_tooltip_text("Open a new tab");
         header_bar.pack_start(&new_tab_btn);
 
         let paste_btn =
@@ -262,6 +263,7 @@ impl Ui {
         let shell = self.shell.clone();
         paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
         paste_btn.set_can_focus(false);
+        paste_btn.set_tooltip_text("Paste from clipboard");
         header_bar.pack_end(&paste_btn);
 
         let save_btn = Button::new_with_label("Save All");
