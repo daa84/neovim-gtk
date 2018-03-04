@@ -89,15 +89,13 @@ impl Subscriptions {
     pub fn set_autocmds(&self, nvim: &mut NeovimRef) {
         for (event_name, subscriptions) in &self.0 {
             for (i, subscription) in subscriptions.iter().enumerate() {
-                let args = subscription.args
+                let args = subscription
+                    .args
                     .iter()
                     .fold("".to_owned(), |acc, arg| acc + ", " + &arg);
                 nvim.command(&format!(
                     "au {} * call rpcnotify(1, 'subscription', '{}', {} {})",
-                    event_name,
-                    event_name,
-                    i,
-                    args,
+                    event_name, event_name, i, args,
                 )).expect("Could not set autocmd");
             }
         }
@@ -139,14 +137,13 @@ impl Subscriptions {
     /// This function is wrapped by `shell::State`.
     pub fn run_now(&self, handle: &SubscriptionHandle, nvim: &mut NeovimRef) {
         let subscription = &self.0.get(&handle.event_name).unwrap()[handle.index];
-        let args = subscription.args
+        let args = subscription
+            .args
             .iter()
             .map(|arg| nvim.eval(arg))
             .map(|res| {
                 res.ok()
-                    .and_then(|val| {
-                        val.as_str().map(|s: &str| s.to_owned())
-                    })
+                    .and_then(|val| val.as_str().map(|s: &str| s.to_owned()))
             })
             .collect::<Option<Vec<String>>>();
         if let Some(args) = args {

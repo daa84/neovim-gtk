@@ -61,7 +61,9 @@ impl Components {
         open_btn_box.pack_start(&gtk::Label::new("Open"), false, false, 3);
         open_btn_box.pack_start(
             &gtk::Image::new_from_icon_name("pan-down-symbolic", gtk::IconSize::Menu.into()),
-            false, false, 3
+            false,
+            false,
+            3,
         );
         open_btn.add(&open_btn_box);
         open_btn.set_can_focus(false);
@@ -184,8 +186,10 @@ impl Ui {
         window.show_all();
 
         let comps_ref = self.comps.clone();
-        let update_title = shell.state.borrow()
-            .subscribe("BufEnter,DirChanged", &["expand('%:p')", "getcwd()"], move |args| {
+        let update_title = shell.state.borrow().subscribe(
+            "BufEnter,DirChanged",
+            &["expand('%:p')", "getcwd()"],
+            move |args| {
                 let comps = comps_ref.borrow();
                 let window = comps.window.as_ref().unwrap();
                 let file_path = &args[0];
@@ -202,7 +206,8 @@ impl Ui {
                     &file_path
                 };
                 window.set_title(filename);
-            });
+            },
+        );
 
         let comps_ref = self.comps.clone();
         let shell_ref = self.shell.clone();
@@ -245,19 +250,15 @@ impl Ui {
             .open_btn
             .connect_clicked(move |_| projects.borrow_mut().show());
 
-        let new_tab_btn = Button::new_from_icon_name(
-            "tab-new-symbolic",
-            gtk::IconSize::SmallToolbar.into(),
-        );
+        let new_tab_btn =
+            Button::new_from_icon_name("tab-new-symbolic", gtk::IconSize::SmallToolbar.into());
         let shell_ref = Rc::clone(&self.shell);
         new_tab_btn.connect_clicked(move |_| shell_ref.borrow_mut().new_tab());
         new_tab_btn.set_can_focus(false);
         header_bar.pack_start(&new_tab_btn);
 
-        let paste_btn = Button::new_from_icon_name(
-            "edit-paste",
-            gtk::IconSize::SmallToolbar.into(),
-        );
+        let paste_btn =
+            Button::new_from_icon_name("edit-paste", gtk::IconSize::SmallToolbar.into());
         let shell = self.shell.clone();
         paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
         paste_btn.set_can_focus(false);
@@ -274,10 +275,13 @@ impl Ui {
         window.set_titlebar(Some(&header_bar));
 
         let shell = self.shell.borrow();
-        let update_subtitle = shell.state.borrow()
-            .subscribe("DirChanged", &["getcwd()"], move |args| {
+        let update_subtitle = shell.state.borrow().subscribe(
+            "DirChanged",
+            &["getcwd()"],
+            move |args| {
                 header_bar.set_subtitle(&*args[0]);
-            });
+            },
+        );
 
         update_subtitle
     }

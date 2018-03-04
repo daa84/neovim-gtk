@@ -33,7 +33,7 @@ use error;
 use mode;
 use render;
 use render::CellMetrics;
-use subscriptions::{Subscriptions, SubscriptionHandle};
+use subscriptions::{SubscriptionHandle, Subscriptions};
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2.2";
@@ -338,11 +338,15 @@ impl State {
     where
         F: Fn(Vec<String>) + 'static,
     {
-        self.subscriptions.borrow_mut().subscribe(event_name, args, cb)
+        self.subscriptions
+            .borrow_mut()
+            .subscribe(event_name, args, cb)
     }
 
     pub fn set_autocmds(&self) {
-        self.subscriptions.borrow().set_autocmds(&mut self.nvim().unwrap());
+        self.subscriptions
+            .borrow()
+            .set_autocmds(&mut self.nvim().unwrap());
     }
 
     pub fn notify(&self, params: Vec<Value>) -> Result<(), String> {
@@ -350,7 +354,9 @@ impl State {
     }
 
     pub fn run_now(&self, handle: &SubscriptionHandle) {
-        self.subscriptions.borrow().run_now(handle, &mut self.nvim().unwrap());
+        self.subscriptions
+            .borrow()
+            .run_now(handle, &mut self.nvim().unwrap());
     }
 }
 
