@@ -96,7 +96,9 @@ impl Subscriptions {
                 nvim.command(&format!(
                     "au {} * call rpcnotify(1, 'subscription', '{}', {} {})",
                     event_name, event_name, i, args,
-                )).expect("Could not set autocmd");
+                )).unwrap_or_else(|err| {
+                    error!("Could not set autocmd: {}", err);
+                });
             }
         }
     }
