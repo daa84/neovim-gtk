@@ -258,7 +258,7 @@ impl Ui {
         header_bar.pack_start(&new_tab_btn);
 
         let paste_btn =
-            Button::new_from_icon_name("edit-paste", gtk::IconSize::SmallToolbar.into());
+            Button::new_from_icon_name("edit-paste-symbolic", gtk::IconSize::SmallToolbar.into());
         let shell = self.shell.clone();
         paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
         paste_btn.set_can_focus(false);
