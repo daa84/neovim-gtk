@@ -357,7 +357,7 @@ fn tree_reload(store: &gtk::TreeStore, state: &State) {
 /// replaced with the new path and the last entry is marked active.
 fn update_dir_list(dir: &str, dir_list_model: &gtk::TreeStore, dir_list: &gtk::ComboBox) {
     // The current working directory path.
-    let complete_path = Path::new(dir).canonicalize().unwrap();
+    let complete_path = Path::new(dir);
     let mut path = PathBuf::new();
     let mut components = complete_path.components();
     let mut next = components.next();
