@@ -109,9 +109,10 @@ impl FileBrowserWidget {
         // Initialize values.
         let nvim = shell_state.nvim_clone();
         self.nvim = Some(nvim);
-        let dir = get_current_dir(&mut self.nvim().unwrap());
-        update_dir_list(&dir, &self.comps.dir_list_model, &self.comps.dir_list);
-        self.state.borrow_mut().current_dir = dir;
+        if let Some(dir) = get_current_dir(&mut self.nvim().unwrap()) {
+            update_dir_list(&dir, &self.comps.dir_list_model, &self.comps.dir_list);
+            self.state.borrow_mut().current_dir = dir;
+        }
 
         // Populate tree.
         tree_reload(&self.store, &self.state.borrow());
@@ -255,18 +256,19 @@ impl FileBrowserWidget {
                 }
             } else {
                 // FileType::File
-                let dir = get_current_dir(&mut nvim);
-                let dir = Path::new(&dir);
-                let file_path = if let Some(rel_path) = Path::new(&file_path)
-                    .strip_prefix(&dir)
-                    .ok()
-                    .and_then(|p| p.to_str())
-                {
-                    rel_path
-                } else {
-                    &file_path
-                };
-                nvim.command(&format!(":e {}", file_path)).report_err();
+                if let Some(dir) = get_current_dir(&mut nvim) {
+                    let dir = Path::new(&dir);
+                    let file_path = if let Some(rel_path) = Path::new(&file_path)
+                        .strip_prefix(&dir)
+                        .ok()
+                        .and_then(|p| p.to_str())
+                    {
+                        rel_path
+                    } else {
+                        &file_path
+                    };
+                    nvim.command(&format!(":e {}", file_path)).report_err();
+                }
             }
         }));
 
@@ -441,9 +443,14 @@ fn populate_tree_nodes(
     parent: Option<&gtk::TreeIter>,
 ) {
     let path = Path::new(dir);
-    let iter = path.read_dir()
-        .expect("read dir failed")
-        .filter_map(Result::ok);
+    let read_dir = match path.read_dir() {
+        Ok(read_dir) => read_dir,
+        Err(err) => {
+            error!("Couldn't populate tree: {}", err);
+            return;
+        }
+    };
+    let iter = read_dir.filter_map(Result::ok);
     let mut entries: Vec<DirEntry> = if state.show_hidden {
         iter.collect()
     } else {
@@ -501,13 +508,14 @@ fn populate_tree_nodes(
     }
 }
 
-fn get_current_dir(nvim: &mut NeovimRef) -> String {
-    nvim.eval("getcwd()")
-        .as_ref()
-        .ok()
-        .and_then(|s| s.as_str())
-        .expect("Couldn't get working directory")
-        .to_owned()
+fn get_current_dir(nvim: &mut NeovimRef) -> Option<String> {
+    match nvim.eval("getcwd()") {
+        Ok(cwd) => cwd.as_str().map(|s| s.to_owned()),
+        Err(err) => {
+            error!("Couldn't get cwd: {}", err);
+            None
+        }
+    }
 }
 
 /// Reveals and selects the given file in the file browser.
