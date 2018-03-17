@@ -48,6 +48,7 @@ mod popup_menu;
 mod project;
 mod tabline;
 mod error;
+mod file_browser;
 mod subscriptions;
 
 use std::env;

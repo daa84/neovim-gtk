@@ -7,7 +7,7 @@ use std::sync::Arc;
 use gdk;
 use gtk;
 use gtk::prelude::*;
-use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, SettingsExt};
+use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned, SettingsExt};
 use gio::prelude::*;
 use gio::{Menu, MenuExt, MenuItem, SimpleAction};
 use toml;
@@ -17,6 +17,7 @@ use shell::{self, Shell, ShellOptions};
 use shell_dlg;
 use project::Projects;
 use plug_manager;
+use file_browser::FileBrowserWidget;
 use subscriptions::SubscriptionHandle;
 
 macro_rules! clone {
@@ -38,6 +39,7 @@ macro_rules! clone {
 
 const DEFAULT_WIDTH: i32 = 800;
 const DEFAULT_HEIGHT: i32 = 600;
+const DEFAULT_SIDEBAR_WIDTH: i32 = 200;
 
 pub struct Ui {
     initialized: bool,
@@ -46,6 +48,7 @@ pub struct Ui {
     shell: Rc<RefCell<Shell>>,
     projects: Rc<RefCell<Projects>>,
     plug_manager: Arc<UiMutex<plug_manager::Manager>>,
+    file_browser: Arc<UiMutex<FileBrowserWidget>>,
 }
 
 pub struct Components {
@@ -88,6 +91,7 @@ impl Ui {
         let plug_manager = plug_manager::Manager::new();
 
         let plug_manager = Arc::new(UiMutex::new(plug_manager));
+        let file_browser = Arc::new(UiMutex::new(FileBrowserWidget::new()));
         let comps = Arc::new(UiMutex::new(Components::new()));
         let settings = Rc::new(RefCell::new(Settings::new()));
         let shell = Rc::new(RefCell::new(Shell::new(settings.clone(), options)));
@@ -102,6 +106,7 @@ impl Ui {
             settings,
             projects,
             plug_manager,
+            file_browser,
         }
     }
 
@@ -115,6 +120,7 @@ impl Ui {
         settings.init();
 
         let window = ApplicationWindow::new(app);
+        let main = Paned::new(Orientation::Horizontal);
 
         {
             // initialize window from comps
@@ -144,8 +150,11 @@ impl Ui {
                     comps.window_state.current_width,
                     comps.window_state.current_height,
                 );
+
+                main.set_position(comps.window_state.sidebar_width);
             } else {
                 window.set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
+                main.set_position(DEFAULT_SIDEBAR_WIDTH);
             }
         }
 
@@ -164,10 +173,28 @@ impl Ui {
             None
         };
 
+        let show_sidebar_action =
+            SimpleAction::new_stateful("show-sidebar", None, &false.to_variant());
+        let file_browser_ref = self.file_browser.clone();
         let comps_ref = self.comps.clone();
-        window.connect_size_allocate(move |window, _| {
-            gtk_window_size_allocate(window, &mut *comps_ref.borrow_mut())
+        show_sidebar_action.connect_change_state(move |action, value| {
+            if let Some(ref value) = *value {
+                action.set_state(value);
+                let is_active = value.get::<bool>().unwrap();
+                file_browser_ref.borrow().set_visible(is_active);
+                comps_ref.borrow_mut().window_state.show_sidebar = is_active;
+            }
         });
+        app.add_action(&show_sidebar_action);
+
+        let comps_ref = self.comps.clone();
+        window.connect_size_allocate(clone!(main => move |window, _| {
+            gtk_window_size_allocate(
+                window,
+                &mut *comps_ref.borrow_mut(),
+                &main,
+            );
+        }));
 
         let comps_ref = self.comps.clone();
         window.connect_window_state_event(move |_, event| {
@@ -181,9 +208,20 @@ impl Ui {
         });
 
         let shell = self.shell.borrow();
-        window.add(&**shell);
+        let file_browser = self.file_browser.borrow();
+        main.pack1(&**file_browser, false, false);
+        main.pack2(&**shell, true, false);
+
+        window.add(&main);
 
         window.show_all();
+
+        if restore_win_state {
+            // Hide sidebar, if it wasn't shown last time.
+            // Has to be done after show_all(), so it won't be shown again.
+            let show_sidebar = self.comps.borrow().window_state.show_sidebar;
+            show_sidebar_action.change_state(&show_sidebar.to_variant());
+        }
 
         let comps_ref = self.comps.clone();
         let update_title = shell.state.borrow().subscribe(
@@ -225,12 +263,14 @@ impl Ui {
         }));
 
         let state_ref = self.shell.borrow().state.clone();
+        let file_browser_ref = self.file_browser.clone();
         let plug_manager_ref = self.plug_manager.clone();
         shell.set_nvim_started_cb(Some(move || {
             let state = state_ref.borrow();
             plug_manager_ref
                 .borrow_mut()
                 .init_nvim_client(state_ref.borrow().nvim_clone());
+            file_browser_ref.borrow_mut().init(&state);
             state.set_autocmds();
             state.run_now(&update_title);
             if let Some(ref update_subtitle) = update_subtitle {
@@ -298,6 +338,10 @@ impl Ui {
         menu.append_section(None, &section);
 
         let section = Menu::new();
+        section.append_item(&MenuItem::new("Sidebar", "app.show-sidebar"));
+        menu.append_section(None, &section);
+
+        let section = Menu::new();
         section.append_item(&MenuItem::new("Plugins", "app.Plugins"));
         section.append_item(&MenuItem::new("About", "app.HelpAbout"));
         menu.append_section(None, &section);
@@ -353,11 +397,18 @@ fn gtk_delete(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
     })
 }
 
-fn gtk_window_size_allocate(app_window: &gtk::ApplicationWindow, comps: &mut Components) {
+fn gtk_window_size_allocate(
+    app_window: &gtk::ApplicationWindow,
+    comps: &mut Components,
+    main: &Paned,
+) {
     if !app_window.is_maximized() {
         let (current_width, current_height) = app_window.get_size();
         comps.window_state.current_width = current_width;
         comps.window_state.current_height = current_height;
+    }
+    if comps.window_state.show_sidebar {
+        comps.window_state.sidebar_width = main.get_position();
     }
 }
 
@@ -372,6 +423,8 @@ struct WindowState {
     current_width: i32,
     current_height: i32,
     is_maximized: bool,
+    show_sidebar: bool,
+    sidebar_width: i32,
 }
 
 impl WindowState {
@@ -380,6 +433,8 @@ impl WindowState {
             current_width: DEFAULT_WIDTH,
             current_height: DEFAULT_HEIGHT,
             is_maximized: false,
+            show_sidebar: false,
+            sidebar_width: DEFAULT_SIDEBAR_WIDTH,
         }
     }
 }
