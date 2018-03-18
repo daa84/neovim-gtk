@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use neovim_lib::NeovimApi;
+use neovim_lib::{NeovimApi, NeovimApiAsync};
 
 use nvim::{NeovimClient, ErrorReport, NeovimRef};
 use value::ValueMapExt;
@@ -84,7 +84,9 @@ impl Manager {
 
     pub fn reload(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("source {}", path)).report_err();
+            nvim.command_async(&format!("source {}", path))
+                .cb(|r| r.report_err())
+                .call()
         }
     }
 }

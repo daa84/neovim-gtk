@@ -10,7 +10,7 @@ use glib::signal;
 
 use pango;
 
-use neovim_lib::NeovimApi;
+use neovim_lib::{NeovimApi, NeovimApiAsync};
 use neovim_lib::neovim_api::Tabpage;
 
 use nvim;
@@ -42,7 +42,9 @@ impl State {
 
     fn close_tab(&self, idx: u32) {
         if let Some(mut nvim) = self.nvim.as_ref().unwrap().nvim() {
-            nvim.command(&format!(":tabc {}", idx + 1)).report_err();
+            nvim.command_async(&format!(":tabc {}", idx + 1))
+                .cb(|r| r.report_err())
+                .call();
         }
     }
 }

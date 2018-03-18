@@ -13,7 +13,7 @@ use gtk;
 use gtk::MenuExt;
 use gtk::prelude::*;
 
-use neovim_lib::NeovimApi;
+use neovim_lib::{NeovimApi, NeovimApiAsync};
 
 use nvim::{ErrorReport, NeovimClient, NeovimRef};
 use shell;
@@ -235,9 +235,9 @@ impl FileBrowserWidget {
     fn connect_events(&self) {
         // Open file / go to dir, when user clicks on an entry.
         let store = &self.store;
+        let state_ref = &self.state;
         let nvim_ref = self.nvim.as_ref().unwrap();
-        self.tree.connect_row_activated(clone!(store, nvim_ref => move |tree, path, _| {
-            let mut nvim = nvim_ref.nvim().unwrap();
+        self.tree.connect_row_activated(clone!(store, state_ref, nvim_ref => move |tree, path, _| {
             let iter = store.get_iter(path).unwrap();
             let file_type = store
                 .get_value(&iter, Column::FileType as i32)
@@ -256,19 +256,20 @@ impl FileBrowserWidget {
                 }
             } else {
                 // FileType::File
-                if let Some(dir) = get_current_dir(&mut nvim) {
-                    let dir = Path::new(&dir);
-                    let file_path = if let Some(rel_path) = Path::new(&file_path)
-                        .strip_prefix(&dir)
-                        .ok()
-                        .and_then(|p| p.to_str())
-                    {
-                        rel_path
-                    } else {
-                        &file_path
-                    };
-                    nvim.command(&format!(":e {}", file_path)).report_err();
-                }
+                let cwd = &state_ref.borrow().current_dir;
+                let cwd = Path::new(cwd);
+                let file_path = if let Some(rel_path) = Path::new(&file_path)
+                    .strip_prefix(&cwd)
+                    .ok()
+                    .and_then(|p| p.to_str())
+                {
+                    rel_path
+                } else {
+                    &file_path
+                };
+                nvim_ref.nvim().unwrap().command_async(&format!(":e {}", file_path))
+                    .cb(|r| r.report_err())
+                    .call();
             }
         }));
 

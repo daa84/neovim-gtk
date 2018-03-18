@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use neovim_lib::{NeovimApi, Value};
+use neovim_lib::{NeovimApi, NeovimApiAsync, Value};
 
-use nvim::NeovimRef;
+use nvim::{ErrorReport, NeovimRef};
 
 /// A subscription to a Neovim autocmd event.
 struct Subscription {
@@ -93,12 +93,11 @@ impl Subscriptions {
                     .args
                     .iter()
                     .fold("".to_owned(), |acc, arg| acc + ", " + &arg);
-                nvim.command(&format!(
+                nvim.command_async(&format!(
                     "au {} * call rpcnotify(1, 'subscription', '{}', {} {})",
                     event_name, event_name, i, args,
-                )).unwrap_or_else(|err| {
-                    error!("Could not set autocmd: {}", err);
-                });
+                )).cb(|r| r.report_err())
+                    .call();
             }
         }
     }

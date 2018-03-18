@@ -184,13 +184,17 @@ impl State {
 
     pub fn open_file(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("e {}", path)).report_err();
+            nvim.command_async(&format!("e {}", path))
+                .cb(|r| r.report_err())
+                .call();
         }
     }
 
     pub fn cd(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("cd {}", path)).report_err();
+            nvim.command_async(&format!("cd {}", path))
+                .cb(|r| r.report_err())
+                .call();
         }
     }
 
@@ -600,7 +604,7 @@ impl Shell {
 
         let nvim = state.nvim();
         if let Some(mut nvim) = nvim {
-            nvim.command(":wa").report_err();
+            nvim.command_async(":wa").cb(|r| r.report_err()).call();
         }
     }
 
@@ -609,7 +613,7 @@ impl Shell {
 
         let nvim = state.nvim();
         if let Some(mut nvim) = nvim {
-            nvim.command(":tabe").report_err();
+            nvim.command_async(":tabe").cb(|r| r.report_err()).call();
         }
     }
 
