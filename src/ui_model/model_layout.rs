@@ -65,6 +65,14 @@ impl ModelLayout {
 
         if shift {
             //TODO: insert special char
+            if self.cols_filled + 1 >= self.model.columns {
+                let rows_filled = self.rows_filled + 1;
+
+                self.check_model_size(rows_filled);
+                self.model.move_down();
+
+                self.rows_filled = rows_filled;
+            }
         } else {
             self.model.put(c.chars().next().unwrap(), false, None);
         }
