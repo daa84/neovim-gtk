@@ -15,6 +15,7 @@ use gtk::prelude::*;
 
 use neovim_lib::{NeovimApi, NeovimApiAsync};
 
+use misc::escape_filename;
 use nvim::{ErrorReport, NeovimClient, NeovimRef};
 use shell;
 
@@ -267,6 +268,7 @@ impl FileBrowserWidget {
                 } else {
                     &file_path
                 };
+                let file_path = escape_filename(file_path);
                 nvim_ref.nvim().unwrap().command_async(&format!(":e {}", file_path))
                     .cb(|r| r.report_err())
                     .call();

@@ -11,13 +11,17 @@ extern crate gtk;
 extern crate gtk_sys;
 extern crate htmlescape;
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate log;
 extern crate neovim_lib;
 extern crate pango;
 extern crate pango_cairo_sys;
 extern crate pango_sys;
 extern crate pangocairo;
+extern crate percent_encoding;
 extern crate phf;
+extern crate regex;
 
 extern crate serde;
 #[macro_use]
@@ -50,6 +54,7 @@ mod tabline;
 mod error;
 mod file_browser;
 mod subscriptions;
+mod misc;
 
 use std::env;
 use std::time::Duration;
@@ -58,6 +63,7 @@ use gio::prelude::*;
 
 use ui::Ui;
 
+use misc::escape_filename;
 use shell::ShellOptions;
 
 const BIN_PATH_ARG: &str = "--nvim-bin-path";
@@ -101,7 +107,9 @@ fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
     for f in files {
         let mut ui = Ui::new(ShellOptions::new(
             nvim_bin_path(std::env::args()),
-            f.get_path().and_then(|p| p.to_str().map(str::to_owned)),
+            f.get_path().and_then(|p| {
+                p.to_str().map(|path| escape_filename(path).to_string())
+            }),
             nvim_timeout(std::env::args()),
         ));
 

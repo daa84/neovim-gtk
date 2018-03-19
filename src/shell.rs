@@ -18,6 +18,7 @@ use pangocairo;
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 use neovim_lib::neovim_api::Tabpage;
 
+use misc::{decode_uri, escape_filename};
 use settings::{FontSource, Settings};
 use ui_model::{Attrs, ModelRect, UiModel};
 use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
@@ -567,6 +568,28 @@ impl Shell {
         state.drawing_area.connect_size_allocate(move |_, _| {
             init_nvim(&ref_state);
         });
+
+        let ref_state = self.state.clone();
+        let targets = vec![
+            gtk::TargetEntry::new("text/uri-list", gtk::TargetFlags::OTHER_APP, 0),
+        ];
+        state
+            .drawing_area
+            .drag_dest_set(gtk::DestDefaults::ALL, &targets, gdk::DragAction::COPY);
+        state
+            .drawing_area
+            .connect_drag_data_received(move |_, _, _, _, s, _, _| {
+                let uris = s.get_uris();
+                let command = uris.iter()
+                    .filter_map(|uri| decode_uri(uri))
+                    .fold(":ar".to_owned(), |command, filename| {
+                        let filename = escape_filename(&filename);
+                        command + " " + &filename
+                    });
+                let state = ref_state.borrow_mut();
+                let mut nvim = state.nvim().unwrap();
+                nvim.command_async(&command).cb(|r| r.report_err()).call()
+            });
     }
 
     #[cfg(unix)]
