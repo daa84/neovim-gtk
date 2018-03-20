@@ -20,8 +20,9 @@ use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 
-use neovim_lib::{Neovim, NeovimApi, Session, UiAttachOptions};
+use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Session, UiAttachOptions};
 
+use misc::escape_filename;
 use ui::UiMutex;
 use shell;
 use nvim_config::NvimConfig;
@@ -138,7 +139,7 @@ pub fn start(
 
 pub fn post_start_init(
     nvim: NeovimClientAsync,
-    open_path: Option<&String>,
+    open_paths: Vec<String>,
     cols: u64,
     rows: u64,
 ) -> result::Result<(), NvimInitError> {
@@ -154,11 +155,18 @@ pub fn post_start_init(
         .command("runtime! ginit.vim")
         .map_err(NvimInitError::new_post_init)?;
 
-    if let Some(path) = open_path {
+    if !open_paths.is_empty() {
+        let command = open_paths
+            .iter()
+            .fold(":ar".to_owned(), |command, filename| {
+                let filename = escape_filename(filename);
+                command + " " + &filename
+            });
         nvim.borrow()
             .unwrap()
-            .command(&format!("e {}", path))
-            .map_err(NvimInitError::new_post_init)?;
+            .command_async(&command)
+            .cb(|r| r.report_err())
+            .call();
     }
 
     Ok(())

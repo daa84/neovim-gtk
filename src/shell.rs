@@ -382,19 +382,19 @@ impl UiState {
 #[derive(Clone)]
 pub struct ShellOptions {
     nvim_bin_path: Option<String>,
-    open_path: Option<String>,
+    open_paths: Vec<String>,
     timeout: Option<Duration>,
 }
 
 impl ShellOptions {
     pub fn new(
         nvim_bin_path: Option<String>,
-        open_path: Option<String>,
+        open_paths: Vec<String>,
         timeout: Option<Duration>,
     ) -> Self {
         ShellOptions {
             nvim_bin_path,
-            open_path,
+            open_paths,
             timeout,
         }
     }
@@ -580,12 +580,13 @@ impl Shell {
             .drawing_area
             .connect_drag_data_received(move |_, _, _, _, s, _, _| {
                 let uris = s.get_uris();
-                let command = uris.iter()
-                    .filter_map(|uri| decode_uri(uri))
-                    .fold(":ar".to_owned(), |command, filename| {
+                let command = uris.iter().filter_map(|uri| decode_uri(uri)).fold(
+                    ":ar".to_owned(),
+                    |command, filename| {
                         let filename = escape_filename(&filename);
                         command + " " + &filename
-                    });
+                    },
+                );
                 let state = ref_state.borrow_mut();
                 let mut nvim = state.nvim().unwrap();
                 nvim.command_async(&command).cb(|r| r.report_err()).call()
@@ -884,9 +885,7 @@ fn init_nvim_async(
     });
 
     // attach ui
-    if let Err(err) =
-        nvim::post_start_init(nvim, options.open_path.as_ref(), cols as u64, rows as u64)
-    {
+    if let Err(err) = nvim::post_start_init(nvim, options.open_paths, cols as u64, rows as u64) {
         show_nvim_init_error(&err, state_arc.clone());
     } else {
         set_nvim_initialized(state_arc);
