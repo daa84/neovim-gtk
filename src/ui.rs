@@ -197,10 +197,10 @@ impl Ui {
         }));
 
         let comps_ref = self.comps.clone();
-        window.connect_window_state_event(move |_, event| {
-            gtk_window_state_event(event, &mut *comps_ref.borrow_mut());
+        window.connect_window_state_event(clone!(window => move |_, event| {
+            gtk_window_state_event(event, &mut *comps_ref.borrow_mut(), &window);
             Inhibit(false)
-        });
+        }));
 
         let comps_ref = self.comps.clone();
         window.connect_destroy(move |_| {
@@ -412,10 +412,21 @@ fn gtk_window_size_allocate(
     }
 }
 
-fn gtk_window_state_event(event: &gdk::EventWindowState, comps: &mut Components) {
-    comps.window_state.is_maximized = event
+fn gtk_window_state_event(
+    event: &gdk::EventWindowState,
+    comps: &mut Components,
+    window: &gtk::ApplicationWindow,
+) {
+    let is_maximized = event
         .get_new_window_state()
         .contains(gdk::WindowState::MAXIMIZED);
+    if !is_maximized && comps.window_state.is_maximized {
+        window.resize(
+            comps.window_state.current_width,
+            comps.window_state.current_height,
+        );
+    }
+    comps.window_state.is_maximized = is_maximized;
 }
 
 #[derive(Serialize, Deserialize)]
