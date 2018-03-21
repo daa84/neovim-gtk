@@ -63,7 +63,6 @@ use gio::prelude::*;
 
 use ui::Ui;
 
-use misc::escape_filename;
 use shell::ShellOptions;
 
 const BIN_PATH_ARG: &str = "--nvim-bin-path";
@@ -104,23 +103,23 @@ fn main() {
 }
 
 fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
-    for f in files {
-        let mut ui = Ui::new(ShellOptions::new(
-            nvim_bin_path(std::env::args()),
-            f.get_path().and_then(|p| {
-                p.to_str().map(|path| escape_filename(path).to_string())
-            }),
-            nvim_timeout(std::env::args()),
-        ));
+    let files_list: Vec<String> = files
+        .into_iter()
+        .filter_map(|f| f.get_path()?.to_str().map(str::to_owned))
+        .collect();
+    let mut ui = Ui::new(ShellOptions::new(
+        nvim_bin_path(std::env::args()),
+        files_list,
+        nvim_timeout(std::env::args()),
+    ));
 
-        ui.init(app, !nvim_disable_win_state(std::env::args()));
-    }
+    ui.init(app, !nvim_disable_win_state(std::env::args()));
 }
 
 fn activate(app: &gtk::Application) {
     let mut ui = Ui::new(ShellOptions::new(
         nvim_bin_path(std::env::args()),
-        None,
+        Vec::new(),
         nvim_timeout(std::env::args()),
     ));
 
