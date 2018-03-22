@@ -28,13 +28,13 @@ impl Level {
     //TODO: im
 
     pub fn insert(&mut self, c: &str, shift: bool, render_state: &shell::RenderState) {
-        self.model_layout.insert(c, shift);
+        self.model_layout.insert_char(c, shift);
         self.update_preferred_size(render_state);
     }
 
     pub fn replace_from_ctx(&mut self, ctx: &CmdLineContext, render_state: &shell::RenderState) {
         let content = ctx.get_lines();
-        self.replace_line(&content.lines, false);
+        self.replace_line(content.lines, false);
         self.prompt_offset = content.prompt_offset;
         self.model_layout
             .set_cursor(self.prompt_offset + ctx.pos as usize);
@@ -43,7 +43,7 @@ impl Level {
 
     pub fn from_ctx(ctx: &CmdLineContext, render_state: &shell::RenderState) -> Self {
         let content = ctx.get_lines();
-        let mut level = Level::from_lines(&content.lines, ctx.max_width, render_state);
+        let mut level = Level::from_lines(content.lines, ctx.max_width, render_state);
 
         level.prompt_offset = content.prompt_offset;
         level
@@ -54,7 +54,7 @@ impl Level {
         level
     }
 
-    fn replace_line(&mut self, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>, append: bool) {
+    fn replace_line(&mut self, lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>, append: bool) {
         if append {
             self.model_layout.layout_append(lines);
         } else {
@@ -96,14 +96,14 @@ impl Level {
         render_state: &shell::RenderState,
     ) -> Self {
         Level::from_lines(
-            &Level::to_attributed_content(content),
+            Level::to_attributed_content(content),
             max_width,
             render_state,
         )
     }
 
     pub fn from_lines(
-        lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>,
+        lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>,
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
@@ -382,7 +382,7 @@ impl CmdLine {
                 .collect();
 
             let block = state.block.as_mut().unwrap();
-            block.replace_line(&vec![attr_content], true);
+            block.replace_line(vec![attr_content], true);
             block.update_preferred_size(&*render_state.borrow());
             block.update_cache(&*render_state.borrow());
         }

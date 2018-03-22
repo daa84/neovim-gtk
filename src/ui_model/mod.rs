@@ -174,15 +174,6 @@ impl UiModel {
         ModelRect::new(top as usize, bot as usize, left, right)
     }
 
-    /// Move down all lines except first one
-    pub fn move_down(&mut self) {
-        let right = self.columns + 1;
-
-        for row in (1..self.rows + 1).rev() {
-            self.copy_row(row as i64, 1, 0, right);
-        }
-    }
-
     pub fn clear(&mut self) {
         let (rows, columns) = (self.rows, self.columns);
         self.clear_region(0, rows - 1, 0, columns - 1);

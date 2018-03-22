@@ -6,6 +6,7 @@ pub struct ModelLayout {
     pub model: UiModel,
     rows_filled: usize,
     cols_filled: usize,
+    lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>,
 }
 
 impl ModelLayout {
@@ -16,16 +17,22 @@ impl ModelLayout {
             model: UiModel::new(ModelLayout::ROWS_STEP as u64, columns),
             rows_filled: 0,
             cols_filled: 0,
+            lines: Vec::new(),
         }
     }
 
-    pub fn layout_append(&mut self, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
+    pub fn layout_append(&mut self, mut lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
         let rows_filled = self.rows_filled;
-        self.layout_replace(rows_filled, lines);
+        let take_from = self.lines.len();
+
+        self.lines.append(&mut lines);
+
+        self.layout_replace(rows_filled, take_from);
     }
 
-    pub fn layout(&mut self, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
-        self.layout_replace(0, lines);
+    pub fn layout(&mut self, lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
+        self.lines = lines;
+        self.layout_replace(0, 0);
     }
 
     pub fn set_cursor(&mut self, col: usize) {
@@ -58,34 +65,50 @@ impl ModelLayout {
         }
     }
 
-    pub fn insert(&mut self, c: &str, shift: bool) {
+    pub fn insert_char(&mut self, c: &str, shift: bool) {
         if c.is_empty() {
             return;
         }
 
+        let ch = c.chars().next().unwrap();
+        let (row, col) = self.model.get_cursor();
+
         if shift {
-            //TODO: insert special char
-            if self.cols_filled + 1 >= self.model.columns {
-                let rows_filled = self.rows_filled + 1;
-
-                self.check_model_size(rows_filled);
-                self.model.move_down();
-
-                self.rows_filled = rows_filled;
-            }
+            self.insert_into_lines(ch);
+            self.layout_replace(0, 0);
         } else {
-            self.model.put(c.chars().next().unwrap(), false, None);
+            self.model.put(ch, false, None);
+        }
+
+        self.model.set_cursor(row, col);
+    }
+
+    fn insert_into_lines(&mut self, ch: char) {
+        let line = &mut self.lines[0];
+
+        let cur_col = self.model.cur_col;
+
+        let mut col_idx = 0;
+        for &mut (_, ref mut chars) in line {
+            if cur_col < col_idx + chars.len() {
+                let col_sub_idx = cur_col - col_idx;
+                chars.insert(col_sub_idx, ch);
+            } else {
+                col_idx += chars.len();
+            }
         }
     }
 
     /// Wrap all lines into model
     ///
     /// returns actual width
-    fn layout_replace(&mut self, row_offset: usize, lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
-        let rows = ModelLayout::count_lines(&lines, self.model.columns);
+    fn layout_replace(&mut self, row_offset: usize, take_from: usize) {
+        let rows = ModelLayout::count_lines(&self.lines[take_from..], self.model.columns);
 
         self.check_model_size(rows + row_offset);
         self.rows_filled = rows + row_offset;
+
+        let lines = &self.lines[take_from..];
 
         let mut max_col_idx = 0;
         let mut col_idx = 0;
@@ -122,7 +145,7 @@ impl ModelLayout {
         }
     }
 
-    fn count_lines(lines: &Vec<Vec<(Option<Attrs>, Vec<char>)>>, max_columns: usize) -> usize {
+    fn count_lines(lines: &[Vec<(Option<Attrs>, Vec<char>)>], max_columns: usize) -> usize {
         let mut row_count = 0;
 
         for line in lines {
@@ -151,12 +174,12 @@ mod tests {
         let lines = vec![vec![(None, vec!['a'; 5])]; ModelLayout::ROWS_STEP];
         let mut model = ModelLayout::new(5);
 
-        model.layout(&lines);
+        model.layout(lines.clone());
         let (cols, rows) = model.size();
         assert_eq!(5, cols);
         assert_eq!(ModelLayout::ROWS_STEP, rows);
 
-        model.layout_append(&lines);
+        model.layout_append(lines);
         let (cols, rows) = model.size();
         assert_eq!(5, cols);
         assert_eq!(ModelLayout::ROWS_STEP * 2, rows);
@@ -168,14 +191,42 @@ mod tests {
         let lines = vec![vec![(None, vec!['a'; 3])]; 1];
         let mut model = ModelLayout::new(5);
 
-        model.layout(&lines);
+        model.layout(lines);
         let (cols, _) = model.size();
         assert_eq!(4, cols); // size is 3 and 4 - is with cursor position
 
         let lines = vec![vec![(None, vec!['a'; 2])]; 1];
 
-        model.layout_append(&lines);
+        model.layout_append(lines);
         let (cols, _) = model.size();
         assert_eq!(3, cols);
+    }
+
+    #[test]
+    fn test_insert_shift() {
+        let lines = vec![vec![(None, vec!['a'; 3])]; 1];
+        let mut model = ModelLayout::new(5);
+        model.layout(lines);
+        model.set_cursor(1);
+
+        model.insert_char("b", true);
+
+        let (cols, _) = model.size();
+        assert_eq!(4, cols);
+        assert_eq!('b', model.model.model()[0].line[1].ch);
+    }
+
+    #[test]
+    fn test_insert_no_shift() {
+        let lines = vec![vec![(None, vec!['a'; 3])]; 1];
+        let mut model = ModelLayout::new(5);
+        model.layout(lines);
+        model.set_cursor(1);
+
+        model.insert_char("b", false);
+
+        let (cols, _) = model.size();
+        assert_eq!(3, cols);
+        assert_eq!('b', model.model.model()[0].line[1].ch);
     }
 }
