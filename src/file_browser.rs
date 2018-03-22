@@ -337,8 +337,11 @@ impl FileBrowserWidget {
 fn cmp_dirs_first(lhs: &DirEntry, rhs: &DirEntry) -> io::Result<Ordering> {
     let lhs_metadata = fs::metadata(lhs.path())?;
     let rhs_metadata = fs::metadata(rhs.path())?;
-    if lhs_metadata.file_type() == rhs_metadata.file_type() {
-        Ok(lhs.path().cmp(&rhs.path()))
+    if lhs_metadata.is_dir() == rhs_metadata.is_dir() {
+        Ok(lhs.path()
+            .to_string_lossy()
+            .to_lowercase()
+            .cmp(&rhs.path().to_string_lossy().to_lowercase()))
     } else {
         if lhs_metadata.is_dir() {
             Ok(Ordering::Less)
