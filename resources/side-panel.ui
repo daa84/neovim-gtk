@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.20.4 -->
+<interface>
+  <requires lib="gtk+" version="3.8"/>
+  <object class="GtkTreeStore" id="dir_list_model">
+    <columns>
+      <!-- column-name dir_name -->
+      <column type="gchararray"/>
+      <!-- column-name icon_name -->
+      <column type="gchararray"/>
+      <!-- column-name path -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkMenu" id="file_browser_context_menu">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="action_name">filebrowser.cd</property>
+        <property name="label" translatable="yes">Go To Directory</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="action_name">filebrowser.reload</property>
+        <property name="label" translatable="yes">Reload</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkCheckMenuItem" id="file_browser_show_hidden_checkbox">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="label">Show Hidden Files</property>
+      </object>
+    </child>
+  </object>
+  <object class="GtkTreeStore" id="file_browser_tree_store">
+    <columns>
+      <!-- column-name filename -->
+      <column type="gchararray"/>
+      <!-- column-name path -->
+      <column type="gchararray"/>
+      <!-- column-name file_type -->
+      <column type="guchar"/>
+      <!-- column-name icon_name -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkBox" id="file_browser">
+    <property name="width_request">150</property>
+    <property name="can_focus">False</property>
+    <property name="orientation">vertical</property>
+    <child>
+      <object class="GtkComboBox" id="dir_list">
+        <property name="can_focus">False</property>
+        <property name="focus_on_click">False</property>
+        <property name="border_width">6</property>
+        <property name="model">dir_list_model</property>
+        <property name="wrap_width">1</property>
+        <child>
+          <object class="GtkCellRendererPixbuf">
+            <property name="xpad">6</property>
+          </object>
+          <attributes>
+            <attribute name="icon-name">1</attribute>
+          </attributes>
+        </child>
+        <child>
+          <object class="GtkCellRendererText">
+            <property name="xpad">6</property>
+            <property name="ellipsize">end</property>
+          </object>
+          <attributes>
+            <attribute name="text">0</attribute>
+          </attributes>
+        </child>
+      </object>
+      <packing>
+        <property name="expand">False</property>
+        <property name="fill">True</property>
+        <property name="position">0</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkScrolledWindow">
+        <property name="can_focus">False</property>
+        <child>
+          <object class="GtkTreeView" id="file_browser_tree_view">
+            <property name="can_focus">False</property>
+            <property name="model">file_browser_tree_store</property>
+            <property name="headers_visible">False</property>
+            <property name="show_expanders">False</property>
+            <property name="level_indentation">20</property>
+            <property name="activate_on_single_click">True</property>
+            <child internal-child="selection">
+              <object class="GtkTreeSelection"/>
+            </child>
+            <child>
+              <object class="GtkTreeViewColumn">
+                <property name="sizing">autosize</property>
+                <child>
+                  <object class="GtkCellRendererPixbuf">
+                    <property name="xpad">6</property>
+                  </object>
+                  <attributes>
+                    <attribute name="icon-name">3</attribute>
+                  </attributes>
+                </child>
+                <child>
+                  <object class="GtkCellRendererText"/>
+                  <attributes>
+                    <attribute name="text">0</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+      <packing>
+        <property name="expand">True</property>
+        <property name="fill">True</property>
+        <property name="position">1</property>
+      </packing>
+    </child>
+    <style>
+      <class name="view"/>
+    </style>
+  </object>
+</interface>

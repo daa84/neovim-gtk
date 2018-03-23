@@ -19,6 +19,7 @@ use pangocairo;
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 use neovim_lib::neovim_api::Tabpage;
 
+use misc::{decode_uri, escape_filename};
 use settings::{FontSource, Settings};
 use ui_model::{Attrs, ModelRect, UiModel};
 use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
@@ -35,6 +36,7 @@ use error;
 use mode;
 use render;
 use render::CellMetrics;
+use subscriptions::{SubscriptionHandle, Subscriptions};
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2.2";
@@ -96,6 +98,8 @@ pub struct State {
 
     detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
     nvim_started_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
+
+    subscriptions: RefCell<Subscriptions>,
 }
 
 impl State {
@@ -135,6 +139,8 @@ impl State {
 
             detach_cb: None,
             nvim_started_cb: None,
+
+            subscriptions: RefCell::new(Subscriptions::new()),
         }
     }
 
@@ -197,13 +203,17 @@ impl State {
 
     pub fn open_file(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("e {}", path)).report_err();
+            nvim.command_async(&format!("e {}", path))
+                .cb(|r| r.report_err())
+                .call();
         }
     }
 
     pub fn cd(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
-            nvim.command(&format!("cd {}", path)).report_err();
+            nvim.command_async(&format!("cd {}", path))
+                .cb(|r| r.report_err())
+                .call();
         }
     }
 
@@ -360,6 +370,31 @@ impl State {
     fn max_popup_width(&self) -> i32 {
         self.drawing_area.get_allocated_width() - 20
     }
+
+    pub fn subscribe<F>(&self, event_name: &str, args: &[&str], cb: F) -> SubscriptionHandle
+    where
+        F: Fn(Vec<String>) + 'static,
+    {
+        self.subscriptions
+            .borrow_mut()
+            .subscribe(event_name, args, cb)
+    }
+
+    pub fn set_autocmds(&self) {
+        self.subscriptions
+            .borrow()
+            .set_autocmds(&mut self.nvim().unwrap());
+    }
+
+    pub fn notify(&self, params: Vec<Value>) -> Result<(), String> {
+        self.subscriptions.borrow().notify(params)
+    }
+
+    pub fn run_now(&self, handle: &SubscriptionHandle) {
+        self.subscriptions
+            .borrow()
+            .run_now(handle, &mut self.nvim().unwrap());
+    }
 }
 
 pub struct UiState {
@@ -379,19 +414,19 @@ impl UiState {
 #[derive(Clone)]
 pub struct ShellOptions {
     nvim_bin_path: Option<String>,
-    open_path: Option<String>,
+    open_paths: Vec<String>,
     timeout: Option<Duration>,
 }
 
 impl ShellOptions {
     pub fn new(
         nvim_bin_path: Option<String>,
-        open_path: Option<String>,
+        open_paths: Vec<String>,
         timeout: Option<Duration>,
     ) -> Self {
         ShellOptions {
             nvim_bin_path,
-            open_path,
+            open_paths,
             timeout,
         }
     }
@@ -565,6 +600,29 @@ impl Shell {
         state.drawing_area.connect_size_allocate(move |_, _| {
             init_nvim(&ref_state);
         });
+
+        let ref_state = self.state.clone();
+        let targets = vec![
+            gtk::TargetEntry::new("text/uri-list", gtk::TargetFlags::OTHER_APP, 0),
+        ];
+        state
+            .drawing_area
+            .drag_dest_set(gtk::DestDefaults::ALL, &targets, gdk::DragAction::COPY);
+        state
+            .drawing_area
+            .connect_drag_data_received(move |_, _, _, _, s, _, _| {
+                let uris = s.get_uris();
+                let command = uris.iter().filter_map(|uri| decode_uri(uri)).fold(
+                    ":ar".to_owned(),
+                    |command, filename| {
+                        let filename = escape_filename(&filename);
+                        command + " " + &filename
+                    },
+                );
+                let state = ref_state.borrow_mut();
+                let mut nvim = state.nvim().unwrap();
+                nvim.command_async(&command).cb(|r| r.report_err()).call()
+            });
     }
 
     #[cfg(unix)]
@@ -602,7 +660,16 @@ impl Shell {
 
         let nvim = state.nvim();
         if let Some(mut nvim) = nvim {
-            nvim.command(":wa").report_err();
+            nvim.command_async(":wa").cb(|r| r.report_err()).call();
+        }
+    }
+
+    pub fn new_tab(&self) {
+        let state = self.state.borrow();
+
+        let nvim = state.nvim();
+        if let Some(mut nvim) = nvim {
+            nvim.command_async(":tabe").cb(|r| r.report_err()).call();
         }
     }
 
@@ -852,9 +919,7 @@ fn init_nvim_async(
     });
 
     // attach ui
-    if let Err(err) =
-        nvim::post_start_init(nvim, options.open_path.as_ref(), cols as u64, rows as u64)
-    {
+    if let Err(err) = nvim::post_start_init(nvim, options.open_paths, cols as u64, rows as u64) {
         show_nvim_init_error(&err, state_arc.clone());
     } else {
         set_nvim_initialized(state_arc);

@@ -83,6 +83,12 @@ impl NvimHandler {
                     error!("Unsupported event {:?}", params);
                 }
             }
+            "subscription" => {
+                self.safe_call(move |ui| {
+                    let ui = &ui.borrow();
+                    ui.notify(params)
+                });
+            }
             _ => {
                 error!("Notification {}({:?})", method, params);
             }
@@ -130,7 +136,7 @@ impl NvimHandler {
             }
         }
     }
- 
+
     fn safe_call<F>(&self, cb: F)
     where
         F: FnOnce(&Arc<UiMutex<shell::State>>) -> result::Result<(), String> + 'static + Send,
