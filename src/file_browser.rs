@@ -180,7 +180,9 @@ impl FileBrowserWidget {
         cd_action.connect_activate(clone!(state_ref, nvim_ref => move |_, _| {
             let mut nvim = nvim_ref.nvim().unwrap();
             if let Some(ref path) = state_ref.borrow().selected_path {
-                nvim.set_current_dir(&path).report_err();
+                nvim.set_current_dir_async(&path)
+                    .cb(|r| r.report_err())
+                    .call();
             }
         }));
         actions.add_action(cd_action);
@@ -282,7 +284,9 @@ impl FileBrowserWidget {
                 if let Some(dir) = model.get_value(&iter, 2).get::<&str>() {
                     if dir != state_ref.borrow().current_dir {
                         let mut nvim = nvim_ref.nvim().unwrap();
-                        nvim.set_current_dir(dir).report_err();
+                        nvim.set_current_dir_async(dir)
+                            .cb(|r| r.report_err())
+                            .call();
                     }
                 }
             }
