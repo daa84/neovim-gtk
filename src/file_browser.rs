@@ -201,11 +201,10 @@ impl FileBrowserWidget {
             &["getcwd()"],
             clone!(store, state_ref, dir_list_model, dir_list => move |args| {
                 let dir = args.into_iter().next().unwrap();
-                let mut state = state_ref.borrow_mut();
-                if dir != *state.current_dir {
+                if dir != state_ref.borrow().current_dir {
+                    state_ref.borrow_mut().current_dir = dir.to_owned();
                     update_dir_list(&dir, &dir_list_model, &dir_list);
-                    state.current_dir = dir;
-                    tree_reload(&store, &state);
+                    tree_reload(&store, &state_ref.borrow());
                 }
             }),
         );
@@ -277,18 +276,18 @@ impl FileBrowserWidget {
 
         // Connect directory list.
         let nvim_ref = self.nvim.as_ref().unwrap();
-        self.comps.dir_list.connect_changed(clone!(nvim_ref => move |dir_list| {
+        self.comps.dir_list.connect_changed(clone!(nvim_ref, state_ref => move |dir_list| {
             if let Some(iter) = dir_list.get_active_iter() {
                 let model = dir_list.get_model().unwrap();
                 if let Some(dir) = model.get_value(&iter, 2).get::<&str>() {
-                    let mut nvim = nvim_ref.nvim().unwrap();
-                    nvim.set_current_dir(dir).report_err();
+                    if dir != state_ref.borrow().current_dir {
+                        let mut nvim = nvim_ref.nvim().unwrap();
+                        nvim.set_current_dir(dir).report_err();
+                    }
                 }
             }
         }));
 
-        let store = &self.store;
-        let state_ref = &self.state;
         let context_menu = &self.comps.context_menu;
         let cd_action = &self.comps.cd_action;
         self.tree.connect_button_press_event(
