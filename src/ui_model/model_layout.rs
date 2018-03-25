@@ -1,5 +1,7 @@
 use std::cmp::max;
 
+use unicode_width::UnicodeWidthChar;
+
 use ui_model::{Attrs, UiModel};
 
 pub struct ModelLayout {
@@ -116,19 +118,24 @@ impl ModelLayout {
         for content in lines {
             for &(ref attr, ref ch_list) in content {
                 for ch in ch_list {
-                    if col_idx >= self.model.columns {
+                    let ch_width = ch.width().unwrap_or(1);
+
+                    if col_idx + ch_width > self.model.columns {
                         col_idx = 0;
                         row_idx += 1;
                     }
 
                     self.model.set_cursor(row_idx, col_idx as usize);
                     self.model.put(*ch, false, attr.as_ref());
-
-                    if max_col_idx < col_idx {
-                        max_col_idx = col_idx;
+                    if ch_width > 1 {
+                        self.model.put(' ', true, attr.as_ref());
                     }
 
-                    col_idx += 1;
+                    if max_col_idx < col_idx {
+                        max_col_idx = col_idx + ch_width - 1;
+                    }
+
+                    col_idx += ch_width;
                 }
 
                 if col_idx < self.model.columns {
@@ -228,5 +235,17 @@ mod tests {
         let (cols, _) = model.size();
         assert_eq!(3, cols);
         assert_eq!('b', model.model.model()[0].line[1].ch);
+    }
+
+    #[test]
+    fn test_double_width() {
+        let lines = vec![vec![(None, vec!['あ'; 3])]; 1];
+        let mut model = ModelLayout::new(7);
+        model.layout(lines);
+        model.set_cursor(1);
+
+        let (cols, rows) = model.size();
+        assert_eq!(1, rows);
+        assert_eq!(6, cols);
     }
 }

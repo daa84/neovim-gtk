@@ -23,6 +23,7 @@ extern crate percent_encoding;
 extern crate phf;
 extern crate rmpv;
 extern crate regex;
+extern crate unicode_width;
 
 extern crate serde;
 #[macro_use]

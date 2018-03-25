@@ -24,7 +24,6 @@ pub struct Level {
 }
 
 impl Level {
-    //TODO: double width chars render, also note in text wrapping
     //TODO: im
 
     pub fn insert(&mut self, c: &str, shift: bool, render_state: &shell::RenderState) {
