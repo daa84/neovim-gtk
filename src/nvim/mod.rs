@@ -100,6 +100,11 @@ pub fn start(
         .arg("let g:GtkGuiLoaded = 1")
         .stderr(Stdio::inherit());
 
+    if cfg!(windows) {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
     if let Ok(runtime_path) = env::var("NVIM_GTK_RUNTIME_PATH") {
         cmd.arg("--cmd").arg(
             format!("let &rtp.=',{}'", runtime_path),
