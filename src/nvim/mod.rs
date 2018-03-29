@@ -80,7 +80,7 @@ impl error::Error for NvimInitError {
 }
 
 #[cfg(target_os = "windows")]
-fn set_windows_creation_flags() {
+fn set_windows_creation_flags(cmd: &mut Command) {
     use std::os::windows::process::CommandExt;
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 }
@@ -108,7 +108,7 @@ pub fn start(
         .stderr(Stdio::inherit());
 
     #[cfg(target_os = "windows")]
-    set_windows_creation_flags();
+    set_windows_creation_flags(&mut cmd);
 
     if let Ok(runtime_path) = env::var("NVIM_GTK_RUNTIME_PATH") {
         cmd.arg("--cmd").arg(
