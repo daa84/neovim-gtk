@@ -2,7 +2,7 @@ use std::result;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use neovim_lib::{Value, UiOption};
+use neovim_lib::{UiOption, Value};
 use neovim_lib::neovim_api::Tabpage;
 
 use ui::UiMutex;
@@ -158,9 +158,9 @@ macro_rules! call {
     ($s:ident -> $c:ident ($args:ident : $($arg_type:ident),+ )) => (
         {
             let mut iter = $args.into_iter();
-            $s.$c($( 
+            $s.$c($(
                 try_arg!(iter.next()
-                             .ok_or_else(|| format!("No such argument for {}", stringify!($c)))?, 
+                             .ok_or_else(|| format!("No such argument for {}", stringify!($c)))?,
                          $arg_type
                         )
             ),+ )
@@ -175,38 +175,34 @@ pub fn call_gui_event(
 ) -> result::Result<(), String> {
     match method {
         "Font" => ui.set_font(try_str!(args[0])),
-        "Clipboard" => {
-            match try_str!(args[0]) {
-                "Set" => {
-                    match try_str!(args[1]) {
-                        "*" => ui.clipboard_primary_set(try_str!(args[2])),
-                        _ => ui.clipboard_clipboard_set(try_str!(args[2])),
-                    }
-                },
-                opt => error!("Unknown option {}", opt),
-            }
+        "Clipboard" => match try_str!(args[0]) {
+            "Set" => match try_str!(args[1]) {
+                "*" => ui.clipboard_primary_set(try_str!(args[2])),
+                _ => ui.clipboard_clipboard_set(try_str!(args[2])),
+            },
+            opt => error!("Unknown option {}", opt),
         },
-        "Option" => {
-            match try_str!(args[0]) {
-                "Popupmenu" => {
-                    ui.nvim()
-                        .ok_or_else(|| "Nvim not initialized".to_owned())
-                        .and_then(|mut nvim| {
-                            nvim.set_option(UiOption::ExtPopupmenu(try_uint!(args[1]) == 1))
-                                .map_err(|e| e.to_string())
-                        })?
-                }
-                "Tabline" => {
-                    ui.nvim()
-                        .ok_or_else(|| "Nvim not initialized".to_owned())
-                        .and_then(|mut nvim| {
-                            nvim.set_option(UiOption::ExtTabline(try_uint!(args[1]) == 1))
-                                .map_err(|e| e.to_string())
-                        })?
-                }
-                opt => error!("Unknown option {}", opt),
-            }
-        }
+        "Option" => match try_str!(args[0]) {
+            "Popupmenu" => ui.nvim()
+                .ok_or_else(|| "Nvim not initialized".to_owned())
+                .and_then(|mut nvim| {
+                    nvim.set_option(UiOption::ExtPopupmenu(try_uint!(args[1]) == 1))
+                        .map_err(|e| e.to_string())
+                })?,
+            "Tabline" => ui.nvim()
+                .ok_or_else(|| "Nvim not initialized".to_owned())
+                .and_then(|mut nvim| {
+                    nvim.set_option(UiOption::ExtTabline(try_uint!(args[1]) == 1))
+                        .map_err(|e| e.to_string())
+                })?,
+            "Cmdline" => ui.nvim()
+                .ok_or_else(|| "Nvim not initialized".to_owned())
+                .and_then(|mut nvim| {
+                    nvim.set_option(UiOption::ExtCmdline(try_uint!(args[1]) == 1))
+                        .map_err(|e| e.to_string())
+                })?,
+            opt => error!("Unknown option {}", opt),
+        },
         _ => return Err(format!("Unsupported event {}({:?})", method, args)),
     }
     Ok(())
@@ -232,15 +228,19 @@ pub fn call_gui_request(
                         }
                     };
                     let t = clipboard.wait_for_text().unwrap_or_else(|| String::new());
-                    Ok(Value::Array(t.split("\n").map(|s| s.into()).collect::<Vec<Value>>()))
-                },
+                    Ok(Value::Array(
+                        t.split("\n").map(|s| s.into()).collect::<Vec<Value>>(),
+                    ))
+                }
                 opt => {
                     error!("Unknown option {}", opt);
                     Err(Value::Nil)
-                },
+                }
             }
-        },
-        _ => Err(Value::String(format!("Unsupported request {}({:?})", method, args).into())),
+        }
+        _ => Err(Value::String(
+            format!("Unsupported request {}({:?})", method, args).into(),
+        )),
     }
 }
 
@@ -273,11 +273,11 @@ pub fn call(
         "busy_start" => ui.on_busy(true),
         "busy_stop" => ui.on_busy(false),
         "popupmenu_show" => {
-            let menu_items = map_array!(args[0], "Error get menu list array", |item| {
-                map_array!(item, "Error get menu item array", |col| {
-                    col.as_str().ok_or("Error get menu column")
-                })
-            })?;
+            let menu_items = map_array!(args[0], "Error get menu list array", |item| map_array!(
+                item,
+                "Error get menu item array",
+                |col| col.as_str().ok_or("Error get menu column")
+            ))?;
 
             ui.popupmenu_show(
                 &CompleteItem::map(&menu_items),
@@ -294,9 +294,9 @@ pub fn call(
                     .ok_or_else(|| "Error get map for tab".to_owned())
                     .and_then(|tab_map| tab_map.to_attrs_map())
                     .map(|tab_attrs| {
-                        let name_attr = tab_attrs.get("name").and_then(
-                            |n| n.as_str().map(|s| s.to_owned()),
-                        );
+                        let name_attr = tab_attrs
+                            .get("name")
+                            .and_then(|n| n.as_str().map(|s| s.to_owned()));
                         let tab_attr = tab_attrs
                             .get("tab")
                             .map(|&tab_id| Tabpage::new(tab_id.clone()))
@@ -311,11 +311,9 @@ pub fn call(
             let mode_info = map_array!(
                 args[1],
                 "Error get array key value for mode_info".to_owned(),
-                |mi| {
-                    mi.as_map()
-                        .ok_or_else(|| "Erro get map for mode_info".to_owned())
-                        .and_then(|mi_map| ModeInfo::new(mi_map))
-                }
+                |mi| mi.as_map()
+                    .ok_or_else(|| "Erro get map for mode_info".to_owned())
+                    .and_then(|mi_map| ModeInfo::new(mi_map))
             )?;
             ui.mode_info_set(try_bool!(args[0]), mode_info)
         }
@@ -345,13 +343,11 @@ pub struct CompleteItem<'a> {
 impl<'a> CompleteItem<'a> {
     fn map(menu: &'a [Vec<&str>]) -> Vec<Self> {
         menu.iter()
-            .map(|menu| {
-                CompleteItem {
-                    word: menu[0],
-                    kind: menu[1],
-                    menu: menu[2],
-                    info: menu[3],
-                }
+            .map(|menu| CompleteItem {
+                word: menu[0],
+                kind: menu[1],
+                menu: menu[2],
+                info: menu[3],
             })
             .collect()
     }

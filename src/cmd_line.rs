@@ -24,8 +24,6 @@ pub struct Level {
 }
 
 impl Level {
-    //TODO: im
-
     pub fn insert(&mut self, c: &str, shift: bool, render_state: &shell::RenderState) {
         self.model_layout.insert_char(c, shift);
         self.update_preferred_size(render_state);
@@ -428,7 +426,6 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
     }
 
     if let Some(level) = level {
-        //TODO: limit model to row filled
         render::render(
             ctx,
             state.cursor.as_ref().unwrap(),

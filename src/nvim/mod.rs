@@ -1,4 +1,3 @@
-
 mod client;
 mod handler;
 mod mode_info;
@@ -6,16 +5,16 @@ mod redraw_handler;
 mod repaint_mode;
 mod ext;
 
-pub use self::redraw_handler::{RedrawEvents, GuiApi, CompleteItem};
+pub use self::redraw_handler::{CompleteItem, GuiApi, RedrawEvents};
 pub use self::repaint_mode::RepaintMode;
 pub use self::client::{NeovimClient, NeovimClientAsync, NeovimRef};
-pub use self::mode_info::{ModeInfo, CursorShape};
+pub use self::mode_info::{CursorShape, ModeInfo};
 pub use self::ext::ErrorReport;
 
 use std::error;
 use std::fmt;
 use std::env;
-use std::process::{Stdio, Command};
+use std::process::{Command, Stdio};
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -85,7 +84,6 @@ fn set_windows_creation_flags(cmd: &mut Command) {
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 }
 
-
 pub fn start(
     shell: Arc<UiMutex<shell::State>>,
     nvim_bin_path: Option<&String>,
@@ -111,14 +109,11 @@ pub fn start(
     set_windows_creation_flags(&mut cmd);
 
     if let Ok(runtime_path) = env::var("NVIM_GTK_RUNTIME_PATH") {
-        cmd.arg("--cmd").arg(
-            format!("let &rtp.=',{}'", runtime_path),
-        );
+        cmd.arg("--cmd")
+            .arg(format!("let &rtp.=',{}'", runtime_path));
     } else if let Some(prefix) = option_env!("PREFIX") {
-        cmd.arg("--cmd").arg(format!(
-            "let &rtp.=',{}/share/nvim-gtk/runtime'",
-            prefix
-        ));
+        cmd.arg("--cmd")
+            .arg(format!("let &rtp.=',{}/share/nvim-gtk/runtime'", prefix));
     } else {
         cmd.arg("--cmd").arg("let &rtp.=',runtime'");
     }
@@ -140,9 +135,8 @@ pub fn start(
 
     let mut nvim = Neovim::new(session);
 
-    nvim.session.start_event_loop_handler(
-        handler::NvimHandler::new(shell),
-    );
+    nvim.session
+        .start_event_loop_handler(handler::NvimHandler::new(shell));
 
     Ok(nvim)
 }
@@ -160,8 +154,7 @@ pub fn post_start_init(
             rows,
             UiAttachOptions::new()
                 .set_popupmenu_external(true)
-                .set_tabline_external(true)
-                .set_cmdline_external(true),
+                .set_tabline_external(true),
         )
         .map_err(NvimInitError::new_post_init)?;
 
@@ -186,4 +179,3 @@ pub fn post_start_init(
 
     Ok(())
 }
-
