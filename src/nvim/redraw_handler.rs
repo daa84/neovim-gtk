@@ -1,5 +1,4 @@
 use std::result;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use neovim_lib::{UiOption, Value};
@@ -14,94 +13,6 @@ use rmpv;
 
 use super::repaint_mode::RepaintMode;
 use super::mode_info::ModeInfo;
-
-pub trait RedrawEvents {
-    fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode;
-
-    fn on_put(&mut self, text: String) -> RepaintMode;
-
-    fn on_clear(&mut self) -> RepaintMode;
-
-    fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode;
-
-    fn on_redraw(&mut self, mode: &RepaintMode);
-
-    fn on_highlight_set(&mut self, attrs: HashMap<String, Value>) -> RepaintMode;
-
-    fn on_eol_clear(&mut self) -> RepaintMode;
-
-    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) -> RepaintMode;
-
-    fn on_scroll(&mut self, count: i64) -> RepaintMode;
-
-    fn on_update_bg(&mut self, bg: i64) -> RepaintMode;
-
-    fn on_update_fg(&mut self, fg: i64) -> RepaintMode;
-
-    fn on_update_sp(&mut self, sp: i64) -> RepaintMode;
-
-    fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode;
-
-    fn on_mouse(&mut self, on: bool) -> RepaintMode;
-
-    fn on_busy(&mut self, busy: bool) -> RepaintMode;
-
-    fn popupmenu_show(
-        &mut self,
-        menu: &[CompleteItem],
-        selected: i64,
-        row: u64,
-        col: u64,
-    ) -> RepaintMode;
-
-    fn popupmenu_hide(&mut self) -> RepaintMode;
-
-    fn popupmenu_select(&mut self, selected: i64) -> RepaintMode;
-
-    fn tabline_update(
-        &mut self,
-        selected: Tabpage,
-        tabs: Vec<(Tabpage, Option<String>)>,
-    ) -> RepaintMode;
-
-    fn mode_info_set(
-        &mut self,
-        cursor_style_enabled: bool,
-        mode_info: Vec<ModeInfo>,
-    ) -> RepaintMode;
-
-    fn cmdline_show(
-        &mut self,
-        content: Vec<(HashMap<String, Value>, String)>,
-        pos: u64,
-        firstc: String,
-        prompt: String,
-        indent: u64,
-        level: u64,
-    ) -> RepaintMode;
-
-    fn cmdline_hide(&mut self, level: u64) -> RepaintMode;
-
-    fn cmdline_block_show(
-        &mut self,
-        content: Vec<Vec<(HashMap<String, Value>, String)>>,
-    ) -> RepaintMode;
-
-    fn cmdline_block_append(
-        &mut self,
-        content: Vec<(HashMap<String, Value>, String)>,
-    ) -> RepaintMode;
-
-    fn cmdline_block_hide(&mut self) -> RepaintMode;
-
-    fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintMode;
-
-    fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RepaintMode;
-}
-
-pub trait GuiApi {
-    fn set_font(&mut self, font_desc: &str);
-}
 
 macro_rules! try_str {
     ($exp:expr) => ($exp.as_str().ok_or_else(|| "Can't convert argument to string".to_owned())?)
@@ -171,10 +82,10 @@ macro_rules! call {
 pub fn call_gui_event(
     ui: &mut shell::State,
     method: &str,
-    args: &Vec<Value>,
+    args: Vec<Value>,
 ) -> result::Result<(), String> {
     match method {
-        "Font" => ui.set_font(try_str!(args[0])),
+        "Font" => call!(ui->set_font(args: str)),
         "Clipboard" => match try_str!(args[0]) {
             "Set" => match try_str!(args[1]) {
                 "*" => ui.clipboard_primary_set(try_str!(args[2])),
@@ -202,6 +113,9 @@ pub fn call_gui_event(
                         .map_err(|e| e.to_string())
                 })?,
             opt => error!("Unknown option {}", opt),
+        },
+        "Command" => {
+            ui.on_command(args);
         },
         _ => return Err(format!("Unsupported event {}({:?})", method, args)),
     }

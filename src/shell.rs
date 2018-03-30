@@ -23,8 +23,8 @@ use misc::{decode_uri, escape_filename};
 use settings::{FontSource, Settings};
 use ui_model::{Attrs, ModelRect, UiModel};
 use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
-use nvim::{self, CompleteItem, ErrorReport, GuiApi, NeovimClient, NeovimClientAsync, NeovimRef,
-           RedrawEvents, RepaintMode};
+use nvim::{self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef,
+           RepaintMode};
 use input;
 use input::keyval_to_input_string;
 use cursor::{BlinkCursor, Cursor, CursorRedrawCb};
@@ -98,6 +98,7 @@ pub struct State {
 
     detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
     nvim_started_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
+    command_cb: Option<Box<FnMut(Vec<Value>) + Send + 'static>>,
 
     subscriptions: RefCell<Subscriptions>,
 }
@@ -139,6 +140,7 @@ impl State {
 
             detach_cb: None,
             nvim_started_cb: None,
+            command_cb: None,
 
             subscriptions: RefCell::new(Subscriptions::new()),
         }
@@ -188,6 +190,17 @@ impl State {
             self.nvim_started_cb = Some(Box::new(RefCell::new(cb.unwrap())));
         } else {
             self.nvim_started_cb = None;
+        }
+    }
+
+    pub fn set_nvim_command_cb<F>(&mut self, cb: Option<F>)
+    where
+        F: FnMut(Vec<Value>) + Send + 'static,
+    {
+        if cb.is_some() {
+            self.command_cb = Some(Box::new(cb.unwrap()));
+        } else {
+            self.command_cb = None;
         }
     }
 
@@ -394,6 +407,21 @@ impl State {
         self.subscriptions
             .borrow()
             .run_now(handle, &mut self.nvim().unwrap());
+    }
+
+    pub fn set_font(&mut self, font_desc: String) {
+        {
+            let mut settings = self.settings.borrow_mut();
+            settings.set_font_source(FontSource::Rpc);
+        }
+
+        self.set_font_desc(&font_desc);
+    }
+
+    pub fn on_command(&mut self, args: Vec<Value>) {
+        if let Some(ref mut cb) = self.command_cb {
+            cb(args);
+        }
     }
 }
 
@@ -687,6 +715,14 @@ impl Shell {
     {
         let mut state = self.state.borrow_mut();
         state.set_nvim_started_cb(cb);
+    }
+
+    pub fn set_nvim_command_cb<F>(&self, cb: Option<F>)
+    where
+        F: FnMut(Vec<Value>) + Send + 'static,
+    {
+        let mut state = self.state.borrow_mut();
+        state.set_nvim_command_cb(cb);
     }
 }
 
@@ -1022,31 +1058,32 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
     }
 }
 
-impl RedrawEvents for State {
-    fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
+// Neovim redraw events
+impl State {
+    pub fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
         let repaint_area = self.model.set_cursor(row as usize, col as usize);
         self.set_im_location();
         RepaintMode::AreaList(repaint_area)
     }
 
-    fn on_put(&mut self, text: String) -> RepaintMode {
+    pub fn on_put(&mut self, text: String) -> RepaintMode {
         let ch = text.chars().last().unwrap_or(' ');
         let double_width = text.is_empty();
         RepaintMode::Area(self.model.put(ch, double_width, self.cur_attrs.as_ref()))
     }
 
-    fn on_clear(&mut self) -> RepaintMode {
+    pub fn on_clear(&mut self) -> RepaintMode {
         debug!("clear model");
 
         self.model.clear();
         RepaintMode::All
     }
 
-    fn on_eol_clear(&mut self) -> RepaintMode {
+    pub fn on_eol_clear(&mut self) -> RepaintMode {
         RepaintMode::Area(self.model.eol_clear())
     }
 
-    fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
+    pub fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         debug!("on_resize {}/{}", columns, rows);
 
         if self.model.columns != columns as usize || self.model.rows != rows as usize {
@@ -1060,7 +1097,7 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn on_redraw(&mut self, mode: &RepaintMode) {
+    pub fn on_redraw(&mut self, mode: &RepaintMode) {
         match *mode {
             RepaintMode::All => {
                 self.update_dirty_glyphs();
@@ -1072,23 +1109,29 @@ impl RedrawEvents for State {
         }
     }
 
-    fn on_set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) -> RepaintMode {
+    pub fn on_set_scroll_region(
+        &mut self,
+        top: u64,
+        bot: u64,
+        left: u64,
+        right: u64,
+    ) -> RepaintMode {
         self.model.set_scroll_region(top, bot, left, right);
         RepaintMode::Nothing
     }
 
-    fn on_scroll(&mut self, count: i64) -> RepaintMode {
+    pub fn on_scroll(&mut self, count: i64) -> RepaintMode {
         RepaintMode::Area(self.model.scroll(count))
     }
 
-    fn on_highlight_set(&mut self, attrs: HashMap<String, Value>) -> RepaintMode {
+    pub fn on_highlight_set(&mut self, attrs: HashMap<String, Value>) -> RepaintMode {
         let model_attrs = Attrs::from_value_map(&attrs);
 
         self.cur_attrs = Some(model_attrs);
         RepaintMode::Nothing
     }
 
-    fn on_update_bg(&mut self, bg: i64) -> RepaintMode {
+    pub fn on_update_bg(&mut self, bg: i64) -> RepaintMode {
         let mut render_state = self.render_state.borrow_mut();
         if bg >= 0 {
             render_state.color_model.bg_color = Color::from_indexed_color(bg as u64);
@@ -1098,7 +1141,7 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn on_update_fg(&mut self, fg: i64) -> RepaintMode {
+    pub fn on_update_fg(&mut self, fg: i64) -> RepaintMode {
         let mut render_state = self.render_state.borrow_mut();
         if fg >= 0 {
             render_state.color_model.fg_color = Color::from_indexed_color(fg as u64);
@@ -1108,7 +1151,7 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn on_update_sp(&mut self, sp: i64) -> RepaintMode {
+    pub fn on_update_sp(&mut self, sp: i64) -> RepaintMode {
         let mut render_state = self.render_state.borrow_mut();
         if sp >= 0 {
             render_state.color_model.sp_color = Color::from_indexed_color(sp as u64);
@@ -1118,18 +1161,18 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode {
+    pub fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode {
         let mut render_state = self.render_state.borrow_mut();
         render_state.mode.update(&mode, idx as usize);
         RepaintMode::Area(self.model.cur_point())
     }
 
-    fn on_mouse(&mut self, on: bool) -> RepaintMode {
+    pub fn on_mouse(&mut self, on: bool) -> RepaintMode {
         self.mouse_enabled = on;
         RepaintMode::Nothing
     }
 
-    fn on_busy(&mut self, busy: bool) -> RepaintMode {
+    pub fn on_busy(&mut self, busy: bool) -> RepaintMode {
         if busy {
             self.cursor.as_mut().unwrap().busy_on();
         } else {
@@ -1138,7 +1181,7 @@ impl RedrawEvents for State {
         RepaintMode::Area(self.model.cur_point())
     }
 
-    fn popupmenu_show(
+    pub fn popupmenu_show(
         &mut self,
         menu: &[CompleteItem],
         selected: i64,
@@ -1167,17 +1210,17 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn popupmenu_hide(&mut self) -> RepaintMode {
+    pub fn popupmenu_hide(&mut self) -> RepaintMode {
         self.popup_menu.hide();
         RepaintMode::Nothing
     }
 
-    fn popupmenu_select(&mut self, selected: i64) -> RepaintMode {
+    pub fn popupmenu_select(&mut self, selected: i64) -> RepaintMode {
         self.popup_menu.select(selected);
         RepaintMode::Nothing
     }
 
-    fn tabline_update(
+    pub fn tabline_update(
         &mut self,
         selected: Tabpage,
         tabs: Vec<(Tabpage, Option<String>)>,
@@ -1187,7 +1230,7 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn mode_info_set(
+    pub fn mode_info_set(
         &mut self,
         cursor_style_enabled: bool,
         mode_info: Vec<nvim::ModeInfo>,
@@ -1197,7 +1240,7 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn cmdline_show(
+    pub fn cmdline_show(
         &mut self,
         content: Vec<(HashMap<String, Value>, String)>,
         pos: u64,
@@ -1230,12 +1273,12 @@ impl RedrawEvents for State {
         self.on_busy(true)
     }
 
-    fn cmdline_hide(&mut self, level: u64) -> RepaintMode {
+    pub fn cmdline_hide(&mut self, level: u64) -> RepaintMode {
         self.cmd_line.hide_level(level);
         self.on_busy(false)
     }
 
-    fn cmdline_block_show(
+    pub fn cmdline_block_show(
         &mut self,
         content: Vec<Vec<(HashMap<String, Value>, String)>>,
     ) -> RepaintMode {
@@ -1244,7 +1287,7 @@ impl RedrawEvents for State {
         self.on_busy(true)
     }
 
-    fn cmdline_block_append(
+    pub fn cmdline_block_append(
         &mut self,
         content: Vec<(HashMap<String, Value>, String)>,
     ) -> RepaintMode {
@@ -1252,18 +1295,18 @@ impl RedrawEvents for State {
         RepaintMode::Nothing
     }
 
-    fn cmdline_block_hide(&mut self) -> RepaintMode {
+    pub fn cmdline_block_hide(&mut self) -> RepaintMode {
         self.cmd_line.block_hide();
         self.on_busy(false)
     }
 
-    fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintMode {
+    pub fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintMode {
         let render_state = self.render_state.borrow();
         self.cmd_line.pos(&*render_state, pos, level);
         RepaintMode::Nothing
     }
 
-    fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RepaintMode {
+    pub fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RepaintMode {
         let render_state = self.render_state.borrow();
         self.cmd_line.special_char(&*render_state, c, shift, level);
         RepaintMode::Nothing
@@ -1274,16 +1317,5 @@ impl CursorRedrawCb for State {
     fn queue_redraw_cursor(&mut self) {
         let cur_point = self.model.cur_point();
         self.on_redraw(&RepaintMode::Area(cur_point));
-    }
-}
-
-impl GuiApi for State {
-    fn set_font(&mut self, font_desc: &str) {
-        {
-            let mut settings = self.settings.borrow_mut();
-            settings.set_font_source(FontSource::Rpc);
-        }
-
-        self.set_font_desc(font_desc);
     }
 }

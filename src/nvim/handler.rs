@@ -9,7 +9,6 @@ use glib;
 
 use super::repaint_mode::RepaintMode;
 use super::redraw_handler;
-use super::redraw_handler::RedrawEvents;
 
 pub struct NvimHandler {
     shell: Arc<UiMutex<shell::State>>,
@@ -68,7 +67,7 @@ impl NvimHandler {
                                 redraw_handler::call_gui_event(
                                     ui,
                                     ev_name.as_str().ok_or_else(|| "Event name does not exists")?,
-                                    &args,
+                                    args,
                                 )?;
                                 ui.on_redraw(&RepaintMode::All);
                                 Ok(())

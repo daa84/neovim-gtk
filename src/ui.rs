@@ -10,7 +10,11 @@ use gtk::prelude::*;
 use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned, SettingsExt};
 use gio::prelude::*;
 use gio::{Menu, MenuExt, MenuItem, SimpleAction};
+use glib::variant::FromVariant;
+
 use toml;
+
+use neovim_lib::Value;
 
 use settings::{Settings, SettingsLoader};
 use shell::{self, Shell, ShellOptions};
@@ -275,6 +279,20 @@ impl Ui {
             state.run_now(&update_title);
             if let Some(ref update_subtitle) = update_subtitle {
                 state.run_now(&update_subtitle);
+            }
+        }));
+
+        let sidebar_action = UiMutex::new(show_sidebar_action);
+        shell.set_nvim_command_cb(Some(move |args: Vec<Value>| {
+            if let Some(cmd) = args[0].as_str() {
+                match cmd {
+                    "ToggleSidebar" => {
+                        let action = sidebar_action.borrow();
+                        let state = !bool::from_variant(&action.get_state().unwrap()).unwrap();
+                        action.change_state(&state.to_variant());
+                    }
+                    _ => {}
+                }
             }
         }));
     }

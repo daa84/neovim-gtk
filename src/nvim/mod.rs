@@ -5,7 +5,7 @@ mod redraw_handler;
 mod repaint_mode;
 mod ext;
 
-pub use self::redraw_handler::{CompleteItem, GuiApi, RedrawEvents};
+pub use self::redraw_handler::CompleteItem;
 pub use self::repaint_mode::RepaintMode;
 pub use self::client::{NeovimClient, NeovimClientAsync, NeovimRef};
 pub use self::mode_info::{CursorShape, ModeInfo};
