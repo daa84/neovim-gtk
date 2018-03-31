@@ -116,7 +116,7 @@ pub fn call_gui_event(
         },
         "Command" => {
             ui.on_command(args);
-        },
+        }
         _ => return Err(format!("Unsupported event {}({:?})", method, args)),
     }
     Ok(())
@@ -247,6 +247,30 @@ pub fn call(
     Ok(repaint_mode)
 }
 
+// menu content update call popupmenu_hide followed by popupmenu_show
+// this generates unneded hide event
+// so in case we get both events, just romove one
+pub fn remove_uneeded_events(params: &mut Vec<Value>) {
+    let mut show_popup_finded = false;
+    let mut to_remove = Vec::new();
+
+    for (idx, val) in params.iter().enumerate().rev() {
+        if let Some(args) = val.as_array() {
+            match args[0].as_str() {
+                Some("popupmenu_show") => show_popup_finded = true,
+                Some("popupmenu_hide") if show_popup_finded => {
+                    to_remove.push(idx);
+                }
+                _ => (),
+            }
+        }
+    }
+
+    to_remove.iter().for_each(|&idx| {
+        params.remove(idx);
+    });
+}
+
 pub struct CompleteItem<'a> {
     pub word: &'a str,
     pub kind: &'a str,
@@ -264,5 +288,24 @@ impl<'a> CompleteItem<'a> {
                 info: menu[3],
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_remove_popup_menu_hide() {
+        // remove only first hide
+        let mut params = vec![
+            Value::from(vec![Value::from("popupmenu_hide")]),
+            Value::from(vec![Value::from("popupmenu_show")]),
+            Value::from(vec![Value::from("popupmenu_hide")]),
+        ];
+
+        remove_uneeded_events(&mut params);
+
+        assert_eq!(2, params.len());
     }
 }

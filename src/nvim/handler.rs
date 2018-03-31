@@ -19,9 +19,11 @@ impl NvimHandler {
         NvimHandler { shell: shell }
     }
 
-    fn nvim_cb(&self, method: &str, params: Vec<Value>) {
+    fn nvim_cb(&self, method: &str, mut params: Vec<Value>) {
         match method {
             "redraw" => {
+                redraw_handler::remove_uneeded_events(&mut params);
+
                 self.safe_call(move |ui| {
                     let ui = &mut ui.borrow_mut();
                     let mut repaint_mode = RepaintMode::Nothing;
