@@ -38,7 +38,6 @@ impl RepaintMode {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

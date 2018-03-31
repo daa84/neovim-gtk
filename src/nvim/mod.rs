@@ -10,20 +10,18 @@ pub use self::repaint_mode::RepaintMode;
 pub use self::client::{NeovimClient, NeovimClientAsync, NeovimRef};
 pub use self::mode_info::{CursorShape, ModeInfo};
 pub use self::ext::ErrorReport;
+pub use self::handler::NvimHandler;
 
 use std::error;
 use std::fmt;
 use std::env;
 use std::process::{Command, Stdio};
 use std::result;
-use std::sync::Arc;
 use std::time::Duration;
 
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Session, UiAttachOptions};
 
 use misc::escape_filename;
-use ui::UiMutex;
-use shell;
 use nvim_config::NvimConfig;
 
 #[derive(Debug)]
@@ -85,7 +83,7 @@ fn set_windows_creation_flags(cmd: &mut Command) {
 }
 
 pub fn start(
-    shell: Arc<UiMutex<shell::State>>,
+    handler: NvimHandler,
     nvim_bin_path: Option<&String>,
     timeout: Option<Duration>,
 ) -> result::Result<Neovim, NvimInitError> {
@@ -135,8 +133,7 @@ pub fn start(
 
     let mut nvim = Neovim::new(session);
 
-    nvim.session
-        .start_event_loop_handler(handler::NvimHandler::new(shell));
+    nvim.session.start_event_loop_handler(handler);
 
     Ok(nvim)
 }

@@ -486,6 +486,13 @@ impl<T> UiMutex<T> {
     }
 }
 
+impl <T> UiMutex<T> {
+    pub fn replace(&self, t: T) -> T {
+        self.assert_ui_thread();
+        self.data.replace(t)
+    }
+}
+
 impl<T: ?Sized> UiMutex<T> {
     pub fn borrow(&self) -> Ref<T> {
         self.assert_ui_thread();

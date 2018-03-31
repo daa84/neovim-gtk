@@ -36,9 +36,7 @@ impl<'a> NeovimRef<'a> {
     pub fn non_blocked(mut self) -> Option<Self> {
         self.get_mode().ok_and_report().and_then(|mode| {
             mode.iter()
-                .find(|kv| {
-                    kv.0.as_str().map(|key| key == "blocking").unwrap_or(false)
-                })
+                .find(|kv| kv.0.as_str().map(|key| key == "blocking").unwrap_or(false))
                 .map(|kv| kv.1.as_bool().unwrap_or(false))
                 .and_then(|block| if block { None } else { Some(self) })
         })
@@ -71,7 +69,9 @@ pub struct NeovimClientAsync {
 
 impl NeovimClientAsync {
     fn new() -> Self {
-        NeovimClientAsync { nvim: Arc::new(Mutex::new(None)) }
+        NeovimClientAsync {
+            nvim: Arc::new(Mutex::new(None)),
+        }
     }
 
     pub fn borrow(&self) -> Option<NeovimRef> {
@@ -81,7 +81,9 @@ impl NeovimClientAsync {
 
 impl Clone for NeovimClientAsync {
     fn clone(&self) -> Self {
-        NeovimClientAsync { nvim: self.nvim.clone() }
+        NeovimClientAsync {
+            nvim: self.nvim.clone(),
+        }
     }
 }
 
@@ -147,9 +149,9 @@ impl NeovimClient {
     pub fn nvim(&self) -> Option<NeovimRef> {
         let nvim = self.nvim.borrow_mut();
         if nvim.is_some() {
-            Some(NeovimRef::from_nvim(
-                RefMut::map(nvim, |n| n.as_mut().unwrap()),
-            ))
+            Some(NeovimRef::from_nvim(RefMut::map(nvim, |n| {
+                n.as_mut().unwrap()
+            })))
         } else {
             self.nvim_async.borrow()
         }

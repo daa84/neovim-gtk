@@ -13,6 +13,7 @@ use rmpv;
 
 use super::repaint_mode::RepaintMode;
 use super::mode_info::ModeInfo;
+use super::handler::NvimHandler;
 
 macro_rules! try_str {
     ($exp:expr) => ($exp.as_str().ok_or_else(|| "Can't convert argument to string".to_owned())?)
@@ -247,18 +248,32 @@ pub fn call(
     Ok(repaint_mode)
 }
 
-// menu content update call popupmenu_hide followed by popupmenu_show
+// Here two cases processed:
+//
+// 1. menu content update call popupmenu_hide followed by popupmenu_show in same batch
 // this generates unneded hide event
 // so in case we get both events, just romove one
-pub fn remove_uneeded_events(params: &mut Vec<Value>) {
+//
+// 2. hide event postpone in case show event come bit later
+// but in new event batch
+pub fn remove_or_delay_uneeded_events(handler: &NvimHandler, params: &mut Vec<Value>) {
     let mut show_popup_finded = false;
     let mut to_remove = Vec::new();
+    let mut delayed_hide_event = None;
 
     for (idx, val) in params.iter().enumerate().rev() {
         if let Some(args) = val.as_array() {
             match args[0].as_str() {
-                Some("popupmenu_show") => show_popup_finded = true,
-                Some("popupmenu_hide") if show_popup_finded => {
+                Some("popupmenu_show") => {
+                    show_popup_finded = true;
+                    handler.remove_scheduled_redraw_event();
+                }
+                Some("popupmenu_hide") if !show_popup_finded && delayed_hide_event.is_none() => {
+                    to_remove.push(idx);
+                    delayed_hide_event = Some(idx);
+                    handler.remove_scheduled_redraw_event();
+                }
+                Some("popupmenu_hide") => {
                     to_remove.push(idx);
                 }
                 _ => (),
@@ -267,7 +282,12 @@ pub fn remove_uneeded_events(params: &mut Vec<Value>) {
     }
 
     to_remove.iter().for_each(|&idx| {
-        params.remove(idx);
+        let ev = params.remove(idx);
+        if let Some(delayed_hide_event_idx) = delayed_hide_event {
+            if delayed_hide_event_idx == idx {
+                handler.schedule_redraw_event(ev);
+            }
+        }
     });
 }
 
@@ -288,24 +308,5 @@ impl<'a> CompleteItem<'a> {
                 info: menu[3],
             })
             .collect()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_remove_popup_menu_hide() {
-        // remove only first hide
-        let mut params = vec![
-            Value::from(vec![Value::from("popupmenu_hide")]),
-            Value::from(vec![Value::from("popupmenu_show")]),
-            Value::from(vec![Value::from("popupmenu_hide")]),
-        ];
-
-        remove_uneeded_events(&mut params);
-
-        assert_eq!(2, params.len());
     }
 }

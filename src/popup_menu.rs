@@ -32,6 +32,7 @@ struct State {
 impl State {
     pub fn new() -> Self {
         let tree = gtk::TreeView::new();
+        tree.get_selection().set_mode(gtk::SelectionMode::Single);
         let css_provider = gtk::CssProvider::new();
 
         let style_context = tree.get_style_context().unwrap();
@@ -140,9 +141,6 @@ impl State {
         self.renderer.set_property_foreground_rgba(
             Some(&color_model.pmenu_fg().into()),
         );
-        self.renderer.set_property_background_rgba(
-            Some(&color_model.pmenu_bg().into()),
-        );
 
         self.update_css(color_model);
 
@@ -164,9 +162,11 @@ impl State {
         match gtk::CssProviderExt::load_from_data(
             &self.css_provider,
             &format!(
-                ".view {{ color: {}; background-color: {};}}",
+                ".view :selected {{ color: {}; background-color: {};}}\n
+                .view {{ background-color: {}; }}",
                 fg.to_hex(),
-                bg.to_hex()
+                bg.to_hex(),
+                color_model.pmenu_bg().to_hex(),
             ).as_bytes(),
         ) {
             Err(e) => error!("Can't update css {}", e),

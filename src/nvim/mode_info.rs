@@ -12,9 +12,9 @@ pub enum CursorShape {
 
 impl CursorShape {
     fn new(shape_code: &Value) -> Result<CursorShape, String> {
-        let str_code = shape_code.as_str().ok_or_else(|| {
-            "Can't convert cursor shape to string".to_owned()
-        })?;
+        let str_code = shape_code
+            .as_str()
+            .ok_or_else(|| "Can't convert cursor shape to string".to_owned())?;
 
         Ok(match str_code {
             "block" => CursorShape::Block,

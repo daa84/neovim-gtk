@@ -24,7 +24,7 @@ use settings::{FontSource, Settings};
 use ui_model::{Attrs, ModelRect, UiModel};
 use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
 use nvim::{self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef,
-           RepaintMode};
+           RepaintMode, NvimHandler};
 use input;
 use input::keyval_to_input_string;
 use cursor::{BlinkCursor, Cursor, CursorRedrawCb};
@@ -919,13 +919,14 @@ fn show_nvim_init_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>
 
 fn init_nvim_async(
     state_arc: Arc<UiMutex<State>>,
+    nvim_handler: NvimHandler,
     options: ShellOptions,
     cols: usize,
     rows: usize,
 ) {
     // execute nvim
     let nvim = match nvim::start(
-        state_arc.clone(),
+        nvim_handler,
         options.nvim_bin_path.as_ref(),
         options.timeout,
     ) {
@@ -1053,8 +1054,9 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
         state.model = UiModel::new(rows as u64, cols as u64);
 
         let state_arc = state_ref.clone();
+        let nvim_handler = NvimHandler::new(state_ref.clone());
         let options = state.options.clone();
-        thread::spawn(move || init_nvim_async(state_arc, options, cols, rows));
+        thread::spawn(move || init_nvim_async(state_arc, nvim_handler, options, cols, rows));
     }
 }
 
