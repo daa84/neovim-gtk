@@ -6,7 +6,6 @@ pub use self::context::Context;
 pub use self::context::CellMetrics;
 use self::model_clip_iterator::{ModelClipIteratorFactory, RowView};
 
-use mode;
 use color;
 use sys::pango::*;
 use sys::pangocairo::*;
@@ -32,7 +31,6 @@ pub fn render<C: Cursor>(
     font_ctx: &context::Context,
     ui_model: &ui_model::UiModel,
     color_model: &color::ColorModel,
-    mode: &mode::Mode,
 ) {
     let cell_metrics = font_ctx.cell_metrics();
     let &CellMetrics { char_width, .. } = cell_metrics;
@@ -66,7 +64,6 @@ pub fn render<C: Cursor>(
                 cursor.draw(
                     ctx,
                     font_ctx,
-                    mode,
                     line_y,
                     double_width,
                     color_model.actual_cell_bg(cell),

@@ -12,7 +12,6 @@ use value::ValueMapExt;
 use rmpv;
 
 use super::repaint_mode::RepaintMode;
-use super::mode_info::ModeInfo;
 use super::handler::NvimHandler;
 
 macro_rules! try_str {
@@ -222,16 +221,7 @@ pub fn call(
             })?;
             ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
         }
-        "mode_info_set" => {
-            let mode_info = map_array!(
-                args[1],
-                "Error get array key value for mode_info".to_owned(),
-                |mi| mi.as_map()
-                    .ok_or_else(|| "Erro get map for mode_info".to_owned())
-                    .and_then(|mi_map| ModeInfo::new(mi_map))
-            )?;
-            ui.mode_info_set(try_bool!(args[0]), mode_info)
-        }
+        "mode_info_set" => call!(ui->mode_info_set(args: bool, ext)),
         "cmdline_show" => call!(ui->cmdline_show(args: ext, uint, str, str, uint, uint)),
         "cmdline_block_show" => call!(ui->cmdline_block_show(args: ext)),
         "cmdline_block_append" => call!(ui->cmdline_block_append(args: ext)),
@@ -251,10 +241,10 @@ pub fn call(
 // Here two cases processed:
 //
 // 1. menu content update call popupmenu_hide followed by popupmenu_show in same batch
-// this generates unneded hide event
+// this generates unneeded hide event
 // so in case we get both events, just romove one
 //
-// 2. hide event postpone in case show event come bit later
+// 2. postpone hide event when "show" event come bit later
 // but in new event batch
 pub fn remove_or_delay_uneeded_events(handler: &NvimHandler, params: &mut Vec<Value>) {
     let mut show_popup_finded = false;

@@ -2,7 +2,6 @@ use cairo;
 use color::Color;
 use ui::UiMutex;
 use mode;
-use nvim;
 use std::sync::{Arc, Weak};
 use render;
 use render::CellMetrics;
@@ -74,7 +73,6 @@ pub trait Cursor {
         &self,
         ctx: &cairo::Context,
         font_ctx: &render::Context,
-        mode: &mode::Mode,
         line_y: f64,
         double_width: bool,
         bg: &Color,
@@ -85,7 +83,7 @@ pub struct EmptyCursor;
 
 impl EmptyCursor {
     pub fn new() -> Self {
-        EmptyCursor {  }
+        EmptyCursor {}
     }
 }
 
@@ -94,7 +92,6 @@ impl Cursor for EmptyCursor {
         &self,
         _ctx: &cairo::Context,
         _font_ctx: &render::Context,
-        _mode: &mode::Mode,
         _line_y: f64,
         _double_width: bool,
         _bg: &Color,
@@ -104,20 +101,34 @@ impl Cursor for EmptyCursor {
 
 pub struct BlinkCursor<CB: CursorRedrawCb> {
     state: Arc<UiMutex<State<CB>>>,
+    mode_info: Option<mode::ModeInfo>,
 }
 
 impl<CB: CursorRedrawCb + 'static> BlinkCursor<CB> {
     pub fn new(redraw_cb: Weak<UiMutex<CB>>) -> Self {
         BlinkCursor {
             state: Arc::new(UiMutex::new(State::new(redraw_cb))),
+            mode_info: None,
         }
     }
 
+    pub fn set_mode_info(&mut self, mode_info: Option<mode::ModeInfo>) {
+        self.mode_info = mode_info;
+    }
+
     pub fn start(&mut self) {
+        let blinkwait = self.mode_info
+            .as_ref()
+            .and_then(|mi| mi.blinkwait)
+            .unwrap_or(500);
+
         let state = self.state.clone();
         let mut mut_state = self.state.borrow_mut();
         mut_state.reset_to(AnimPhase::Shown);
-        mut_state.timer = Some(glib::timeout_add(500, move || anim_step(&state)));
+        mut_state.timer = Some(glib::timeout_add(
+            if blinkwait > 0 { blinkwait } else { 500 },
+            move || anim_step(&state),
+        ));
     }
 
     pub fn reset_state(&mut self) {
@@ -152,7 +163,6 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         &self,
         ctx: &cairo::Context,
         font_ctx: &render::Context,
-        mode: &mode::Mode,
         line_y: f64,
         double_width: bool,
         bg: &Color,
@@ -166,7 +176,12 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         let current_point = ctx.get_current_point();
         ctx.set_source_rgba(1.0 - bg.0, 1.0 - bg.1, 1.0 - bg.2, 0.6 * state.alpha.0);
 
-        let (y, width, height) = cursor_rect(mode, font_ctx.cell_metrics(), line_y, double_width);
+        let (y, width, height) = cursor_rect(
+            self.mode_info.as_ref(),
+            font_ctx.cell_metrics(),
+            line_y,
+            double_width,
+        );
 
         ctx.rectangle(current_point.0, y, width, height);
         if state.anim_phase == AnimPhase::NoFocus {
@@ -178,7 +193,7 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
 }
 
 fn cursor_rect(
-    mode: &mode::Mode,
+    mode_info: Option<&mode::ModeInfo>,
     cell_metrics: &CellMetrics,
     line_y: f64,
     double_width: bool,
@@ -189,9 +204,9 @@ fn cursor_rect(
         ..
     } = cell_metrics;
 
-    if let Some(mode_info) = mode.mode_info() {
+    if let Some(mode_info) = mode_info {
         match mode_info.cursor_shape() {
-            None | Some(&nvim::CursorShape::Unknown) | Some(&nvim::CursorShape::Block) => {
+            None | Some(&mode::CursorShape::Unknown) | Some(&mode::CursorShape::Block) => {
                 let cursor_width = if double_width {
                     char_width * 2.0
                 } else {
@@ -199,7 +214,7 @@ fn cursor_rect(
                 };
                 (line_y, cursor_width, line_height)
             }
-            Some(&nvim::CursorShape::Vertical) => {
+            Some(&mode::CursorShape::Vertical) => {
                 let cell_percentage = mode_info.cell_percentage();
                 let cursor_width = if cell_percentage > 0 {
                     (char_width * cell_percentage as f64) / 100.0
@@ -208,7 +223,7 @@ fn cursor_rect(
                 };
                 (line_y, cursor_width, line_height)
             }
-            Some(&nvim::CursorShape::Horizontal) => {
+            Some(&mode::CursorShape::Horizontal) => {
                 let cell_percentage = mode_info.cell_percentage();
                 let cursor_width = if double_width {
                     char_width * 2.0
@@ -225,9 +240,7 @@ fn cursor_rect(
             }
         }
     } else {
-        let cursor_width = if mode.is(&mode::NvimMode::Insert) {
-            char_width / 5.0
-        } else if double_width {
+        let cursor_width = if double_width {
             char_width * 2.0
         } else {
             char_width
@@ -271,7 +284,6 @@ fn anim_step<CB: CursorRedrawCb + 'static>(state: &Arc<UiMutex<State<CB>>>) -> g
     let redraw_cb = mut_state.redraw_cb.upgrade().unwrap();
     let mut redraw_cb = redraw_cb.borrow_mut();
     redraw_cb.queue_redraw_cursor();
-
 
     if let Some(timeout) = next_event {
         let moved_state = state.clone();

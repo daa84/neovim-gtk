@@ -1,6 +1,5 @@
 mod client;
 mod handler;
-mod mode_info;
 mod redraw_handler;
 mod repaint_mode;
 mod ext;
@@ -8,7 +7,6 @@ mod ext;
 pub use self::redraw_handler::CompleteItem;
 pub use self::repaint_mode::RepaintMode;
 pub use self::client::{NeovimClient, NeovimClientAsync, NeovimRef};
-pub use self::mode_info::{CursorShape, ModeInfo};
 pub use self::ext::ErrorReport;
 pub use self::handler::NvimHandler;
 

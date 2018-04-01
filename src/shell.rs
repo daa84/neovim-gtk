@@ -27,6 +27,7 @@ use ui_model::{Attrs, ModelRect, UiModel};
 use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
 use nvim::{self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef,
            NvimHandler, RepaintMode};
+
 use input;
 use input::keyval_to_input_string;
 use cursor::{BlinkCursor, Cursor, CursorRedrawCb};
@@ -119,8 +120,6 @@ pub struct State {
     pub clipboard_clipboard: gtk::Clipboard,
     pub clipboard_primary: gtk::Clipboard,
 
-    pub mode: mode::Mode,
-
     stack: gtk::Stack,
     pub drawing_area: gtk::DrawingArea,
     tabs: Tabline,
@@ -164,8 +163,6 @@ impl State {
 
             clipboard_clipboard: gtk::Clipboard::get(&gdk::Atom::intern("CLIPBOARD")),
             clipboard_primary: gtk::Clipboard::get(&gdk::Atom::intern("PRIMARY")),
-
-            mode: mode::Mode::new(),
 
             // UI
             stack: gtk::Stack::new(),
@@ -947,7 +944,6 @@ fn gtk_draw_double_buffer(state: &State, ctx: &cairo::Context) {
         &render_state.font_ctx,
         &state.model,
         &render_state.color_model,
-        &render_state.mode,
     );
 
     ctx.set_source_surface(&surface.surface, 0.0, 0.0);
@@ -964,7 +960,6 @@ fn gtk_draw_direct(state: &State, ctx: &cairo::Context) {
         &render_state.font_ctx,
         &state.model,
         &render_state.color_model,
-        &render_state.mode,
     );
 }
 
@@ -1130,7 +1125,6 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     state.cursor.as_ref().unwrap().draw(
         ctx,
         &render_state.font_ctx,
-        &render_state.mode,
         y,
         false,
         &color_model.bg_color,
@@ -1259,6 +1253,12 @@ impl State {
     pub fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode {
         let mut render_state = self.render_state.borrow_mut();
         render_state.mode.update(&mode, idx as usize);
+        self.cursor
+            .as_mut()
+            .unwrap()
+            .set_mode_info(render_state.mode.mode_info().cloned());
+        self.cmd_line
+            .set_mode_info(render_state.mode.mode_info().cloned());
         RepaintMode::Area(self.model.cur_point())
     }
 
@@ -1328,10 +1328,25 @@ impl State {
     pub fn mode_info_set(
         &mut self,
         cursor_style_enabled: bool,
-        mode_info: Vec<nvim::ModeInfo>,
+        mode_infos: Vec<HashMap<String, Value>>,
     ) -> RepaintMode {
-        let mut render_state = self.render_state.borrow_mut();
-        render_state.mode.set_info(cursor_style_enabled, mode_info);
+        let mode_info_arr = mode_infos
+            .iter()
+            .map(|mode_info_map| mode::ModeInfo::new(mode_info_map))
+            .collect();
+
+        match mode_info_arr {
+            Ok(mode_info_arr) => {
+                let mut render_state = self.render_state.borrow_mut();
+                render_state
+                    .mode
+                    .set_info(cursor_style_enabled, mode_info_arr);
+            }
+            Err(err) => {
+                error!("Error load mode info: {}", err);
+            }
+        }
+
         RepaintMode::Nothing
     }
 

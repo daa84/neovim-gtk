@@ -10,6 +10,7 @@ use cairo;
 
 use neovim_lib::Value;
 
+use mode;
 use ui_model::{Attrs, ModelLayout};
 use ui::UiMutex;
 use render::{self, CellMetrics};
@@ -386,14 +387,23 @@ impl CmdLine {
         state.request_area_size();
     }
 
-    pub fn block_hide(&mut self) {
+    pub fn block_hide(&self) {
         self.state.borrow_mut().block = None;
     }
 
-    pub fn pos(&mut self, render_state: &shell::RenderState, pos: u64, level: u64) {
+    pub fn pos(&self, render_state: &shell::RenderState, pos: u64, level: u64) {
         self.state
             .borrow_mut()
             .set_cursor(render_state, pos as usize, level as usize);
+    }
+
+    pub fn set_mode_info(&self, mode_info: Option<mode::ModeInfo>) {
+        self.state
+            .borrow_mut()
+            .cursor
+            .as_mut()
+            .unwrap()
+            .set_mode_info(mode_info);
     }
 }
 
@@ -419,7 +429,6 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
             &render_state.font_ctx,
             &block.model_layout.model,
             &render_state.color_model,
-            &render_state.mode,
         );
 
         ctx.translate(0.0, block.preferred_height as f64);
@@ -432,7 +441,6 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
             &render_state.font_ctx,
             &level.model_layout.model,
             &render_state.color_model,
-            &render_state.mode,
         );
     }
     Inhibit(false)
