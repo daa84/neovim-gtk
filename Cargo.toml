@@ -5,17 +5,17 @@ authors = ["daa84 <daa84@inbox.ru>"]
 build = "build.rs"
 
 [dependencies]
-cairo-rs = "0.3"
-pango = "0.3"
-pango-sys = "0.5"
-pangocairo = "0.4"
-pangocairo-sys = "0.6"
-glib = "0.4"
-glib-sys = "0.5"
-gdk = "0.7"
-gdk-sys = "0.5"
-gio = "0.3"
-gobject-sys = "0.5"
+cairo-rs = "0.4"
+pango = "0.4"
+pango-sys = "0.6"
+pangocairo = "0.5"
+pangocairo-sys = "0.7"
+glib = "0.5"
+glib-sys = "0.6"
+gdk = "0.8"
+gdk-sys = "0.6"
+gio = "0.4"
+gobject-sys = "0.6"
 #gdk = { git = 'https://github.com/gtk-rs/gdk' }
 #gdk-sys = { git = 'https://github.com/gtk-rs/sys' }
 #glib = { git = 'https://github.com/gtk-rs/glib' }
@@ -31,6 +31,11 @@ phf = "0.7"
 log = "0.4"
 env_logger = "0.5"
 htmlescape = "0.3"
+rmpv = "0.4"
+percent-encoding = "1.0"
+regex = "0.2"
+lazy_static = "1.0"
+unicode-width = "0.1.4"
 
 serde = "1.0"
 serde_derive = "1.0"
@@ -44,12 +49,12 @@ serde_json = "1.0"
 phf_codegen = "0.7"
 
 [dependencies.gtk]
-version = "0.3"
+version = "0.4"
 features = ["v3_22"]
 #git = "https://github.com/gtk-rs/gtk"
 
 [dependencies.gtk-sys]
-version = "0.5"
+version = "0.6"
 features = ["v3_22"]
 #git = 'https://github.com/gtk-rs/sys'
 

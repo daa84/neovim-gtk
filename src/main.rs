@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 extern crate cairo;
 extern crate env_logger;
 extern crate gdk;
@@ -11,13 +13,19 @@ extern crate gtk;
 extern crate gtk_sys;
 extern crate htmlescape;
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate log;
 extern crate neovim_lib;
 extern crate pango;
 extern crate pango_cairo_sys;
 extern crate pango_sys;
 extern crate pangocairo;
+extern crate percent_encoding;
 extern crate phf;
+extern crate rmpv;
+extern crate regex;
+extern crate unicode_width;
 
 extern crate serde;
 #[macro_use]
@@ -43,11 +51,15 @@ mod shell;
 mod input;
 mod settings;
 mod cursor;
+mod cmd_line;
 mod shell_dlg;
 mod popup_menu;
 mod project;
 mod tabline;
 mod error;
+mod file_browser;
+mod subscriptions;
+mod misc;
 
 use std::env;
 use std::time::Duration;
@@ -96,21 +108,23 @@ fn main() {
 }
 
 fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
-    for f in files {
-        let mut ui = Ui::new(ShellOptions::new(
-            nvim_bin_path(std::env::args()),
-            f.get_path().and_then(|p| p.to_str().map(str::to_owned)),
-            nvim_timeout(std::env::args()),
-        ));
+    let files_list: Vec<String> = files
+        .into_iter()
+        .filter_map(|f| f.get_path()?.to_str().map(str::to_owned))
+        .collect();
+    let mut ui = Ui::new(ShellOptions::new(
+        nvim_bin_path(std::env::args()),
+        files_list,
+        nvim_timeout(std::env::args()),
+    ));
 
-        ui.init(app, !nvim_disable_win_state(std::env::args()));
-    }
+    ui.init(app, !nvim_disable_win_state(std::env::args()));
 }
 
 fn activate(app: &gtk::Application) {
     let mut ui = Ui::new(ShellOptions::new(
         nvim_bin_path(std::env::args()),
-        None,
+        Vec::new(),
         nvim_timeout(std::env::args()),
     ));
 

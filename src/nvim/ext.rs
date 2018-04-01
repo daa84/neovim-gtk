@@ -1,4 +1,3 @@
-
 use std::result;
 
 use neovim_lib::CallError;

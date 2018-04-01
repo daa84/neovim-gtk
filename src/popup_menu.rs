@@ -11,9 +11,9 @@ use pango::{self, LayoutExt};
 use neovim_lib::{Neovim, NeovimApi};
 
 use color::ColorModel;
-use nvim::{self, ErrorReport, CompleteItem};
-use shell;
+use nvim::{self, ErrorReport, NeovimClient};
 use input;
+use render;
 
 const MAX_VISIBLE_ROWS: i32 = 10;
 
@@ -32,6 +32,7 @@ struct State {
 impl State {
     pub fn new() -> Self {
         let tree = gtk::TreeView::new();
+        tree.get_selection().set_mode(gtk::SelectionMode::Single);
         let css_provider = gtk::CssProvider::new();
 
         let style_context = tree.get_style_context().unwrap();
@@ -74,27 +75,26 @@ impl State {
         }
     }
 
-    fn before_show(&mut self, shell: &shell::State, menu_items: &[CompleteItem], selected: i64) {
+    fn before_show(&mut self, ctx: PopupMenuContext) {
         if self.nvim.is_none() {
-            self.nvim = Some(shell.nvim_clone());
+            self.nvim = Some(ctx.nvim.clone());
         }
 
-        let max_width = shell.drawing_area.get_allocated_width();
-        self.scroll.set_max_content_width(max_width - 20);
+        self.scroll.set_max_content_width(ctx.max_width);
         self.scroll.set_propagate_natural_width(true);
-        self.update_tree(menu_items, shell);
-        self.select(selected);
+        self.update_tree(&ctx);
+        self.select(ctx.selected);
     }
 
-    fn limit_column_widths(&self, menu: &[CompleteItem], shell: &shell::State) {
+    fn limit_column_widths(&self, ctx: &PopupMenuContext) {
         const DEFAULT_PADDING: i32 = 5;
 
-        let layout = shell.font_ctx.create_layout();
-        let kind_exists = menu.iter().find(|i| i.kind.len() > 0).is_some();
+        let layout = ctx.font_ctx.create_layout();
+        let kind_exists = ctx.menu_items.iter().find(|i| i.kind.len() > 0).is_some();
         let max_width = self.scroll.get_max_content_width();
         let (xpad, _) = self.renderer.get_padding();
 
-        let max_word_line = menu.iter().max_by_key(|m| m.word.len()).unwrap();
+        let max_word_line = ctx.menu_items.iter().max_by_key(|m| m.word.len()).unwrap();
         layout.set_text(max_word_line.word);
         let (word_max_width, _) = layout.get_pixel_size();
         let word_column_width = word_max_width + xpad * 2 + DEFAULT_PADDING;
@@ -114,7 +114,7 @@ impl State {
         }
 
 
-        let max_menu_line = menu.iter().max_by_key(|m| m.menu.len()).unwrap();
+        let max_menu_line = ctx.menu_items.iter().max_by_key(|m| m.menu.len()).unwrap();
 
         if max_menu_line.menu.len() > 0 {
             layout.set_text(max_menu_line.menu);
@@ -126,23 +126,20 @@ impl State {
         }
     }
 
-    fn update_tree(&self, menu: &[CompleteItem], shell: &shell::State) {
-        if menu.is_empty() {
+    fn update_tree(&self, ctx: &PopupMenuContext) {
+        if ctx.menu_items.is_empty() {
             return;
         }
 
-        self.limit_column_widths(menu, shell);
+        self.limit_column_widths(ctx);
 
         self.renderer.set_property_font(
-            Some(&shell.get_font_desc().to_string()),
+            Some(&ctx.font_ctx.font_description().to_string()),
         );
 
-        let color_model = &shell.color_model;
+        let color_model = &ctx.color_model;
         self.renderer.set_property_foreground_rgba(
             Some(&color_model.pmenu_fg().into()),
-        );
-        self.renderer.set_property_background_rgba(
-            Some(&color_model.pmenu_bg().into()),
         );
 
         self.update_css(color_model);
@@ -150,7 +147,7 @@ impl State {
         let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 4]);
         let all_column_ids: Vec<u32> = (0..4).map(|i| i as u32).collect();
 
-        for line in menu {
+        for line in ctx.menu_items {
             let line_array: [&glib::ToValue; 4] = [&line.word, &line.kind, &line.menu, &line.info];
             list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
         }
@@ -165,9 +162,11 @@ impl State {
         match gtk::CssProviderExt::load_from_data(
             &self.css_provider,
             &format!(
-                ".view {{ color: {}; background-color: {};}}",
+                ".view :selected {{ color: {}; background-color: {};}}\n
+                .view {{ background-color: {}; }}",
                 fg.to_hex(),
-                bg.to_hex()
+                bg.to_hex(),
+                color_model.pmenu_bg().to_hex(),
             ).as_bytes(),
         ) {
             Err(e) => error!("Can't update css {}", e),
@@ -299,30 +298,16 @@ impl PopupMenu {
         self.open
     }
 
-    pub fn show(
-        &mut self,
-        shell: &shell::State,
-        menu_items: &[CompleteItem],
-        selected: i64,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) {
-
+    pub fn show(&mut self, ctx: PopupMenuContext) {
         self.open = true;
 
         self.popover.set_pointing_to(&gtk::Rectangle {
-            x,
-            y,
-            width,
-            height,
+            x: ctx.x,
+            y: ctx.y,
+            width: ctx.width,
+            height: ctx.height,
         });
-        self.state.borrow_mut().before_show(
-            shell,
-            menu_items,
-            selected,
-        );
+        self.state.borrow_mut().before_show(ctx);
         self.popover.popup()
     }
 
@@ -339,6 +324,18 @@ impl PopupMenu {
     }
 }
 
+pub struct PopupMenuContext<'a> {
+    pub nvim: &'a Rc<NeovimClient>,
+    pub color_model: &'a ColorModel,
+    pub font_ctx: &'a render::Context,
+    pub menu_items: &'a [nvim::CompleteItem<'a>],
+    pub selected: i64,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub max_width: i32,
+}
 
 fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) -> Inhibit {
     if ev.get_event_type() != EventType::ButtonPress {

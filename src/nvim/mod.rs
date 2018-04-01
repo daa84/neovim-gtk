@@ -1,4 +1,3 @@
-
 mod client;
 mod handler;
 mod mode_info;
@@ -6,24 +5,23 @@ mod redraw_handler;
 mod repaint_mode;
 mod ext;
 
-pub use self::redraw_handler::{RedrawEvents, GuiApi, CompleteItem};
+pub use self::redraw_handler::CompleteItem;
 pub use self::repaint_mode::RepaintMode;
 pub use self::client::{NeovimClient, NeovimClientAsync, NeovimRef};
-pub use self::mode_info::{ModeInfo, CursorShape};
+pub use self::mode_info::{CursorShape, ModeInfo};
 pub use self::ext::ErrorReport;
+pub use self::handler::NvimHandler;
 
 use std::error;
 use std::fmt;
 use std::env;
-use std::process::{Stdio, Command};
+use std::process::{Command, Stdio};
 use std::result;
-use std::sync::Arc;
 use std::time::Duration;
 
-use neovim_lib::{Neovim, NeovimApi, Session, UiAttachOptions};
+use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Session, UiAttachOptions};
 
-use ui::UiMutex;
-use shell;
+use misc::escape_filename;
 use nvim_config::NvimConfig;
 
 #[derive(Debug)]
@@ -78,8 +76,14 @@ impl error::Error for NvimInitError {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn set_windows_creation_flags(cmd: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+}
+
 pub fn start(
-    shell: Arc<UiMutex<shell::State>>,
+    handler: NvimHandler,
     nvim_bin_path: Option<&String>,
     timeout: Option<Duration>,
 ) -> result::Result<Neovim, NvimInitError> {
@@ -99,15 +103,15 @@ pub fn start(
         .arg("let g:GtkGuiLoaded = 1")
         .stderr(Stdio::inherit());
 
+    #[cfg(target_os = "windows")]
+    set_windows_creation_flags(&mut cmd);
+
     if let Ok(runtime_path) = env::var("NVIM_GTK_RUNTIME_PATH") {
-        cmd.arg("--cmd").arg(
-            format!("let &rtp.=',{}'", runtime_path),
-        );
+        cmd.arg("--cmd")
+            .arg(format!("let &rtp.=',{}'", runtime_path));
     } else if let Some(prefix) = option_env!("PREFIX") {
-        cmd.arg("--cmd").arg(format!(
-            "let &rtp.=',{}/share/nvim-gtk/runtime'",
-            prefix
-        ));
+        cmd.arg("--cmd")
+            .arg(format!("let &rtp.=',{}/share/nvim-gtk/runtime'", prefix));
     } else {
         cmd.arg("--cmd").arg("let &rtp.=',runtime'");
     }
@@ -129,38 +133,46 @@ pub fn start(
 
     let mut nvim = Neovim::new(session);
 
-    nvim.session.start_event_loop_handler(
-        handler::NvimHandler::new(shell),
-    );
+    nvim.session.start_event_loop_handler(handler);
 
     Ok(nvim)
 }
 
 pub fn post_start_init(
     nvim: NeovimClientAsync,
-    open_path: Option<&String>,
+    open_paths: Vec<String>,
     cols: u64,
     rows: u64,
 ) -> result::Result<(), NvimInitError> {
-    let mut opts = UiAttachOptions::new();
-    opts.set_popupmenu_external(true);
-    opts.set_tabline_external(true);
     nvim.borrow()
         .unwrap()
-        .ui_attach(cols, rows, &opts)
+        .ui_attach(
+            cols,
+            rows,
+            UiAttachOptions::new()
+                .set_popupmenu_external(true)
+                .set_tabline_external(true),
+        )
         .map_err(NvimInitError::new_post_init)?;
+
     nvim.borrow()
         .unwrap()
         .command("runtime! ginit.vim")
         .map_err(NvimInitError::new_post_init)?;
 
-    if let Some(path) = open_path {
+    if !open_paths.is_empty() {
+        let command = open_paths
+            .iter()
+            .fold(":ar".to_owned(), |command, filename| {
+                let filename = escape_filename(filename);
+                command + " " + &filename
+            });
         nvim.borrow()
             .unwrap()
-            .command(&format!("e {}", path))
-            .map_err(NvimInitError::new_post_init)?;
+            .command_async(&command)
+            .cb(|r| r.report_err())
+            .call();
     }
 
     Ok(())
 }
-

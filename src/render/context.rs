@@ -14,7 +14,9 @@ pub struct Context {
 
 impl Context {
     pub fn new(font_desc: pango::FontDescription) -> Self {
-        Context { state: ContextState::new(font_desc) }
+        Context {
+            state: ContextState::new(font_desc),
+        }
     }
 
     pub fn update(&mut self, font_desc: pango::FontDescription) {
@@ -88,20 +90,18 @@ pub struct CellMetrics {
 
 impl CellMetrics {
     fn new(font_metrics: &pango::FontMetrics) -> Self {
-
         CellMetrics {
             pango_ascent: font_metrics.get_ascent(),
             pango_descent: font_metrics.get_descent(),
             pango_char_width: font_metrics.get_approximate_digit_width(),
             ascent: font_metrics.get_ascent() as f64 / pango::SCALE as f64,
-            line_height: (font_metrics.get_ascent() + font_metrics.get_descent()) as f64 /
-                pango::SCALE as f64,
+            line_height: (font_metrics.get_ascent() + font_metrics.get_descent()) as f64
+                / pango::SCALE as f64,
             char_width: font_metrics.get_approximate_digit_width() as f64 / pango::SCALE as f64,
-            underline_position: (font_metrics.get_ascent() -
-                                     font_metrics.get_underline_position()) as
-                f64 / pango::SCALE as f64,
-            underline_thickness: font_metrics.get_underline_thickness() as f64 /
-                pango::SCALE as f64,
+            underline_position: (font_metrics.get_ascent() - font_metrics.get_underline_position())
+                as f64 / pango::SCALE as f64,
+            underline_thickness: font_metrics.get_underline_thickness() as f64
+                / pango::SCALE as f64,
         }
     }
 

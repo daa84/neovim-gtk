@@ -1,10 +1,8 @@
 use cairo;
 use color::Color;
 use ui::UiMutex;
-use shell;
 use mode;
 use nvim;
-use nvim::{RepaintMode, RedrawEvents};
 use std::sync::{Arc, Weak};
 use render;
 use render::CellMetrics;
@@ -44,20 +42,20 @@ enum AnimPhase {
     Busy,
 }
 
-struct State {
+struct State<CB: CursorRedrawCb> {
     alpha: Alpha,
     anim_phase: AnimPhase,
-    shell: Weak<UiMutex<shell::State>>,
+    redraw_cb: Weak<UiMutex<CB>>,
 
     timer: Option<glib::SourceId>,
 }
 
-impl State {
-    fn new(shell: Weak<UiMutex<shell::State>>) -> State {
+impl<CB: CursorRedrawCb> State<CB> {
+    fn new(redraw_cb: Weak<UiMutex<CB>>) -> Self {
         State {
             alpha: Alpha(1.0),
             anim_phase: AnimPhase::Shown,
-            shell: shell,
+            redraw_cb,
             timer: None,
         }
     }
@@ -71,13 +69,48 @@ impl State {
     }
 }
 
-pub struct Cursor {
-    state: Arc<UiMutex<State>>,
+pub trait Cursor {
+    fn draw(
+        &self,
+        ctx: &cairo::Context,
+        font_ctx: &render::Context,
+        mode: &mode::Mode,
+        line_y: f64,
+        double_width: bool,
+        bg: &Color,
+    );
 }
 
-impl Cursor {
-    pub fn new(shell: Weak<UiMutex<shell::State>>) -> Cursor {
-        Cursor { state: Arc::new(UiMutex::new(State::new(shell))) }
+pub struct EmptyCursor;
+
+impl EmptyCursor {
+    pub fn new() -> Self {
+        EmptyCursor {  }
+    }
+}
+
+impl Cursor for EmptyCursor {
+    fn draw(
+        &self,
+        _ctx: &cairo::Context,
+        _font_ctx: &render::Context,
+        _mode: &mode::Mode,
+        _line_y: f64,
+        _double_width: bool,
+        _bg: &Color,
+    ) {
+    }
+}
+
+pub struct BlinkCursor<CB: CursorRedrawCb> {
+    state: Arc<UiMutex<State<CB>>>,
+}
+
+impl<CB: CursorRedrawCb + 'static> BlinkCursor<CB> {
+    pub fn new(redraw_cb: Weak<UiMutex<CB>>) -> Self {
+        BlinkCursor {
+            state: Arc::new(UiMutex::new(State::new(redraw_cb))),
+        }
     }
 
     pub fn start(&mut self) {
@@ -112,8 +145,10 @@ impl Cursor {
     pub fn busy_off(&mut self) {
         self.start();
     }
+}
 
-    pub fn draw(
+impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
+    fn draw(
         &self,
         ctx: &cairo::Context,
         font_ctx: &render::Context,
@@ -122,7 +157,6 @@ impl Cursor {
         double_width: bool,
         bg: &Color,
     ) {
-
         let state = self.state.borrow();
 
         if state.anim_phase == AnimPhase::Busy {
@@ -157,9 +191,7 @@ fn cursor_rect(
 
     if let Some(mode_info) = mode.mode_info() {
         match mode_info.cursor_shape() {
-            None |
-            Some(&nvim::CursorShape::Unknown) |
-            Some(&nvim::CursorShape::Block) => {
+            None | Some(&nvim::CursorShape::Unknown) | Some(&nvim::CursorShape::Block) => {
                 let cursor_width = if double_width {
                     char_width * 2.0
                 } else {
@@ -204,7 +236,8 @@ fn cursor_rect(
         (line_y, cursor_width, line_height)
     }
 }
-fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
+
+fn anim_step<CB: CursorRedrawCb + 'static>(state: &Arc<UiMutex<State<CB>>>) -> glib::Continue {
     let mut mut_state = state.borrow_mut();
 
     let next_event = match mut_state.anim_phase {
@@ -212,37 +245,32 @@ fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
             mut_state.anim_phase = AnimPhase::Hide;
             Some(60)
         }
-        AnimPhase::Hide => {
-            if !mut_state.alpha.hide(0.3) {
-                mut_state.anim_phase = AnimPhase::Hidden;
+        AnimPhase::Hide => if !mut_state.alpha.hide(0.3) {
+            mut_state.anim_phase = AnimPhase::Hidden;
 
-                Some(300)
-            } else {
-                None
-            }
-        }
+            Some(300)
+        } else {
+            None
+        },
         AnimPhase::Hidden => {
             mut_state.anim_phase = AnimPhase::Show;
 
             Some(60)
         }
-        AnimPhase::Show => {
-            if !mut_state.alpha.show(0.3) {
-                mut_state.anim_phase = AnimPhase::Shown;
+        AnimPhase::Show => if !mut_state.alpha.show(0.3) {
+            mut_state.anim_phase = AnimPhase::Shown;
 
-                Some(500)
-            } else {
-                None
-            }
-        }
-        AnimPhase::NoFocus => None, 
+            Some(500)
+        } else {
+            None
+        },
+        AnimPhase::NoFocus => None,
         AnimPhase::Busy => None,
     };
 
-    let shell = mut_state.shell.upgrade().unwrap();
-    let mut shell = shell.borrow_mut();
-    let point = shell.model.cur_point();
-    shell.on_redraw(&RepaintMode::Area(point));
+    let redraw_cb = mut_state.redraw_cb.upgrade().unwrap();
+    let mut redraw_cb = redraw_cb.borrow_mut();
+    redraw_cb.queue_redraw_cursor();
 
 
     if let Some(timeout) = next_event {
@@ -253,15 +281,18 @@ fn anim_step(state: &Arc<UiMutex<State>>) -> glib::Continue {
     } else {
         glib::Continue(true)
     }
-
 }
 
-impl Drop for Cursor {
+impl<CB: CursorRedrawCb> Drop for BlinkCursor<CB> {
     fn drop(&mut self) {
         if let Some(timer_id) = self.state.borrow_mut().timer.take() {
             glib::source_remove(timer_id);
         }
     }
+}
+
+pub trait CursorRedrawCb {
+    fn queue_redraw_cursor(&mut self);
 }
 
 #[cfg(test)]

@@ -2,11 +2,13 @@ mod cell;
 mod line;
 mod item;
 mod model_rect;
+mod model_layout;
 
 pub use self::cell::{Cell, Attrs};
 pub use self::line::{Line, StyledLine};
 pub use self::item::Item;
 pub use self::model_rect::{ModelRect, ModelRectVec};
+pub use self::model_layout::ModelLayout;
 
 
 pub struct UiModel {
@@ -91,16 +93,16 @@ impl UiModel {
         (self.cur_row, self.cur_col)
     }
 
-    pub fn put(&mut self, text: &str, attrs: Option<&Attrs>) -> ModelRect {
+    pub fn put(&mut self, ch: char, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {
         let mut changed_region = self.cur_point();
         let line = &mut self.model[self.cur_row];
         line.dirty_line = true;
 
         let cell = &mut line[self.cur_col];
 
-        cell.ch = text.chars().last().unwrap_or(' ');
+        cell.ch = ch;
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);
-        cell.attrs.double_width = text.is_empty();
+        cell.attrs.double_width = double_width;
         cell.dirty = true;
         self.cur_col += 1;
         if self.cur_col >= self.columns {
@@ -117,6 +119,16 @@ impl UiModel {
         self.bot = bot as usize;
         self.left = left as usize;
         self.right = right as usize;
+    }
+
+    /// Copy rows from 0 to to_row, col from 0 self.columns
+    ///
+    /// Don't do any validation!
+    pub fn copy_rows(&self, target: &mut UiModel, to_row: usize) {
+        for (row_idx, line) in self.model[0..to_row + 1].iter().enumerate() {
+            let mut target_row = &mut target.model[row_idx];
+            line.copy_to(target_row, 0, self.columns - 1);
+        }
     }
 
     #[inline]
@@ -293,7 +305,7 @@ mod tests {
 
         model.set_cursor(1, 1);
 
-        let rect = model.put(" ", None);
+        let rect = model.put(' ', false, None);
 
         assert_eq!(1, rect.top);
         assert_eq!(1, rect.left);
