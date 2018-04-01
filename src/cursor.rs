@@ -310,22 +310,21 @@ pub trait CursorRedrawCb {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_cursor_rect_horizontal() {
-        let mut mode = mode::Mode::new();
-        let mode_info = nvim::ModeInfo::new(&vec![
-            (From::from("cursor_shape"), From::from("horizontal")),
-            (From::from("cell_percentage"), From::from(25)),
-        ]);
-        mode.update("insert", 0);
-        mode.set_info(true, vec![mode_info.unwrap()]);
+        let mut mode_data = HashMap::new();
+        mode_data.insert("cursor_shape".to_owned(), From::from("horizontal"));
+        mode_data.insert("cell_percentage".to_owned(), From::from(25));
+
+        let mode_info = mode::ModeInfo::new(&mode_data).ok();
         let char_width = 50.0;
         let line_height = 30.0;
         let line_y = 0.0;
 
         let (y, width, height) = cursor_rect(
-            &mode,
+            mode_info.as_ref(),
             &CellMetrics::new_hw(line_height, char_width),
             line_y,
             false,
@@ -337,19 +336,17 @@ mod tests {
 
     #[test]
     fn test_cursor_rect_horizontal_doublewidth() {
-        let mut mode = mode::Mode::new();
-        let mode_info = nvim::ModeInfo::new(&vec![
-            (From::from("cursor_shape"), From::from("horizontal")),
-            (From::from("cell_percentage"), From::from(25)),
-        ]);
-        mode.update("insert", 0);
-        mode.set_info(true, vec![mode_info.unwrap()]);
+        let mut mode_data = HashMap::new();
+        mode_data.insert("cursor_shape".to_owned(), From::from("horizontal"));
+        mode_data.insert("cell_percentage".to_owned(), From::from(25));
+
+        let mode_info = mode::ModeInfo::new(&mode_data).ok();
         let char_width = 50.0;
         let line_height = 30.0;
         let line_y = 0.0;
 
         let (y, width, height) = cursor_rect(
-            &mode,
+            mode_info.as_ref(),
             &CellMetrics::new_hw(line_height, char_width),
             line_y,
             true,
@@ -361,19 +358,17 @@ mod tests {
 
     #[test]
     fn test_cursor_rect_vertical() {
-        let mut mode = mode::Mode::new();
-        let mode_info = nvim::ModeInfo::new(&vec![
-            (From::from("cursor_shape"), From::from("vertical")),
-            (From::from("cell_percentage"), From::from(25)),
-        ]);
-        mode.update("insert", 0);
-        mode.set_info(true, vec![mode_info.unwrap()]);
+        let mut mode_data = HashMap::new();
+        mode_data.insert("cursor_shape".to_owned(), From::from("vertical"));
+        mode_data.insert("cell_percentage".to_owned(), From::from(25));
+
+        let mode_info = mode::ModeInfo::new(&mode_data).ok();
         let char_width = 50.0;
         let line_height = 30.0;
         let line_y = 0.0;
 
         let (y, width, height) = cursor_rect(
-            &mode,
+            mode_info.as_ref(),
             &CellMetrics::new_hw(line_height, char_width),
             line_y,
             false,
