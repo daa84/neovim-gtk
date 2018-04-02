@@ -1421,6 +1421,16 @@ impl State {
         self.cmd_line.special_char(&*render_state, c, shift, level);
         RepaintMode::Nothing
     }
+
+    pub fn wildmenu_show(&mut self, items: Vec<String>) -> RepaintMode {
+        self.cmd_line.show_wildmenu(items);
+        RepaintMode::Nothing
+    }
+
+    pub fn wildmenu_hide(&mut self) -> RepaintMode {
+        self.cmd_line.hide_wildmenu();
+        RepaintMode::Nothing
+    }
 }
 
 impl CursorRedrawCb for State {

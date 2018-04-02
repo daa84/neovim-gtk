@@ -7,6 +7,7 @@ use std::cmp::max;
 use gtk;
 use gtk::prelude::*;
 use cairo;
+use pango;
 
 use neovim_lib::Value;
 
@@ -262,6 +263,8 @@ impl cursor::CursorRedrawCb for State {
 
 pub struct CmdLine {
     popover: gtk::Popover,
+    wild_tree: gtk::TreeView,
+    wild_scroll: gtk::ScrolledWindow,
     displyed: bool,
     state: Arc<UiMutex<State>>,
 }
@@ -272,9 +275,10 @@ impl CmdLine {
         popover.set_modal(false);
         popover.set_position(gtk::PositionType::Right);
 
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+
         let drawing_area = gtk::DrawingArea::new();
-        drawing_area.show_all();
-        popover.add(&drawing_area);
+        content.pack_start(&drawing_area, true, true, 0);
 
         let state = Arc::new(UiMutex::new(State::new(drawing_area.clone(), render_state)));
         let weak_cb = Arc::downgrade(&state);
@@ -283,11 +287,47 @@ impl CmdLine {
 
         drawing_area.connect_draw(clone!(state => move |_, ctx| gtk_draw(ctx, &state)));
 
+
+        let (wild_scroll, wild_tree) = CmdLine::create_widlmenu();
+        content.pack_start(&wild_scroll, false, true, 0);
+        popover.add(&content);
+
+        drawing_area.show_all();
+        content.show();
+
         CmdLine {
             popover,
             state,
             displyed: false,
+            wild_scroll,
+            wild_tree,
         }
+    }
+
+    fn create_widlmenu() -> (gtk::ScrolledWindow, gtk::TreeView) {
+        let tree = gtk::TreeView::new();
+
+        tree.get_selection().set_mode(gtk::SelectionMode::Single);
+        tree.set_headers_visible(false);
+        tree.set_can_focus(false);
+
+        let renderer = gtk::CellRendererText::new();
+        renderer.set_property_ellipsize(pango::EllipsizeMode::End);
+
+        let word_column = gtk::TreeViewColumn::new();
+        word_column.pack_start(&renderer, true);
+        word_column.add_attribute(&renderer, "text", 0);
+        tree.append_column(&word_column);
+
+        let scroll = gtk::ScrolledWindow::new(None, None);
+        scroll.set_propagate_natural_height(true);
+
+        scroll.add(&tree);
+
+        tree.show_all();
+        scroll.hide();
+
+        (scroll, tree)
     }
 
     pub fn show_level(&mut self, ctx: &CmdLineContext) {
@@ -404,6 +444,19 @@ impl CmdLine {
             .as_mut()
             .unwrap()
             .set_mode_info(mode_info);
+    }
+
+    pub fn show_wildmenu(&self, items: Vec<String>) {
+        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 1]);
+        for item in items {
+            list_store.insert_with_values(None, &[0], &[&item]);
+        }
+        self.wild_tree.set_model(&list_store);
+        self.wild_scroll.show();
+    }
+
+    pub fn hide_wildmenu(&self) {
+        self.wild_scroll.hide();
     }
 }
 

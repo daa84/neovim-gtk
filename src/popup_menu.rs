@@ -152,7 +152,7 @@ impl State {
             list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
         }
 
-        self.tree.set_model(Some(&list_store));
+        self.tree.set_model(&list_store);
     }
 
     fn update_css(&self, color_model: &ColorModel) {
