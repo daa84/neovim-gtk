@@ -233,6 +233,7 @@ pub fn call(
         "cmdline_special_char" => call!(ui->cmdline_special_char(args: str, bool, uint)),
         "wildmenu_show" => call!(ui->wildmenu_show(args: ext)),
         "wildmenu_hide" => ui.wildmenu_hide(),
+        "wildmenu_select" => call!(ui->wildmenu_select(args: int)),
         _ => {
             warn!("Event {}({:?})", method, args);
             RepaintMode::Nothing

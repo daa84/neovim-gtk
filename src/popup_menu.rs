@@ -62,11 +62,17 @@ impl State {
         let info_label = gtk::Label::new(None);
         info_label.set_line_wrap(true);
 
+        let scroll = gtk::ScrolledWindow::new(None, None);
+
+        tree.connect_size_allocate(
+            clone!(scroll, renderer => move |tree, _| on_treeview_allocate(&scroll, tree, &renderer)),
+        );
+
         State {
             nvim: None,
             tree,
-            scroll: gtk::ScrolledWindow::new(None, None),
             renderer,
+            scroll,
             css_provider,
             info_label,
             word_column,
@@ -82,6 +88,7 @@ impl State {
 
         self.scroll.set_max_content_width(ctx.max_width);
         self.scroll.set_propagate_natural_width(true);
+        self.scroll.set_propagate_natural_height(true);
         self.update_tree(&ctx);
         self.select(ctx.selected);
     }
@@ -99,27 +106,29 @@ impl State {
         let (word_max_width, _) = layout.get_pixel_size();
         let word_column_width = word_max_width + xpad * 2 + DEFAULT_PADDING;
 
-
         if kind_exists {
             layout.set_text("[v]");
             let (kind_width, _) = layout.get_pixel_size();
 
-            self.kind_column.set_fixed_width(kind_width + xpad * 2 + DEFAULT_PADDING);
+            self.kind_column
+                .set_fixed_width(kind_width + xpad * 2 + DEFAULT_PADDING);
             self.kind_column.set_visible(true);
 
-            self.word_column.set_fixed_width(min(max_width - kind_width, word_column_width));
+            self.word_column
+                .set_fixed_width(min(max_width - kind_width, word_column_width));
         } else {
             self.kind_column.set_visible(false);
-            self.word_column.set_fixed_width(min(max_width, word_column_width));
+            self.word_column
+                .set_fixed_width(min(max_width, word_column_width));
         }
-
 
         let max_menu_line = ctx.menu_items.iter().max_by_key(|m| m.menu.len()).unwrap();
 
         if max_menu_line.menu.len() > 0 {
             layout.set_text(max_menu_line.menu);
             let (menu_max_width, _) = layout.get_pixel_size();
-            self.menu_column.set_fixed_width(menu_max_width + xpad * 2 + DEFAULT_PADDING);
+            self.menu_column
+                .set_fixed_width(menu_max_width + xpad * 2 + DEFAULT_PADDING);
             self.menu_column.set_visible(true);
         } else {
             self.menu_column.set_visible(false);
@@ -133,16 +142,14 @@ impl State {
 
         self.limit_column_widths(ctx);
 
-        self.renderer.set_property_font(
-            Some(&ctx.font_ctx.font_description().to_string()),
-        );
+        self.renderer
+            .set_property_font(Some(&ctx.font_ctx.font_description().to_string()));
 
         let color_model = &ctx.color_model;
-        self.renderer.set_property_foreground_rgba(
-            Some(&color_model.pmenu_fg().into()),
-        );
+        self.renderer
+            .set_property_foreground_rgba(Some(&color_model.pmenu_fg().into()));
 
-        self.update_css(color_model);
+        update_css(&self.css_provider, color_model);
 
         let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 4]);
         let all_column_ids: Vec<u32> = (0..4).map(|i| i as u32).collect();
@@ -155,39 +162,14 @@ impl State {
         self.tree.set_model(&list_store);
     }
 
-    fn update_css(&self, color_model: &ColorModel) {
-        let bg = color_model.pmenu_bg_sel();
-        let fg = color_model.pmenu_fg_sel();
-
-        match gtk::CssProviderExt::load_from_data(
-            &self.css_provider,
-            &format!(
-                ".view :selected {{ color: {}; background-color: {};}}\n
-                .view {{ background-color: {}; }}",
-                fg.to_hex(),
-                bg.to_hex(),
-                color_model.pmenu_bg().to_hex(),
-            ).as_bytes(),
-        ) {
-            Err(e) => error!("Can't update css {}", e),
-            Ok(_) => (),
-        };
-    }
-
     fn select(&self, selected: i64) {
         if selected >= 0 {
             let selected_path = gtk::TreePath::new_from_string(&format!("{}", selected));
             self.tree.get_selection().select_path(&selected_path);
-            self.tree.scroll_to_cell(
-                Some(&selected_path),
-                None,
-                false,
-                0.0,
-                0.0,
-            );
+            self.tree
+                .scroll_to_cell(Some(&selected_path), None, false, 0.0, 0.0);
 
             self.show_info_column(&selected_path);
-
         } else {
             self.tree.get_selection().unselect_all();
             self.info_label.hide();
@@ -212,17 +194,6 @@ impl State {
             self.info_label.hide();
         }
     }
-
-    fn calc_treeview_height(&self) -> i32 {
-        let (_, natural_size) = self.renderer.get_preferred_height(&self.tree);
-        let (_, ypad) = self.renderer.get_padding();
-
-        let row_height = natural_size + ypad;
-
-        let actual_count = self.tree.get_model().unwrap().iter_n_children(None);
-
-        row_height * min(actual_count, MAX_VISIBLE_ROWS) as i32
-    }
 }
 
 pub struct PopupMenu {
@@ -243,11 +214,9 @@ impl PopupMenu {
         state.tree.set_headers_visible(false);
         state.tree.set_can_focus(false);
 
-
-        state.scroll.set_policy(
-            gtk::PolicyType::Automatic,
-            gtk::PolicyType::Automatic,
-        );
+        state
+            .scroll
+            .set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
 
         state.scroll.add(&state.tree);
         state.scroll.show_all();
@@ -259,8 +228,10 @@ impl PopupMenu {
 
         let state = Rc::new(RefCell::new(state));
         let state_ref = state.clone();
-        state.borrow().tree.connect_button_press_event(
-            move |tree, ev| {
+        state
+            .borrow()
+            .tree
+            .connect_button_press_event(move |tree, ev| {
                 let state = state_ref.borrow();
                 let nvim = state.nvim.as_ref().unwrap().nvim();
                 if let Some(mut nvim) = nvim {
@@ -268,13 +239,7 @@ impl PopupMenu {
                 } else {
                     Inhibit(false)
                 }
-            },
-        );
-
-        let state_ref = state.clone();
-        state.borrow().tree.connect_size_allocate(move |_, _| {
-            on_treeview_allocate(state_ref.clone())
-        });
+            });
 
         let state_ref = state.clone();
         popover.connect_key_press_event(move |_, ev| {
@@ -345,7 +310,11 @@ fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) 
     let (paths, ..) = tree.get_selection().get_selected_rows();
     let selected_idx = if !paths.is_empty() {
         let ids = paths[0].get_indices();
-        if !ids.is_empty() { ids[0] } else { -1 }
+        if !ids.is_empty() {
+            ids[0]
+        } else {
+            -1
+        }
     } else {
         -1
     };
@@ -383,22 +352,46 @@ fn find_scroll_count(selected_idx: i32, target_idx: i32) -> i32 {
     }
 }
 
+fn on_treeview_allocate(
+    scroll: &gtk::ScrolledWindow,
+    tree: &gtk::TreeView,
+    renderer: &gtk::CellRendererText,
+) {
+    let treeview_height = calc_treeview_height(tree, renderer);
 
-fn on_treeview_allocate(state: Rc<RefCell<State>>) {
-    let treeview_height = state.borrow().calc_treeview_height();
-
-    idle_add(move || {
-        let state = state.borrow();
-
-        // strange solution to make gtk assertions happy
-        let previous_height = state.scroll.get_max_content_height();
-        if previous_height < treeview_height {
-            state.scroll.set_max_content_height(treeview_height);
-            state.scroll.set_min_content_height(treeview_height);
-        } else if previous_height > treeview_height {
-            state.scroll.set_min_content_height(treeview_height);
-            state.scroll.set_max_content_height(treeview_height);
-        }
+    idle_add(clone!(scroll => move || {
+            scroll
+            .set_max_content_height(treeview_height);
         Continue(false)
-    });
+    }));
+}
+
+pub fn update_css(css_provider: &gtk::CssProvider, color_model: &ColorModel) {
+    let bg = color_model.pmenu_bg_sel();
+    let fg = color_model.pmenu_fg_sel();
+
+    match gtk::CssProviderExt::load_from_data(
+        css_provider,
+        &format!(
+            ".view :selected {{ color: {}; background-color: {};}}\n
+                .view {{ background-color: {}; }}",
+            fg.to_hex(),
+            bg.to_hex(),
+            color_model.pmenu_bg().to_hex(),
+        ).as_bytes(),
+    ) {
+        Err(e) => error!("Can't update css {}", e),
+        Ok(_) => (),
+    };
+}
+
+pub fn calc_treeview_height(tree: &gtk::TreeView, renderer: &gtk::CellRendererText) -> i32 {
+    let (_, natural_size) = renderer.get_preferred_height(tree);
+    let (_, ypad) = renderer.get_padding();
+
+    let row_height = natural_size + ypad;
+
+    let actual_count = tree.get_model().unwrap().iter_n_children(None);
+
+    row_height * min(actual_count, MAX_VISIBLE_ROWS) as i32
 }

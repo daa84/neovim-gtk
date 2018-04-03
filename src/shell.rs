@@ -1422,13 +1422,19 @@ impl State {
         RepaintMode::Nothing
     }
 
-    pub fn wildmenu_show(&mut self, items: Vec<String>) -> RepaintMode {
-        self.cmd_line.show_wildmenu(items);
+    pub fn wildmenu_show(&self, items: Vec<String>) -> RepaintMode {
+        self.cmd_line
+            .show_wildmenu(items, &*self.render_state.borrow());
         RepaintMode::Nothing
     }
 
-    pub fn wildmenu_hide(&mut self) -> RepaintMode {
+    pub fn wildmenu_hide(&self) -> RepaintMode {
         self.cmd_line.hide_wildmenu();
+        RepaintMode::Nothing
+    }
+
+    pub fn wildmenu_select(&self, selected: i64) -> RepaintMode {
+        self.cmd_line.wildmenu_select(selected);
         RepaintMode::Nothing
     }
 }

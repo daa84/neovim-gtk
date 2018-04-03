@@ -17,6 +17,7 @@ use ui::UiMutex;
 use render::{self, CellMetrics};
 use shell;
 use cursor;
+use popup_menu;
 
 pub struct Level {
     model_layout: ModelLayout,
@@ -265,6 +266,8 @@ pub struct CmdLine {
     popover: gtk::Popover,
     wild_tree: gtk::TreeView,
     wild_scroll: gtk::ScrolledWindow,
+    wild_css_provider: gtk::CssProvider,
+    wild_renderer: gtk::CellRendererText,
     displyed: bool,
     state: Arc<UiMutex<State>>,
 }
@@ -287,8 +290,7 @@ impl CmdLine {
 
         drawing_area.connect_draw(clone!(state => move |_, ctx| gtk_draw(ctx, &state)));
 
-
-        let (wild_scroll, wild_tree) = CmdLine::create_widlmenu();
+        let (wild_scroll, wild_tree, wild_css_provider, wild_renderer) = CmdLine::create_widlmenu();
         content.pack_start(&wild_scroll, false, true, 0);
         popover.add(&content);
 
@@ -301,11 +303,22 @@ impl CmdLine {
             displyed: false,
             wild_scroll,
             wild_tree,
+            wild_css_provider,
+            wild_renderer,
         }
     }
 
-    fn create_widlmenu() -> (gtk::ScrolledWindow, gtk::TreeView) {
+    fn create_widlmenu() -> (
+        gtk::ScrolledWindow,
+        gtk::TreeView,
+        gtk::CssProvider,
+        gtk::CellRendererText,
+    ) {
+        let css_provider = gtk::CssProvider::new();
+
         let tree = gtk::TreeView::new();
+        let style_context = tree.get_style_context().unwrap();
+        style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
         tree.get_selection().set_mode(gtk::SelectionMode::Single);
         tree.set_headers_visible(false);
@@ -327,7 +340,11 @@ impl CmdLine {
         tree.show_all();
         scroll.hide();
 
-        (scroll, tree)
+        tree.connect_size_allocate(
+            clone!(scroll, renderer => move |tree, _| on_wild_treeview_allocate(&scroll, tree, &renderer)),
+        );
+
+        (scroll, tree, css_provider, renderer)
     }
 
     pub fn show_level(&mut self, ctx: &CmdLineContext) {
@@ -446,7 +463,15 @@ impl CmdLine {
             .set_mode_info(mode_info);
     }
 
-    pub fn show_wildmenu(&self, items: Vec<String>) {
+    pub fn show_wildmenu(&self, items: Vec<String>, render_state: &shell::RenderState) {
+        self.wild_renderer
+            .set_property_font(Some(&render_state.font_ctx.font_description().to_string()));
+
+        self.wild_renderer
+            .set_property_foreground_rgba(Some(&render_state.color_model.pmenu_fg().into()));
+
+        popup_menu::update_css(&self.wild_css_provider, &render_state.color_model);
+
         let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 1]);
         for item in items {
             list_store.insert_with_values(None, &[0], &[&item]);
@@ -457,6 +482,21 @@ impl CmdLine {
 
     pub fn hide_wildmenu(&self) {
         self.wild_scroll.hide();
+    }
+
+    pub fn wildmenu_select(&self, selected: i64) {
+        if selected >= 0 {
+            let wild_tree = self.wild_tree.clone();
+            idle_add(move || {
+                let selected_path = gtk::TreePath::new_from_string(&format!("{}", selected));
+                wild_tree.get_selection().select_path(&selected_path);
+                wild_tree.scroll_to_cell(&selected_path, None, false, 0.0, 0.0);
+
+                Continue(false)
+            });
+        } else {
+            self.wild_tree.get_selection().unselect_all();
+        }
     }
 }
 
@@ -497,6 +537,20 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
         );
     }
     Inhibit(false)
+}
+
+fn on_wild_treeview_allocate(
+    scroll: &gtk::ScrolledWindow,
+    tree: &gtk::TreeView,
+    renderer: &gtk::CellRendererText,
+) {
+    let treeview_height = popup_menu::calc_treeview_height(tree, renderer);
+
+    idle_add(clone!(scroll => move || {
+            scroll
+            .set_max_content_height(treeview_height);
+        Continue(false)
+    }));
 }
 
 pub struct CmdLineContext {
