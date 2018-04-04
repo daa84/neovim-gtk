@@ -1424,7 +1424,7 @@ impl State {
 
     pub fn wildmenu_show(&self, items: Vec<String>) -> RepaintMode {
         self.cmd_line
-            .show_wildmenu(items, &*self.render_state.borrow());
+            .show_wildmenu(items, &*self.render_state.borrow(), self.max_popup_width());
         RepaintMode::Nothing
     }
 

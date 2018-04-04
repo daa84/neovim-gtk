@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::cell::RefCell;
-use std::cmp::max;
+use std::cmp::{max, min};
 
 use gtk;
 use gtk::prelude::*;
@@ -268,6 +268,7 @@ pub struct CmdLine {
     wild_scroll: gtk::ScrolledWindow,
     wild_css_provider: gtk::CssProvider,
     wild_renderer: gtk::CellRendererText,
+    wild_column: gtk::TreeViewColumn,
     displyed: bool,
     state: Arc<UiMutex<State>>,
 }
@@ -290,7 +291,8 @@ impl CmdLine {
 
         drawing_area.connect_draw(clone!(state => move |_, ctx| gtk_draw(ctx, &state)));
 
-        let (wild_scroll, wild_tree, wild_css_provider, wild_renderer) = CmdLine::create_widlmenu();
+        let (wild_scroll, wild_tree, wild_css_provider, wild_renderer, wild_column) =
+            CmdLine::create_widlmenu();
         content.pack_start(&wild_scroll, false, true, 0);
         popover.add(&content);
 
@@ -305,6 +307,7 @@ impl CmdLine {
             wild_tree,
             wild_css_provider,
             wild_renderer,
+            wild_column,
         }
     }
 
@@ -313,6 +316,7 @@ impl CmdLine {
         gtk::TreeView,
         gtk::CssProvider,
         gtk::CellRendererText,
+        gtk::TreeViewColumn,
     ) {
         let css_provider = gtk::CssProvider::new();
 
@@ -327,24 +331,18 @@ impl CmdLine {
         let renderer = gtk::CellRendererText::new();
         renderer.set_property_ellipsize(pango::EllipsizeMode::End);
 
-        let word_column = gtk::TreeViewColumn::new();
-        word_column.pack_start(&renderer, true);
-        word_column.add_attribute(&renderer, "text", 0);
-        tree.append_column(&word_column);
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(&renderer, true);
+        column.add_attribute(&renderer, "text", 0);
+        tree.append_column(&column);
 
         let scroll = gtk::ScrolledWindow::new(None, None);
         scroll.set_propagate_natural_height(true);
+        scroll.set_propagate_natural_width(true);
 
         scroll.add(&tree);
 
-        tree.show_all();
-        scroll.hide();
-
-        tree.connect_size_allocate(
-            clone!(scroll, renderer => move |tree, _| on_wild_treeview_allocate(&scroll, tree, &renderer)),
-        );
-
-        (scroll, tree, css_provider, renderer)
+        (scroll, tree, css_provider, renderer, column)
     }
 
     pub fn show_level(&mut self, ctx: &CmdLineContext) {
@@ -463,7 +461,13 @@ impl CmdLine {
             .set_mode_info(mode_info);
     }
 
-    pub fn show_wildmenu(&self, items: Vec<String>, render_state: &shell::RenderState) {
+    pub fn show_wildmenu(
+        &self,
+        items: Vec<String>,
+        render_state: &shell::RenderState,
+        max_width: i32,
+    ) {
+        // update font/color
         self.wild_renderer
             .set_property_font(Some(&render_state.font_ctx.font_description().to_string()));
 
@@ -472,12 +476,28 @@ impl CmdLine {
 
         popup_menu::update_css(&self.wild_css_provider, &render_state.color_model);
 
+        // set width
+        let max_item_width = (items.iter().map(|item| item.len()).max().unwrap() as f64
+            * render_state.font_ctx.cell_metrics().char_width) as i32
+            + self.state.borrow().levels.last().unwrap().preferred_width;
+        self.wild_column
+            .set_fixed_width(min(max_item_width, max_width));
+        self.wild_scroll.set_max_content_width(max_width);
+
+        // load data
         let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 1]);
         for item in items {
             list_store.insert_with_values(None, &[0], &[&item]);
         }
         self.wild_tree.set_model(&list_store);
-        self.wild_scroll.show();
+
+        // set height
+        let treeview_height =
+            popup_menu::calc_treeview_height(&self.wild_tree, &self.wild_renderer);
+
+        self.wild_scroll.set_max_content_height(treeview_height);
+
+        self.wild_scroll.show_all();
     }
 
     pub fn hide_wildmenu(&self) {
@@ -537,20 +557,6 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
         );
     }
     Inhibit(false)
-}
-
-fn on_wild_treeview_allocate(
-    scroll: &gtk::ScrolledWindow,
-    tree: &gtk::TreeView,
-    renderer: &gtk::CellRendererText,
-) {
-    let treeview_height = popup_menu::calc_treeview_height(tree, renderer);
-
-    idle_add(clone!(scroll => move || {
-            scroll
-            .set_max_content_height(treeview_height);
-        Continue(false)
-    }));
 }
 
 pub struct CmdLineContext {
