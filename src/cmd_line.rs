@@ -477,6 +477,7 @@ impl CmdLine {
         popup_menu::update_css(&self.wild_css_provider, &render_state.color_model);
 
         // set width
+        // this calculation produce width more then needed, but this is looks ok :)
         let max_item_width = (items.iter().map(|item| item.len()).max().unwrap() as f64
             * render_state.font_ctx.cell_metrics().char_width) as i32
             + self.state.borrow().levels.last().unwrap().preferred_width;
