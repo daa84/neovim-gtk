@@ -11,6 +11,7 @@ use pango;
 
 use neovim_lib::Value;
 
+use nvim::{self, NeovimClient};
 use mode;
 use ui_model::{Attrs, ModelLayout};
 use ui::UiMutex;
@@ -173,6 +174,7 @@ fn prompt_lines(
 }
 
 struct State {
+    nvim: Option<Rc<nvim::NeovimClient>>,
     levels: Vec<Level>,
     block: Option<Level>,
     render_state: Rc<RefCell<shell::RenderState>>,
@@ -183,6 +185,7 @@ struct State {
 impl State {
     fn new(drawing_area: gtk::DrawingArea, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
         State {
+            nvim: None,
             levels: Vec::new(),
             block: None,
             render_state,
@@ -292,7 +295,7 @@ impl CmdLine {
         drawing_area.connect_draw(clone!(state => move |_, ctx| gtk_draw(ctx, &state)));
 
         let (wild_scroll, wild_tree, wild_css_provider, wild_renderer, wild_column) =
-            CmdLine::create_widlmenu();
+            CmdLine::create_widlmenu(&state);
         content.pack_start(&wild_scroll, false, true, 0);
         popover.add(&content);
 
@@ -311,7 +314,9 @@ impl CmdLine {
         }
     }
 
-    fn create_widlmenu() -> (
+    fn create_widlmenu(
+        state: &Arc<UiMutex<State>>,
+    ) -> (
         gtk::ScrolledWindow,
         gtk::TreeView,
         gtk::CssProvider,
@@ -342,11 +347,23 @@ impl CmdLine {
 
         scroll.add(&tree);
 
+        tree.connect_button_press_event(clone!(state => move |tree, ev| {
+                let state = state.borrow();
+                let nvim = state.nvim.as_ref().unwrap().nvim();
+                if let Some(mut nvim) = nvim {
+                    popup_menu::tree_button_press(tree, ev, &mut *nvim, "");
+                }
+                Inhibit(false)
+            }));
+
         (scroll, tree, css_provider, renderer, column)
     }
 
     pub fn show_level(&mut self, ctx: &CmdLineContext) {
         let mut state = self.state.borrow_mut();
+        if state.nvim.is_none() {
+            state.nvim = Some(ctx.nvim.clone());
+        }
         let render_state = state.render_state.clone();
         let render_state = render_state.borrow();
 
@@ -560,7 +577,8 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
     Inhibit(false)
 }
 
-pub struct CmdLineContext {
+pub struct CmdLineContext<'a> {
+    pub nvim: &'a Rc<NeovimClient>,
     pub content: Vec<(HashMap<String, Value>, String)>,
     pub pos: u64,
     pub firstc: String,
@@ -574,7 +592,7 @@ pub struct CmdLineContext {
     pub max_width: i32,
 }
 
-impl CmdLineContext {
+impl<'a> CmdLineContext<'a> {
     fn get_lines(&self) -> LineContent {
         let content_line: Vec<(Option<Attrs>, Vec<char>)> = self.content
             .iter()

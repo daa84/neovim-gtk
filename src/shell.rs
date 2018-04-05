@@ -1364,6 +1364,7 @@ impl State {
             let render_state = self.render_state.borrow();
             let (x, y, width, height) = cursor.to_area(render_state.font_ctx.cell_metrics());
             let ctx = CmdLineContext {
+                nvim: &self.nvim,
                 content,
                 pos,
                 firstc,

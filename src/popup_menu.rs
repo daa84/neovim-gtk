@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::cmp::min;
+use std::iter;
 
 use gtk;
 use gtk::prelude::*;
@@ -235,10 +236,9 @@ impl PopupMenu {
                 let state = state_ref.borrow();
                 let nvim = state.nvim.as_ref().unwrap().nvim();
                 if let Some(mut nvim) = nvim {
-                    tree_button_press(tree, ev, &mut *nvim)
-                } else {
-                    Inhibit(false)
+                    tree_button_press(tree, ev, &mut *nvim, "<C-y>");
                 }
+                Inhibit(false)
             });
 
         let state_ref = state.clone();
@@ -302,9 +302,14 @@ pub struct PopupMenuContext<'a> {
     pub max_width: i32,
 }
 
-fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) -> Inhibit {
+pub fn tree_button_press(
+    tree: &gtk::TreeView,
+    ev: &EventButton,
+    nvim: &mut Neovim,
+    last_command: &str,
+) {
     if ev.get_event_type() != EventType::ButtonPress {
-        return Inhibit(false);
+        return;
     }
 
     let (paths, ..) = tree.get_selection().get_selected_rows();
@@ -325,21 +330,20 @@ fn tree_button_press(tree: &gtk::TreeView, ev: &EventButton, nvim: &mut Neovim) 
 
         let scroll_count = find_scroll_count(selected_idx, target_idx);
 
-        let mut apply_command = String::new();
-
-        for _ in 0..scroll_count {
-            if target_idx > selected_idx {
-                apply_command.push_str("<C-n>");
-            } else {
-                apply_command.push_str("<C-p>");
-            }
-        }
-        apply_command.push_str("<C-y>");
+        let mut apply_command: String = if target_idx > selected_idx {
+            (0..scroll_count)
+                .map(|_| "<C-n>")
+                .chain(iter::once(last_command))
+                .collect()
+        } else {
+            (0..scroll_count)
+                .map(|_| "<C-p>")
+                .chain(iter::once(last_command))
+                .collect()
+        };
 
         nvim.input(&apply_command).report_err();
     }
-
-    Inhibit(false)
 }
 
 fn find_scroll_count(selected_idx: i32, target_idx: i32) -> i32 {
