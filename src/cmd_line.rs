@@ -2,20 +2,23 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::cell::RefCell;
-use std::cmp::max;
+use std::cmp::{max, min};
 
 use gtk;
 use gtk::prelude::*;
 use cairo;
+use pango;
 
 use neovim_lib::Value;
 
+use nvim::{self, NeovimClient};
 use mode;
 use ui_model::{Attrs, ModelLayout};
 use ui::UiMutex;
 use render::{self, CellMetrics};
 use shell;
 use cursor;
+use popup_menu;
 
 pub struct Level {
     model_layout: ModelLayout,
@@ -171,6 +174,7 @@ fn prompt_lines(
 }
 
 struct State {
+    nvim: Option<Rc<nvim::NeovimClient>>,
     levels: Vec<Level>,
     block: Option<Level>,
     render_state: Rc<RefCell<shell::RenderState>>,
@@ -181,6 +185,7 @@ struct State {
 impl State {
     fn new(drawing_area: gtk::DrawingArea, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
         State {
+            nvim: None,
             levels: Vec::new(),
             block: None,
             render_state,
@@ -262,6 +267,11 @@ impl cursor::CursorRedrawCb for State {
 
 pub struct CmdLine {
     popover: gtk::Popover,
+    wild_tree: gtk::TreeView,
+    wild_scroll: gtk::ScrolledWindow,
+    wild_css_provider: gtk::CssProvider,
+    wild_renderer: gtk::CellRendererText,
+    wild_column: gtk::TreeViewColumn,
     displyed: bool,
     state: Arc<UiMutex<State>>,
 }
@@ -272,9 +282,10 @@ impl CmdLine {
         popover.set_modal(false);
         popover.set_position(gtk::PositionType::Right);
 
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+
         let drawing_area = gtk::DrawingArea::new();
-        drawing_area.show_all();
-        popover.add(&drawing_area);
+        content.pack_start(&drawing_area, true, true, 0);
 
         let state = Arc::new(UiMutex::new(State::new(drawing_area.clone(), render_state)));
         let weak_cb = Arc::downgrade(&state);
@@ -283,15 +294,76 @@ impl CmdLine {
 
         drawing_area.connect_draw(clone!(state => move |_, ctx| gtk_draw(ctx, &state)));
 
+        let (wild_scroll, wild_tree, wild_css_provider, wild_renderer, wild_column) =
+            CmdLine::create_widlmenu(&state);
+        content.pack_start(&wild_scroll, false, true, 0);
+        popover.add(&content);
+
+        drawing_area.show_all();
+        content.show();
+
         CmdLine {
             popover,
             state,
             displyed: false,
+            wild_scroll,
+            wild_tree,
+            wild_css_provider,
+            wild_renderer,
+            wild_column,
         }
+    }
+
+    fn create_widlmenu(
+        state: &Arc<UiMutex<State>>,
+    ) -> (
+        gtk::ScrolledWindow,
+        gtk::TreeView,
+        gtk::CssProvider,
+        gtk::CellRendererText,
+        gtk::TreeViewColumn,
+    ) {
+        let css_provider = gtk::CssProvider::new();
+
+        let tree = gtk::TreeView::new();
+        let style_context = tree.get_style_context().unwrap();
+        style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+        tree.get_selection().set_mode(gtk::SelectionMode::Single);
+        tree.set_headers_visible(false);
+        tree.set_can_focus(false);
+
+        let renderer = gtk::CellRendererText::new();
+        renderer.set_property_ellipsize(pango::EllipsizeMode::End);
+
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(&renderer, true);
+        column.add_attribute(&renderer, "text", 0);
+        tree.append_column(&column);
+
+        let scroll = gtk::ScrolledWindow::new(None, None);
+        scroll.set_propagate_natural_height(true);
+        scroll.set_propagate_natural_width(true);
+
+        scroll.add(&tree);
+
+        tree.connect_button_press_event(clone!(state => move |tree, ev| {
+                let state = state.borrow();
+                let nvim = state.nvim.as_ref().unwrap().nvim();
+                if let Some(mut nvim) = nvim {
+                    popup_menu::tree_button_press(tree, ev, &mut *nvim, "");
+                }
+                Inhibit(false)
+            }));
+
+        (scroll, tree, css_provider, renderer, column)
     }
 
     pub fn show_level(&mut self, ctx: &CmdLineContext) {
         let mut state = self.state.borrow_mut();
+        if state.nvim.is_none() {
+            state.nvim = Some(ctx.nvim.clone());
+        }
         let render_state = state.render_state.clone();
         let render_state = render_state.borrow();
 
@@ -405,6 +477,65 @@ impl CmdLine {
             .unwrap()
             .set_mode_info(mode_info);
     }
+
+    pub fn show_wildmenu(
+        &self,
+        items: Vec<String>,
+        render_state: &shell::RenderState,
+        max_width: i32,
+    ) {
+        // update font/color
+        self.wild_renderer
+            .set_property_font(Some(&render_state.font_ctx.font_description().to_string()));
+
+        self.wild_renderer
+            .set_property_foreground_rgba(Some(&render_state.color_model.pmenu_fg().into()));
+
+        popup_menu::update_css(&self.wild_css_provider, &render_state.color_model);
+
+        // set width
+        // this calculation produce width more then needed, but this is looks ok :)
+        let max_item_width = (items.iter().map(|item| item.len()).max().unwrap() as f64
+            * render_state.font_ctx.cell_metrics().char_width) as i32
+            + self.state.borrow().levels.last().unwrap().preferred_width;
+        self.wild_column
+            .set_fixed_width(min(max_item_width, max_width));
+        self.wild_scroll.set_max_content_width(max_width);
+
+        // load data
+        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 1]);
+        for item in items {
+            list_store.insert_with_values(None, &[0], &[&item]);
+        }
+        self.wild_tree.set_model(&list_store);
+
+        // set height
+        let treeview_height =
+            popup_menu::calc_treeview_height(&self.wild_tree, &self.wild_renderer);
+
+        self.wild_scroll.set_max_content_height(treeview_height);
+
+        self.wild_scroll.show_all();
+    }
+
+    pub fn hide_wildmenu(&self) {
+        self.wild_scroll.hide();
+    }
+
+    pub fn wildmenu_select(&self, selected: i64) {
+        if selected >= 0 {
+            let wild_tree = self.wild_tree.clone();
+            idle_add(move || {
+                let selected_path = gtk::TreePath::new_from_string(&format!("{}", selected));
+                wild_tree.get_selection().select_path(&selected_path);
+                wild_tree.scroll_to_cell(&selected_path, None, false, 0.0, 0.0);
+
+                Continue(false)
+            });
+        } else {
+            self.wild_tree.get_selection().unselect_all();
+        }
+    }
 }
 
 fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
@@ -446,7 +577,8 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
     Inhibit(false)
 }
 
-pub struct CmdLineContext {
+pub struct CmdLineContext<'a> {
+    pub nvim: &'a Rc<NeovimClient>,
     pub content: Vec<(HashMap<String, Value>, String)>,
     pub pos: u64,
     pub firstc: String,
@@ -460,7 +592,7 @@ pub struct CmdLineContext {
     pub max_width: i32,
 }
 
-impl CmdLineContext {
+impl<'a> CmdLineContext<'a> {
     fn get_lines(&self) -> LineContent {
         let content_line: Vec<(Option<Attrs>, Vec<char>)> = self.content
             .iter()

@@ -1364,6 +1364,7 @@ impl State {
             let render_state = self.render_state.borrow();
             let (x, y, width, height) = cursor.to_area(render_state.font_ctx.cell_metrics());
             let ctx = CmdLineContext {
+                nvim: &self.nvim,
                 content,
                 pos,
                 firstc,
@@ -1419,6 +1420,22 @@ impl State {
     pub fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RepaintMode {
         let render_state = self.render_state.borrow();
         self.cmd_line.special_char(&*render_state, c, shift, level);
+        RepaintMode::Nothing
+    }
+
+    pub fn wildmenu_show(&self, items: Vec<String>) -> RepaintMode {
+        self.cmd_line
+            .show_wildmenu(items, &*self.render_state.borrow(), self.max_popup_width());
+        RepaintMode::Nothing
+    }
+
+    pub fn wildmenu_hide(&self) -> RepaintMode {
+        self.cmd_line.hide_wildmenu();
+        RepaintMode::Nothing
+    }
+
+    pub fn wildmenu_select(&self, selected: i64) -> RepaintMode {
+        self.cmd_line.wildmenu_select(selected);
         RepaintMode::Nothing
     }
 }

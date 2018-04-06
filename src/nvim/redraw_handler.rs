@@ -110,6 +110,8 @@ pub fn call_gui_event(
                 .ok_or_else(|| "Nvim not initialized".to_owned())
                 .and_then(|mut nvim| {
                     nvim.set_option(UiOption::ExtCmdline(try_uint!(args[1]) == 1))
+                        .map_err(|e| e.to_string())?;
+                    nvim.set_option(UiOption::ExtWildmenu(try_uint!(args[1]) == 1))
                         .map_err(|e| e.to_string())
                 })?,
             opt => error!("Unknown option {}", opt),
@@ -229,6 +231,9 @@ pub fn call(
         "cmdline_block_hide" => ui.cmdline_block_hide(),
         "cmdline_pos" => call!(ui->cmdline_pos(args: uint, uint)),
         "cmdline_special_char" => call!(ui->cmdline_special_char(args: str, bool, uint)),
+        "wildmenu_show" => call!(ui->wildmenu_show(args: ext)),
+        "wildmenu_hide" => ui.wildmenu_hide(),
+        "wildmenu_select" => call!(ui->wildmenu_select(args: int)),
         _ => {
             warn!("Event {}({:?})", method, args);
             RepaintMode::Nothing
