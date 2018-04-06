@@ -122,7 +122,7 @@ pub trait SettingsLoader: Sized + serde::Serialize {
         match load_err() {
             Ok(settings) => settings,
             Err(e) => {
-                println!("{}", e);
+                error!("{}", e);
                 Self::empty()
             }
         }

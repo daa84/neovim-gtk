@@ -439,7 +439,7 @@ impl EntryStore {
                         entries.insert(0, Entry::new_current_project(pwd));
                     }
                 } else {
-                    println!("Error get current directory");
+                    error!("Error get current directory");
                 }
             }
             err @ Err(_) => err.report_err(),

@@ -18,7 +18,7 @@ pub fn can_close_window(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> 
             }
         }
         Err(ref err) => {
-            println!("Error getting info from nvim: {}", err);
+            error!("Error getting info from nvim: {}", err);
             true
         }
     }
@@ -58,7 +58,7 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>, shell: &Shell, changed_bufs: 
             let mut nvim = state.nvim().unwrap();
             match nvim.command("wa") {
                 Err(ref err) => {
-                    println!("Error: {}", err);
+                    error!("Error: {}", err);
                     false
                 }
                 _ => true,
@@ -87,11 +87,11 @@ fn get_changed_buffers(shell: &Shell) -> Result<Vec<String>, CallError> {
                         match buf.get_option(&mut nvim, "modified") {
                             Ok(Value::Boolean(val)) => val,
                             Ok(_) => {
-                                println!("Value must be boolean");
+                                warn!("Value must be boolean");
                                 false
                             }
                             Err(ref err) => {
-                                println!(
+                                error!(
                                     "Something going wrong while getting buffer option: {}",
                                     err
                                 );
@@ -101,7 +101,7 @@ fn get_changed_buffers(shell: &Shell) -> Result<Vec<String>, CallError> {
                         match buf.get_name(&mut nvim) {
                             Ok(name) => name,
                             Err(ref err) => {
-                                println!(
+                                error!(
                                     "Something going wrong while getting buffer name: {}",
                                     err
                                 );
