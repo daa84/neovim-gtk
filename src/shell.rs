@@ -1181,7 +1181,7 @@ impl State {
 
         if let Some(mut nvim) = self.nvim.nvim() {
             let mut render_state = self.render_state.borrow_mut();
-            render_state.color_model.theme.update(&mut *nvim);
+            render_state.color_model.theme.queue_update(&mut *nvim);
         }
         RepaintMode::Nothing
     }

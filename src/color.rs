@@ -1,5 +1,7 @@
 use std;
+
 use gdk;
+
 use ui_model::Cell;
 use theme::Theme;
 
@@ -10,12 +12,12 @@ pub const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);
 pub const COLOR_WHITE: Color = Color(1.0, 1.0, 1.0);
 pub const COLOR_RED: Color = Color(1.0, 0.0, 0.0);
 
-impl<'a> Into<gdk::RGBA> for &'a Color {
-    fn into(self) -> gdk::RGBA {
+impl From<Color> for gdk::RGBA {
+    fn from(color: Color) -> Self {
         gdk::RGBA {
-            red: self.0,
-            green: self.1,
-            blue: self.2,
+            red: color.0,
+            green: color.1,
+            blue: color.2,
             alpha: 1.0,
         }
     }
@@ -101,39 +103,36 @@ impl ColorModel {
         cell.attrs.special.as_ref().unwrap_or(&self.sp_color)
     }
 
-    pub fn pmenu_bg(&self) -> &Color {
-        if let Some(ref pmenu) = self.theme.pmenu {
-            pmenu.bg.as_ref().unwrap_or(&self.bg_color)
-        } else {
-            &self.bg_color
-        }
+    pub fn pmenu_bg<'a>(&'a self) -> Color {
+        self.theme
+            .pmenu()
+            .bg
+            .clone()
+            .unwrap_or_else(|| self.bg_color.clone())
     }
 
-
-    pub fn pmenu_fg(&self) -> &Color {
-        if let Some(ref pmenu) = self.theme.pmenu {
-            pmenu.fg.as_ref().unwrap_or(&self.fg_color)
-        } else {
-            &self.fg_color
-        }
+    pub fn pmenu_fg(&self) -> Color {
+        self.theme
+            .pmenu()
+            .fg
+            .clone()
+            .unwrap_or_else(|| self.fg_color.clone())
     }
 
-
-    pub fn pmenu_bg_sel(&self) -> &Color {
-        if let Some(ref pmenu) = self.theme.pmenu {
-            pmenu.bg_sel.as_ref().unwrap_or(&self.bg_color)
-        } else {
-            &self.bg_color
-        }
+    pub fn pmenu_bg_sel(&self) -> Color {
+        self.theme
+            .pmenu()
+            .bg_sel
+            .clone()
+            .unwrap_or_else(|| self.bg_color.clone())
     }
 
-
-    pub fn pmenu_fg_sel(&self) -> &Color {
-        if let Some(ref pmenu) = self.theme.pmenu {
-            pmenu.fg_sel.as_ref().unwrap_or(&self.fg_color)
-        } else {
-            &self.fg_color
-        }
+    pub fn pmenu_fg_sel(&self) -> Color {
+        self.theme
+            .pmenu()
+            .fg_sel
+            .clone()
+            .unwrap_or_else(|| self.fg_color.clone())
     }
 }
 
