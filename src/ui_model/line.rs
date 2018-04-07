@@ -21,7 +21,7 @@ pub struct Line {
 impl Line {
     pub fn new(columns: usize) -> Self {
         Line {
-            line: vec![Cell::new(' '); columns].into_boxed_slice(),
+            line: vec![Cell::new_empty(); columns].into_boxed_slice(),
             item_line: vec![None; columns].into_boxed_slice(),
             cell_to_item: vec![-1; columns].into_boxed_slice(),
             dirty_line: true,
@@ -257,7 +257,7 @@ impl StyledLine {
                 continue;
             }
 
-            line_str.push(cell.ch);
+            line_str.push_str(&cell.ch);
             let len = line_str.len() - byte_offset;
 
             for _ in 0..len {

@@ -76,24 +76,30 @@ impl Attrs {
     }
 }
 
+const EMPTY_STRING: String = String::new();
+
 #[derive(Clone)]
 pub struct Cell {
     pub attrs: Attrs,
-    pub ch: char,
+    pub ch: String,
     pub dirty: bool,
 }
 
 impl Cell {
-    pub fn new(ch: char) -> Cell {
+    pub fn new_empty() -> Cell {
+        Cell::new(EMPTY_STRING)
+    }
+
+    pub fn new(ch: String) -> Cell {
         Cell {
             attrs: Attrs::new(),
-            ch: ch,
+            ch,
             dirty: true,
         }
     }
 
     pub fn clear(&mut self) {
-        self.ch = ' ';
+        self.ch = EMPTY_STRING;
         self.attrs.clear();
         self.dirty = true;
     }

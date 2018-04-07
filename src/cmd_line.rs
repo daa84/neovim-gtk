@@ -28,7 +28,7 @@ pub struct Level {
 }
 
 impl Level {
-    pub fn insert(&mut self, c: &str, shift: bool, render_state: &shell::RenderState) {
+    pub fn insert(&mut self, c: String, shift: bool, render_state: &shell::RenderState) {
         self.model_layout.insert_char(c, shift);
         self.update_preferred_size(render_state);
     }
@@ -405,7 +405,7 @@ impl CmdLine {
         let mut state = self.state.borrow_mut();
 
         if let Some(level) = state.levels.get_mut((level - 1) as usize) {
-            level.insert(&c, shift, render_state);
+            level.insert(c, shift, render_state);
             level.update_cache(&*render_state);
         } else {
             error!("Level {} does not exists", level);

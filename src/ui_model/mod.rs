@@ -93,7 +93,7 @@ impl UiModel {
         (self.cur_row, self.cur_col)
     }
 
-    pub fn put(&mut self, ch: char, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {
+    pub fn put(&mut self, ch: String, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {
         let mut changed_region = self.cur_point();
         let line = &mut self.model[self.cur_row];
         line.dirty_line = true;

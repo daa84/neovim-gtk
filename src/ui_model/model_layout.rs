@@ -8,7 +8,7 @@ pub struct ModelLayout {
     pub model: UiModel,
     rows_filled: usize,
     cols_filled: usize,
-    lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>,
+    lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>,
 }
 
 impl ModelLayout {
@@ -23,7 +23,7 @@ impl ModelLayout {
         }
     }
 
-    pub fn layout_append(&mut self, mut lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
+    pub fn layout_append(&mut self, mut lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>) {
         let rows_filled = self.rows_filled;
         let take_from = self.lines.len();
 
@@ -32,7 +32,7 @@ impl ModelLayout {
         self.layout_replace(rows_filled, take_from);
     }
 
-    pub fn layout(&mut self, lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>) {
+    pub fn layout(&mut self, lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>) {
         self.lines = lines;
         self.layout_replace(0, 0);
     }
@@ -67,12 +67,11 @@ impl ModelLayout {
         }
     }
 
-    pub fn insert_char(&mut self, c: &str, shift: bool) {
-        if c.is_empty() {
+    pub fn insert_char(&mut self, ch: String, shift: bool) {
+        if ch.is_empty() {
             return;
         }
 
-        let ch = c.chars().next().unwrap();
         let (row, col) = self.model.get_cursor();
 
         if shift {
@@ -85,7 +84,7 @@ impl ModelLayout {
         self.model.set_cursor(row, col);
     }
 
-    fn insert_into_lines(&mut self, ch: char) {
+    fn insert_into_lines(&mut self, ch: String) {
         let line = &mut self.lines[0];
 
         let cur_col = self.model.cur_col;
@@ -152,7 +151,7 @@ impl ModelLayout {
         }
     }
 
-    fn count_lines(lines: &[Vec<(Option<Attrs>, Vec<char>)>], max_columns: usize) -> usize {
+    fn count_lines(lines: &[Vec<(Option<Attrs>, Vec<String>)>], max_columns: usize) -> usize {
         let mut row_count = 0;
 
         for line in lines {

@@ -1156,9 +1156,8 @@ impl State {
     }
 
     pub fn on_put(&mut self, text: String) -> RepaintMode {
-        let ch = text.chars().last().unwrap_or(' ');
         let double_width = text.is_empty();
-        RepaintMode::Area(self.model.put(ch, double_width, self.cur_attrs.as_ref()))
+        RepaintMode::Area(self.model.put(text, double_width, self.cur_attrs.as_ref()))
     }
 
     pub fn on_clear(&mut self) -> RepaintMode {
