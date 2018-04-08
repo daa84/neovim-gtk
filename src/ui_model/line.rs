@@ -70,12 +70,9 @@ impl Line {
     fn set_cell_to_item(&mut self, new_item: &PangoItemPosition) -> bool {
         let start_item_idx = self.cell_to_item(new_item.start_cell);
         let start_item_cells_count = if start_item_idx >= 0 {
-            self.item_line[start_item_idx as usize].as_ref().map_or(
-                -1,
-                |item| {
-                    item.cells_count as i32
-                },
-            )
+            self.item_line[start_item_idx as usize]
+                .as_ref()
+                .map_or(-1, |item| item.cells_count as i32)
         } else {
             -1
         };
@@ -85,9 +82,9 @@ impl Line {
         // start_item == idx of item start cell
         // in case different item length was in previous iteration
         // mark all item as dirty
-        if start_item_idx != new_item.start_cell as i32 ||
-            new_item.cells_count() != start_item_cells_count ||
-            start_item_idx == -1 || end_item_idx == -1
+        if start_item_idx != new_item.start_cell as i32
+            || new_item.cells_count() != start_item_cells_count || start_item_idx == -1
+            || end_item_idx == -1
         {
             self.initialize_cell_item(new_item.start_cell, new_item.end_cell, new_item.item);
             true
@@ -110,9 +107,9 @@ impl Line {
     }
 
     pub fn merge(&mut self, old_items: &StyledLine, pango_items: &[sys_pango::Item]) {
-        let mut pango_item_iter = pango_items.iter().map(|item| {
-            PangoItemPosition::new(old_items, item)
-        });
+        let mut pango_item_iter = pango_items
+            .iter()
+            .map(|item| PangoItemPosition::new(old_items, item));
 
         let mut next_item = pango_item_iter.next();
         let mut move_to_next_item = false;
@@ -120,7 +117,7 @@ impl Line {
         let mut cell_idx = 0;
         while cell_idx < self.line.len() {
             let dirty = match next_item {
-                None => self.set_cell_to_empty(cell_idx), 
+                None => self.set_cell_to_empty(cell_idx),
                 Some(ref new_item) => {
                     if cell_idx < new_item.start_cell {
                         self.set_cell_to_empty(cell_idx)
@@ -257,7 +254,7 @@ impl StyledLine {
                 continue;
             }
 
-            line_str.push_str(&cell.ch);
+            line_str.push_str(cell.ch.as_ref().map(|ch| ch.as_str()).unwrap_or(" "));
             let len = line_str.len() - byte_offset;
 
             for _ in 0..len {
@@ -389,9 +386,9 @@ impl<'c> StyleAttr<'c> {
 
 impl<'c> PartialEq for StyleAttr<'c> {
     fn eq(&self, other: &Self) -> bool {
-        self.italic == other.italic && self.bold == other.bold &&
-            self.foreground == other.foreground && self.empty == other.empty &&
-            self.background == other.background
+        self.italic == other.italic && self.bold == other.bold
+            && self.foreground == other.foreground && self.empty == other.empty
+            && self.background == other.background
     }
 }
 
@@ -402,9 +399,9 @@ mod tests {
     #[test]
     fn test_styled_line() {
         let mut line = Line::new(3);
-        line[0].ch = "a".to_owned();
-        line[1].ch = "b".to_owned();
-        line[2].ch = "c".to_owned();
+        line[0].ch = Some("a".to_owned());
+        line[1].ch = Some("b".to_owned());
+        line[2].ch = Some("c".to_owned());
 
         let styled_line = StyledLine::from(&line, &color::ColorModel::new());
         assert_eq!("abc", styled_line.line_str);

@@ -79,25 +79,21 @@ impl Attrs {
 #[derive(Clone)]
 pub struct Cell {
     pub attrs: Attrs,
-    pub ch: String,
+    pub ch: Option<String>,
     pub dirty: bool,
 }
 
 impl Cell {
     pub fn new_empty() -> Cell {
-        Cell::new(" ".to_owned())
-    }
-
-    pub fn new(ch: String) -> Cell {
         Cell {
             attrs: Attrs::new(),
-            ch,
+            ch: None,
             dirty: true,
         }
     }
 
     pub fn clear(&mut self) {
-        self.ch = " ".to_owned();
+        self.ch = None;
         self.attrs.clear();
         self.dirty = true;
     }
