@@ -402,9 +402,9 @@ mod tests {
     #[test]
     fn test_styled_line() {
         let mut line = Line::new(3);
-        line[0].ch = 'a';
-        line[1].ch = 'b';
-        line[2].ch = 'c';
+        line[0].ch = "a".to_owned();
+        line[1].ch = "b".to_owned();
+        line[2].ch = "c".to_owned();
 
         let styled_line = StyledLine::from(&line, &color::ColorModel::new());
         assert_eq!("abc", styled_line.line_str);

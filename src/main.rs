@@ -26,6 +26,7 @@ extern crate phf;
 extern crate rmpv;
 extern crate regex;
 extern crate unicode_width;
+extern crate unicode_segmentation;
 
 extern crate serde;
 #[macro_use]

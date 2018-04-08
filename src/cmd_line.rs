@@ -1,3 +1,4 @@
+use std::iter;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -8,6 +9,8 @@ use gtk;
 use gtk::prelude::*;
 use cairo;
 use pango;
+
+use unicode_segmentation::UnicodeSegmentation;
 
 use neovim_lib::Value;
 
@@ -55,7 +58,7 @@ impl Level {
         level
     }
 
-    fn replace_line(&mut self, lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>, append: bool) {
+    fn replace_line(&mut self, lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>, append: bool) {
         if append {
             self.model_layout.layout_append(lines);
         } else {
@@ -77,34 +80,20 @@ impl Level {
         self.preferred_height = (line_height * rows as f64) as i32;
     }
 
-    fn to_attributed_content(
-        content: &Vec<Vec<(HashMap<String, Value>, String)>>,
-    ) -> Vec<Vec<(Option<Attrs>, Vec<char>)>> {
-        content
-            .iter()
-            .map(|line_chars| {
-                line_chars
-                    .iter()
-                    .map(|c| (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect()))
-                    .collect()
-            })
-            .collect()
-    }
-
     pub fn from_multiline_content(
         content: &Vec<Vec<(HashMap<String, Value>, String)>>,
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
         Level::from_lines(
-            Level::to_attributed_content(content),
+            content.to_attributed_content(),
             max_width,
             render_state,
         )
     }
 
     pub fn from_lines(
-        lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>,
+        lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>,
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
@@ -144,17 +133,16 @@ fn prompt_lines(
     firstc: &str,
     prompt: &str,
     indent: u64,
-) -> (usize, Vec<(Option<Attrs>, Vec<char>)>) {
-    let prompt: Vec<(Option<Attrs>, Vec<char>)> = if !firstc.is_empty() {
+) -> (usize, Vec<(Option<Attrs>, Vec<String>)>) {
+    let prompt: Vec<(Option<Attrs>, Vec<String>)> = if !firstc.is_empty() {
         if firstc.len() >= indent as usize {
-            vec![(None, firstc.chars().collect())]
+            vec![(None, vec![firstc.to_owned()])]
         } else {
             vec![
                 (
                     None,
-                    firstc
-                        .chars()
-                        .chain((firstc.len()..indent as usize).map(|_| ' '))
+                    iter::once(firstc.to_owned())
+                        .chain((firstc.len()..indent as usize).map(|_| " ".to_owned()))
                         .collect(),
                 ),
             ]
@@ -162,7 +150,7 @@ fn prompt_lines(
     } else if !prompt.is_empty() {
         prompt
             .lines()
-            .map(|l| (None, l.chars().collect()))
+            .map(|l| (None, l.graphemes(true).map(|g| g.to_owned()).collect()))
             .collect()
     } else {
         vec![]
@@ -446,13 +434,10 @@ impl CmdLine {
         let mut state = self.state.borrow_mut();
         let render_state = state.render_state.clone();
         {
-            let attr_content = content
-                .iter()
-                .map(|c| (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect()))
-                .collect();
+            let attr_content = content.to_attributed_content();
 
             let block = state.block.as_mut().unwrap();
-            block.replace_line(vec![attr_content], true);
+            block.replace_line(attr_content, true);
             block.update_preferred_size(&*render_state.borrow());
             block.update_cache(&*render_state.borrow());
         }
@@ -594,18 +579,15 @@ pub struct CmdLineContext<'a> {
 
 impl<'a> CmdLineContext<'a> {
     fn get_lines(&self) -> LineContent {
-        let content_line: Vec<(Option<Attrs>, Vec<char>)> = self.content
-            .iter()
-            .map(|c| (Some(Attrs::from_value_map(&c.0)), c.1.chars().collect()))
-            .collect();
+        let mut content_line = self.content.to_attributed_content();
         let (prompt_offset, prompt_lines) = prompt_lines(&self.firstc, &self.prompt, self.indent);
 
         let mut content: Vec<_> = prompt_lines.into_iter().map(|line| vec![line]).collect();
 
         if content.is_empty() {
-            content.push(content_line);
+            content.push(content_line.remove(0));
         } else {
-            content.last_mut().map(|line| line.extend(content_line));
+            content.last_mut().map(|line| line.extend(content_line.remove(0)));
         }
 
         LineContent {
@@ -616,6 +598,43 @@ impl<'a> CmdLineContext<'a> {
 }
 
 struct LineContent {
-    lines: Vec<Vec<(Option<Attrs>, Vec<char>)>>,
+    lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>,
     prompt_offset: usize,
+}
+
+trait ToAttributedModelContent {
+    fn to_attributed_content(&self) -> Vec<Vec<(Option<Attrs>, Vec<String>)>>;
+}
+
+impl ToAttributedModelContent for Vec<Vec<(HashMap<String, Value>, String)>> {
+    fn to_attributed_content(&self) -> Vec<Vec<(Option<Attrs>, Vec<String>)>> {
+        self.iter()
+            .map(|line_chars| {
+                line_chars
+                    .iter()
+                    .map(|c| {
+                        (
+                            Some(Attrs::from_value_map(&c.0)),
+                            c.1.graphemes(true).map(|g| g.to_owned()).collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+}
+
+impl ToAttributedModelContent for Vec<(HashMap<String, Value>, String)> {
+    fn to_attributed_content(&self) -> Vec<Vec<(Option<Attrs>, Vec<String>)>> {
+        vec![
+            self.iter()
+                .map(|c| {
+                    (
+                        Some(Attrs::from_value_map(&c.0)),
+                        c.1.graphemes(true).map(|g| g.to_owned()).collect(),
+                    )
+                })
+                .collect(),
+        ]
+    }
 }

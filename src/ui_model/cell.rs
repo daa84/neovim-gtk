@@ -76,8 +76,6 @@ impl Attrs {
     }
 }
 
-const EMPTY_STRING: String = String::new();
-
 #[derive(Clone)]
 pub struct Cell {
     pub attrs: Attrs,
@@ -87,7 +85,7 @@ pub struct Cell {
 
 impl Cell {
     pub fn new_empty() -> Cell {
-        Cell::new(EMPTY_STRING)
+        Cell::new(" ".to_owned())
     }
 
     pub fn new(ch: String) -> Cell {
@@ -99,7 +97,7 @@ impl Cell {
     }
 
     pub fn clear(&mut self) {
-        self.ch = EMPTY_STRING;
+        self.ch = " ".to_owned();
         self.attrs.clear();
         self.dirty = true;
     }

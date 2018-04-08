@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use unicode_width::UnicodeWidthChar;
+use unicode_width::UnicodeWidthStr;
 
 use ui_model::{Attrs, UiModel};
 
@@ -94,6 +94,7 @@ impl ModelLayout {
             if cur_col < col_idx + chars.len() {
                 let col_sub_idx = cur_col - col_idx;
                 chars.insert(col_sub_idx, ch);
+                break;
             } else {
                 col_idx += chars.len();
             }
@@ -117,7 +118,7 @@ impl ModelLayout {
         for content in lines {
             for &(ref attr, ref ch_list) in content {
                 for ch in ch_list {
-                    let ch_width = ch.width().unwrap_or(1);
+                    let ch_width = max(1, ch.width());
 
                     if col_idx + ch_width > self.model.columns {
                         col_idx = 0;
@@ -125,9 +126,9 @@ impl ModelLayout {
                     }
 
                     self.model.set_cursor(row_idx, col_idx as usize);
-                    self.model.put(*ch, false, attr.as_ref());
+                    self.model.put(ch.clone(), false, attr.as_ref());
                     if ch_width > 1 {
-                        self.model.put(' ', true, attr.as_ref());
+                        self.model.put(" ".to_owned(), true, attr.as_ref());
                     }
 
                     if max_col_idx < col_idx {
@@ -169,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_count_lines() {
-        let lines = vec![vec![(None, vec!['a'; 5])]];
+        let lines = vec![vec![(None, vec!["a".to_owned(); 5])]];
 
         let rows = ModelLayout::count_lines(&lines, 4);
         assert_eq!(2, rows);
@@ -177,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_resize() {
-        let lines = vec![vec![(None, vec!['a'; 5])]; ModelLayout::ROWS_STEP];
+        let lines = vec![vec![(None, vec!["a".to_owned(); 5])]; ModelLayout::ROWS_STEP];
         let mut model = ModelLayout::new(5);
 
         model.layout(lines.clone());
@@ -194,14 +195,14 @@ mod tests {
 
     #[test]
     fn test_cols_filled() {
-        let lines = vec![vec![(None, vec!['a'; 3])]; 1];
+        let lines = vec![vec![(None, vec!["a".to_owned(); 3])]; 1];
         let mut model = ModelLayout::new(5);
 
         model.layout(lines);
         let (cols, _) = model.size();
         assert_eq!(4, cols); // size is 3 and 4 - is with cursor position
 
-        let lines = vec![vec![(None, vec!['a'; 2])]; 1];
+        let lines = vec![vec![(None, vec!["a".to_owned(); 2])]; 1];
 
         model.layout_append(lines);
         let (cols, _) = model.size();
@@ -210,35 +211,35 @@ mod tests {
 
     #[test]
     fn test_insert_shift() {
-        let lines = vec![vec![(None, vec!['a'; 3])]; 1];
+        let lines = vec![vec![(None, vec!["a".to_owned(); 3])]; 1];
         let mut model = ModelLayout::new(5);
         model.layout(lines);
         model.set_cursor(1);
 
-        model.insert_char("b", true);
+        model.insert_char("b".to_owned(), true);
 
         let (cols, _) = model.size();
         assert_eq!(4, cols);
-        assert_eq!('b', model.model.model()[0].line[1].ch);
+        assert_eq!("b", model.model.model()[0].line[1].ch);
     }
 
     #[test]
     fn test_insert_no_shift() {
-        let lines = vec![vec![(None, vec!['a'; 3])]; 1];
+        let lines = vec![vec![(None, vec!["a".to_owned(); 3])]; 1];
         let mut model = ModelLayout::new(5);
         model.layout(lines);
         model.set_cursor(1);
 
-        model.insert_char("b", false);
+        model.insert_char("b".to_owned(), false);
 
         let (cols, _) = model.size();
         assert_eq!(3, cols);
-        assert_eq!('b', model.model.model()[0].line[1].ch);
+        assert_eq!("b", model.model.model()[0].line[1].ch);
     }
 
     #[test]
     fn test_double_width() {
-        let lines = vec![vec![(None, vec!['あ'; 3])]; 1];
+        let lines = vec![vec![(None, vec!["あ".to_owned(); 3])]; 1];
         let mut model = ModelLayout::new(7);
         model.layout(lines);
         model.set_cursor(1);
