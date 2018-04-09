@@ -141,6 +141,7 @@ pub fn post_start_init(
     open_paths: Vec<String>,
     cols: u64,
     rows: u64,
+    input_data: Option<String>,
 ) -> result::Result<(), NvimInitError> {
     nvim.borrow()
         .unwrap()
@@ -170,6 +171,21 @@ pub fn post_start_init(
             .command_async(&command)
             .cb(|r| r.report_err())
             .call();
+    } else {
+        if let Some(input_data) = input_data {
+            let mut nvim = nvim.borrow().unwrap();
+            let buf = nvim.get_current_buf().ok_and_report();
+
+            if let Some(buf) = buf {
+                buf.set_lines(
+                    &mut *nvim,
+                    0,
+                    0,
+                    true,
+                    input_data.lines().map(|l| l.to_owned()).collect(),
+                ).report_err();
+            }
+        }
     }
 
     Ok(())

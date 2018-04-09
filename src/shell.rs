@@ -495,6 +495,7 @@ pub struct ShellOptions {
     nvim_bin_path: Option<String>,
     open_paths: Vec<String>,
     timeout: Option<Duration>,
+    input_data: Option<String>,
 }
 
 impl ShellOptions {
@@ -502,12 +503,24 @@ impl ShellOptions {
         nvim_bin_path: Option<String>,
         open_paths: Vec<String>,
         timeout: Option<Duration>,
+        input_data: Option<String>,
     ) -> Self {
         ShellOptions {
             nvim_bin_path,
             open_paths,
             timeout,
+            input_data,
         }
+    }
+
+    // remove input data from original
+    // shell option, as it need to be used only once
+    pub fn take(&mut self) -> Self {
+        let input_data = self.input_data.take();
+        let mut clone = self.clone();
+        clone.input_data = input_data;
+
+        clone
     }
 }
 
@@ -1044,7 +1057,13 @@ fn init_nvim_async(
     });
 
     // attach ui
-    if let Err(err) = nvim::post_start_init(nvim, options.open_paths, cols as u64, rows as u64) {
+    if let Err(err) = nvim::post_start_init(
+        nvim,
+        options.open_paths,
+        cols as u64,
+        rows as u64,
+        options.input_data,
+    ) {
         show_nvim_init_error(&err, state_arc.clone());
     } else {
         set_nvim_initialized(state_arc);
@@ -1142,7 +1161,7 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
 
         let state_arc = state_ref.clone();
         let nvim_handler = NvimHandler::new(state_ref.clone());
-        let options = state.options.clone();
+        let options = state.options.take();
         thread::spawn(move || init_nvim_async(state_arc, nvim_handler, options, cols, rows));
     }
 }
@@ -1157,7 +1176,10 @@ impl State {
 
     pub fn on_put(&mut self, text: String) -> RepaintMode {
         let double_width = text.is_empty();
-        RepaintMode::Area(self.model.put(Some(text), double_width, self.cur_attrs.as_ref()))
+        RepaintMode::Area(
+            self.model
+                .put(Some(text), double_width, self.cur_attrs.as_ref()),
+        )
     }
 
     pub fn on_clear(&mut self) -> RepaintMode {

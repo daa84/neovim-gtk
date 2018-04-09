@@ -23,11 +23,12 @@ extern crate pango_sys;
 extern crate pangocairo;
 extern crate percent_encoding;
 extern crate phf;
-extern crate rmpv;
 extern crate regex;
-extern crate unicode_width;
+extern crate rmpv;
 extern crate unicode_segmentation;
+extern crate unicode_width;
 
+extern crate libc;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -63,6 +64,8 @@ mod subscriptions;
 mod misc;
 
 use std::env;
+use std::io::Read;
+use std::cell::RefCell;
 use std::time::Duration;
 use std::str::FromStr;
 use gio::prelude::*;
@@ -78,6 +81,8 @@ const DISABLE_WIN_STATE_RESTORE: &str = "--disable-win-restore";
 fn main() {
     env_logger::init();
 
+    let input_data = RefCell::new(read_piped_input());
+
     let app_flags = gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::NON_UNIQUE;
 
     glib::set_program_name(Some("NeovimGtk"));
@@ -88,12 +93,14 @@ fn main() {
         gtk::Application::new(Some("org.daa.NeovimGtk"), app_flags)
     }.expect("Failed to initialize GTK application");
 
-    app.connect_activate(activate);
+    app.connect_activate(move |app| {
+        activate(app, input_data.replace(None))
+    });
     app.connect_open(open);
 
     let new_window_action = gio::SimpleAction::new("new-window", None);
     let app_ref = app.clone();
-    new_window_action.connect_activate(move |_, _| activate(&app_ref));
+    new_window_action.connect_activate(move |_, _| activate(&app_ref, None));
     app.add_action(&new_window_action);
 
     gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
@@ -117,16 +124,18 @@ fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
         nvim_bin_path(std::env::args()),
         files_list,
         nvim_timeout(std::env::args()),
+        None,
     ));
 
     ui.init(app, !nvim_disable_win_state(std::env::args()));
 }
 
-fn activate(app: &gtk::Application) {
+fn activate(app: &gtk::Application, input_data: Option<String>) {
     let mut ui = Ui::new(ShellOptions::new(
         nvim_bin_path(std::env::args()),
         Vec::new(),
         nvim_timeout(std::env::args()),
+        input_data,
     ));
 
     ui.init(app, !nvim_disable_win_state(std::env::args()));
@@ -163,6 +172,23 @@ where
     args.find(|a| a.starts_with(DISABLE_WIN_STATE_RESTORE))
         .map(|_| true)
         .unwrap_or(false)
+}
+
+fn read_piped_input() -> Option<String> {
+    let isatty = unsafe { libc::isatty(libc::STDIN_FILENO) != 0 };
+
+    if !isatty {
+        let mut buf = String::new();
+        match std::io::stdin().read_to_string(&mut buf) {
+            Ok(_) => Some(buf),
+            Err(err) => {
+                error!("Error read stdin {}", err);
+                None
+            }
+        }
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
