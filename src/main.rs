@@ -28,7 +28,7 @@ extern crate rmpv;
 extern crate unicode_segmentation;
 extern crate unicode_width;
 
-extern crate libc;
+extern crate atty;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -175,9 +175,7 @@ where
 }
 
 fn read_piped_input() -> Option<String> {
-    let isatty = unsafe { libc::isatty(libc::STDIN_FILENO) != 0 };
-
-    if !isatty {
+    if atty::isnt(atty::Stream::Stdin) {
         let mut buf = String::new();
         match std::io::stdin().read_to_string(&mut buf) {
             Ok(_) => Some(buf),
