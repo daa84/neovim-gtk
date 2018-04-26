@@ -93,9 +93,7 @@ fn main() {
         gtk::Application::new(Some("org.daa.NeovimGtk"), app_flags)
     }.expect("Failed to initialize GTK application");
 
-    app.connect_activate(move |app| {
-        activate(app, input_data.replace(None))
-    });
+    app.connect_activate(move |app| activate(app, input_data.replace(None)));
     app.connect_open(open);
 
     let new_window_action = gio::SimpleAction::new("new-window", None);
@@ -178,7 +176,8 @@ fn read_piped_input() -> Option<String> {
     if atty::isnt(atty::Stream::Stdin) {
         let mut buf = String::new();
         match std::io::stdin().read_to_string(&mut buf) {
-            Ok(_) => Some(buf),
+            Ok(size) if size > 0 => Some(buf),
+            Ok(_) => None,
             Err(err) => {
                 error!("Error read stdin {}", err);
                 None
