@@ -7,6 +7,8 @@ use std::thread;
 use std::collections::HashMap;
 use std::time::Duration;
 
+use pango;
+use pango::prelude::*;
 use cairo;
 use cairo::prelude::*;
 use pango::{FontDescription, LayoutExt};
@@ -91,9 +93,9 @@ pub struct RenderState {
 }
 
 impl RenderState {
-    pub fn new() -> Self {
+    pub fn new(pango_context: pango::Context) -> Self {
         RenderState {
-            font_ctx: render::Context::new(FontDescription::from_string(DEFAULT_FONT_NAME)),
+            font_ctx: render::Context::new(pango_context),
             color_model: ColorModel::new(),
             mode: mode::Mode::new(),
         }
@@ -139,7 +141,11 @@ pub struct State {
 impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> State {
         let drawing_area = gtk::DrawingArea::new();
-        let render_state = Rc::new(RefCell::new(RenderState::new()));
+
+        let pango_context = drawing_area.create_pango_context().unwrap();
+        pango_context.set_font_description(&FontDescription::from_string(DEFAULT_FONT_NAME));
+
+        let render_state = Rc::new(RefCell::new(RenderState::new(pango_context)));
         let popup_menu = PopupMenu::new(&drawing_area);
         let cmd_line = CmdLine::new(&drawing_area, render_state.clone());
 
@@ -258,10 +264,13 @@ impl State {
     }
 
     pub fn set_font_desc(&mut self, desc: &str) {
+        let pango_context = self.drawing_area.create_pango_context().unwrap();
+        pango_context.set_font_description(&FontDescription::from_string(desc));
+
         self.render_state
             .borrow_mut()
             .font_ctx
-            .update(FontDescription::from_string(desc));
+            .update(pango_context);
         self.model.clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintMode::All);
@@ -1181,9 +1190,7 @@ impl State {
 
     pub fn on_put(&mut self, text: String) -> RepaintMode {
         let double_width = text.is_empty();
-        RepaintMode::Area(
-            self.model.put(&text, double_width, self.cur_attrs.as_ref()),
-        )
+        RepaintMode::Area(self.model.put(&text, double_width, self.cur_attrs.as_ref()))
     }
 
     pub fn on_clear(&mut self) -> RepaintMode {

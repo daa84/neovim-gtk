@@ -1,4 +1,3 @@
-use pangocairo::FontMap;
 use pango::prelude::*;
 use pango;
 
@@ -13,14 +12,14 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(font_desc: pango::FontDescription) -> Self {
+    pub fn new(pango_context: pango::Context) -> Self {
         Context {
-            state: ContextState::new(font_desc),
+            state: ContextState::new(pango_context),
         }
     }
 
-    pub fn update(&mut self, font_desc: pango::FontDescription) {
-        self.state = ContextState::new(font_desc);
+    pub fn update(&mut self, pango_context: pango::Context) {
+        self.state = ContextState::new(pango_context);
     }
 
     pub fn itemize(&self, line: &StyledLine) -> Vec<sys_pango::Item> {
@@ -62,12 +61,9 @@ struct ContextState {
 }
 
 impl ContextState {
-    pub fn new(font_desc: pango::FontDescription) -> Self {
-        let font_map = FontMap::get_default().unwrap();
-        let pango_context = font_map.create_context().unwrap();
-        pango_context.set_font_description(&font_desc);
-
+    pub fn new(pango_context: pango::Context) -> Self {
         let font_metrics = pango_context.get_metrics(None, None).unwrap();
+        let font_desc = pango_context.get_font_description().unwrap();
 
         ContextState {
             pango_context,
