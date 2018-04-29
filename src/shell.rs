@@ -124,6 +124,7 @@ pub struct State {
     pub drawing_area: gtk::DrawingArea,
     tabs: Tabline,
     im_context: gtk::IMMulticontext,
+    update_im_location: bool,
     error_area: error::ErrorArea,
 
     options: ShellOptions,
@@ -169,6 +170,7 @@ impl State {
             drawing_area,
             tabs: Tabline::new(),
             im_context: gtk::IMMulticontext::new(),
+            update_im_location: false,
             error_area: error::ErrorArea::new(),
 
             options,
@@ -1164,9 +1166,16 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
 
 // Neovim redraw events
 impl State {
+    pub fn redraw_handler_finish(&mut self) {
+        if self.update_im_location {
+            self.set_im_location();
+            self.update_im_location = false;
+        }
+    }
+
     pub fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
         let repaint_area = self.model.set_cursor(row as usize, col as usize);
-        self.set_im_location();
+        self.update_im_location = true;
         RepaintMode::AreaList(repaint_area)
     }
 
