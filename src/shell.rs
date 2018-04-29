@@ -378,10 +378,6 @@ impl State {
     fn try_nvim_resize(&mut self) {
         let (columns, rows) = self.calc_nvim_size();
 
-        if self.model.rows == rows && self.model.columns == columns {
-            return;
-        }
-
         let (requested_rows, requested_cols) = self.resize_request;
 
         if requested_rows == rows as i64 && requested_cols == columns as i64 {
