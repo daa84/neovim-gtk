@@ -79,7 +79,7 @@ impl Attrs {
 #[derive(Clone)]
 pub struct Cell {
     pub attrs: Attrs,
-    pub ch: Option<String>,
+    pub ch: String,
     pub dirty: bool,
 }
 
@@ -87,13 +87,13 @@ impl Cell {
     pub fn new_empty() -> Cell {
         Cell {
             attrs: Attrs::new(),
-            ch: None,
+            ch: String::new(),
             dirty: true,
         }
     }
 
     pub fn clear(&mut self) {
-        self.ch = None;
+        self.ch.clear();
         self.attrs.clear();
         self.dirty = true;
     }

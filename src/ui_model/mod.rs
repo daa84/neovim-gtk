@@ -93,14 +93,16 @@ impl UiModel {
         (self.cur_row, self.cur_col)
     }
 
-    pub fn put(&mut self, ch: Option<String>, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {
+    pub fn put(&mut self, ch: &str, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {
         let mut changed_region = self.cur_point();
         let line = &mut self.model[self.cur_row];
         line.dirty_line = true;
 
         let cell = &mut line[self.cur_col];
 
-        cell.ch = ch;
+        cell.ch.clear();
+        cell.ch.push_str(ch);
+
         cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);
         cell.attrs.double_width = double_width;
         cell.dirty = true;
@@ -305,7 +307,7 @@ mod tests {
 
         model.set_cursor(1, 1);
 
-        let rect = model.put(Some(" ".to_owned()), false, None);
+        let rect = model.put(" ", false, None);
 
         assert_eq!(1, rect.top);
         assert_eq!(1, rect.left);

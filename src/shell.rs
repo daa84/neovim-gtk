@@ -1182,8 +1182,7 @@ impl State {
     pub fn on_put(&mut self, text: String) -> RepaintMode {
         let double_width = text.is_empty();
         RepaintMode::Area(
-            self.model
-                .put(Some(text), double_width, self.cur_attrs.as_ref()),
+            self.model.put(&text, double_width, self.cur_attrs.as_ref()),
         )
     }
 

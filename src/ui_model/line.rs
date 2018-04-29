@@ -254,7 +254,11 @@ impl StyledLine {
                 continue;
             }
 
-            line_str.push_str(cell.ch.as_ref().map(|ch| ch.as_str()).unwrap_or(" "));
+            if !cell.ch.is_empty() {
+                line_str.push_str(&cell.ch);
+            } else {
+                line_str.push(' ');
+            }
             let len = line_str.len() - byte_offset;
 
             for _ in 0..len {
@@ -399,9 +403,9 @@ mod tests {
     #[test]
     fn test_styled_line() {
         let mut line = Line::new(3);
-        line[0].ch = Some("a".to_owned());
-        line[1].ch = Some("b".to_owned());
-        line[2].ch = Some("c".to_owned());
+        line[0].ch = "a".to_owned();
+        line[1].ch = "b".to_owned();
+        line[2].ch = "c".to_owned();
 
         let styled_line = StyledLine::from(&line, &color::ColorModel::new());
         assert_eq!("abc", styled_line.line_str);

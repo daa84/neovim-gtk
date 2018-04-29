@@ -78,7 +78,7 @@ impl ModelLayout {
             self.insert_into_lines(ch);
             self.layout_replace(0, 0);
         } else {
-            self.model.put(Some(ch), false, None);
+            self.model.put(&ch, false, None);
         }
 
         self.model.set_cursor(row, col);
@@ -126,9 +126,9 @@ impl ModelLayout {
                     }
 
                     self.model.set_cursor(row_idx, col_idx as usize);
-                    self.model.put(Some(ch.clone()), false, attr.as_ref());
+                    self.model.put(ch, false, attr.as_ref());
                     if ch_width > 1 {
-                        self.model.put(None, true, attr.as_ref());
+                        self.model.put("", true, attr.as_ref());
                     }
 
                     if max_col_idx < col_idx {
@@ -220,7 +220,7 @@ mod tests {
 
         let (cols, _) = model.size();
         assert_eq!(4, cols);
-        assert_eq!(Some("b".to_owned()), model.model.model()[0].line[1].ch);
+        assert_eq!("b", model.model.model()[0].line[1].ch);
     }
 
     #[test]
@@ -234,7 +234,7 @@ mod tests {
 
         let (cols, _) = model.size();
         assert_eq!(3, cols);
-        assert_eq!(Some("b".to_owned()), model.model.model()[0].line[1].ch);
+        assert_eq!("b", model.model.model()[0].line[1].ch);
     }
 
     #[test]
