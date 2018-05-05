@@ -243,8 +243,11 @@ pub struct StyledLine {
 
 impl StyledLine {
     pub fn from(line: &Line, color_model: &color::ColorModel) -> Self {
-        let mut line_str = String::new();
-        let mut cell_to_byte = Vec::new();
+
+        let average_capacity = line.line.len() * 4 * 2; // code bytes * grapheme cluster
+
+        let mut line_str = String::with_capacity(average_capacity);
+        let mut cell_to_byte = Vec::with_capacity(average_capacity);
         let attr_list = pango::AttrList::new();
         let mut byte_offset = 0;
         let mut style_attr = StyleAttr::new();
