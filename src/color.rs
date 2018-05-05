@@ -90,14 +90,6 @@ impl ColorModel {
         }
     }
 
-    pub fn actual_cell_bg<'a>(&'a self, cell: &'a Cell) -> &'a Color {
-        if !cell.attrs.reverse {
-            cell.attrs.background.as_ref().unwrap_or(&self.bg_color)
-        } else {
-            cell.attrs.foreground.as_ref().unwrap_or(&self.fg_color)
-        }
-    }
-
     #[inline]
     pub fn actual_cell_sp<'a>(&'a self, cell: &'a Cell) -> &'a Color {
         cell.attrs.special.as_ref().unwrap_or(&self.sp_color)
@@ -133,6 +125,14 @@ impl ColorModel {
             .fg_sel
             .clone()
             .unwrap_or_else(|| self.fg_color.clone())
+    }
+
+    pub fn cursor_bg(&self) -> Color {
+        self.theme
+            .cursor()
+            .bg
+            .clone()
+            .unwrap_or_else(|| self.bg_color.clone())
     }
 }
 

@@ -7,7 +7,6 @@ use super::context::CellMetrics;
 use ui_model;
 
 pub struct RowView<'a> {
-    pub row: usize,
     pub line: &'a ui_model::Line,
     pub cell_metrics: &'a CellMetrics,
     pub line_y: f64,
@@ -24,7 +23,6 @@ impl<'a> RowView<'a> {
         RowView {
             line,
             line_y: row as f64 * cell_metrics.line_height,
-            row,
             cell_metrics,
             ctx,
         }

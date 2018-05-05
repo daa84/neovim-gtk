@@ -16,7 +16,14 @@ use pangocairo;
 use cursor::Cursor;
 use ui_model;
 
-pub fn clear(ctx: &cairo::Context, color_model: &color::ColorModel) {
+pub fn clear(ctx: &cairo::Context) {
+    ctx.set_operator(cairo::Operator::Clear);
+    ctx.paint();
+}
+
+pub fn fill_background(ctx: &cairo::Context, color_model: &color::ColorModel) {
+    // must be dest over here
+    //ctx.set_operator(cairo::Operator::DestOver);
     ctx.set_source_rgb(
         color_model.bg_color.0,
         color_model.bg_color.1,
@@ -36,40 +43,45 @@ pub fn render<C: Cursor>(
     let &CellMetrics { char_width, .. } = cell_metrics;
     let (cursor_row, cursor_col) = ui_model.get_cursor();
 
+    // draw text
+    ctx.set_operator(cairo::Operator::Source);
+
+    for cell_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
+        let mut line_x = 0.0;
+
+        for (col, cell) in cell_view.line.line.iter().enumerate() {
+            draw_cell(&cell_view, color_model, cell, col, line_x);
+            draw_underline(&cell_view, color_model, cell, line_x);
+
+            line_x += char_width;
+        }
+    }
+
+
+    // draw cursor
+    ctx.set_operator(cairo::Operator::Xor);
+    let (_x1, _y1, x2, y2) = ctx.clip_extents();
+    let line_x = cursor_col as f64 * cell_metrics.char_width;
+    let line_y = cursor_row as f64 * cell_metrics.line_height;
+
+    if line_x < x2 && line_y < y2 {
+        if let Some(cursor_line) = ui_model.model().get(cursor_row) {
+            let double_width = cursor_line
+                .line
+                .get(cursor_col + 1)
+                .map_or(false, |c| c.attrs.double_width);
+            ctx.move_to(line_x, line_y);
+            cursor.draw(ctx, font_ctx, line_y, double_width, &color_model);
+        }
+    }
+
+    // draw background
+    ctx.set_operator(cairo::Operator::DestOver);
     for cell_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
         let mut line_x = 0.0;
 
         for (col, cell) in cell_view.line.line.iter().enumerate() {
             draw_cell_bg(&cell_view, color_model, cell, col, line_x);
-            line_x += char_width;
-        }
-    }
-
-    for cell_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
-        let mut line_x = 0.0;
-        let RowView {
-            line, row, line_y, ..
-        } = cell_view;
-
-        for (col, cell) in line.line.iter().enumerate() {
-            draw_cell(&cell_view, color_model, cell, col, line_x);
-
-            draw_underline(&cell_view, color_model, cell, line_x);
-
-            if row == cursor_row && col == cursor_col {
-                let double_width = line.line
-                    .get(col + 1)
-                    .map_or(false, |c| c.attrs.double_width);
-                ctx.move_to(line_x, line_y);
-                cursor.draw(
-                    ctx,
-                    font_ctx,
-                    line_y,
-                    double_width,
-                    color_model.actual_cell_bg(cell),
-                );
-            }
-
             line_x += char_width;
         }
     }
@@ -104,7 +116,13 @@ fn draw_underline(
             let undercurl_height = (underline_thickness * 4.0).min(max_undercurl_height);
             let undercurl_y = line_y + underline_position - undercurl_height / 2.0;
 
-            pangocairo::functions::show_error_underline(ctx, line_x, undercurl_y, char_width, undercurl_height);
+            pangocairo::functions::show_error_underline(
+                ctx,
+                line_x,
+                undercurl_y,
+                char_width,
+                undercurl_height,
+            );
         } else if cell.attrs.underline {
             let fg = color_model.actual_cell_fg(cell);
             ctx.set_source_rgb(fg.0, fg.1, fg.2);

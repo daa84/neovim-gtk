@@ -13,12 +13,14 @@ use value::ValueMapExt;
 
 struct State {
     pmenu: Pmenu,
+    cursor: Cursor,
 }
 
 impl State {
     fn new() -> Self {
         State {
             pmenu: Pmenu::new(),
+            cursor: Cursor::new(),
         }
     }
 }
@@ -38,7 +40,15 @@ impl Theme {
         Ref::map(self.state.borrow(), |s| &s.pmenu)
     }
 
+    pub fn cursor(&self) -> Ref<Cursor> {
+        Ref::map(self.state.borrow(), |s| &s.cursor)
+    }
+
     pub fn queue_update(&self, nvim: &mut Neovim) {
+        self.get_hl(nvim, "Cursor", |state, bg, _fg| {
+            state.cursor.bg = bg;
+        });
+
         self.get_hl(nvim, "Pmenu", |state, bg, fg| {
             state.pmenu.bg = bg;
             state.pmenu.fg = fg;
@@ -67,6 +77,18 @@ impl Theme {
                 });
             })
             .call();
+    }
+}
+
+pub struct Cursor {
+    pub bg: Option<Color>,
+}
+
+impl Cursor {
+    pub fn new() -> Self {
+        Cursor {  
+            bg: None,
+        }
     }
 }
 
