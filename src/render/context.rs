@@ -125,13 +125,13 @@ impl CellMetrics {
 }
 
 pub struct FontFeatures {
-    features: Option<String>,
+    attr: Option<pango::Attribute>,
 }
 
 impl FontFeatures {
     pub fn new() -> Self {
         FontFeatures {  
-            features: None,
+            attr: None,
         }
     }
 
@@ -141,16 +141,13 @@ impl FontFeatures {
         }
 
         FontFeatures {
-            features: Some(font_features)
+            attr: sys_pango::attribute::new_features(&font_features),
         }
     }
 
-    pub fn insert_attr(&self, attr_list: &pango::AttrList, end_idx: usize) {
-        if let Some(ref features) = self.features {
-            let mut attr = sys_pango::attribute::new_features(features).unwrap();
-            attr.set_start_index(0);
-            attr.set_end_index(end_idx as u32);
-            attr_list.insert(attr);
+    pub fn insert_attr(&self, attr_list: &pango::AttrList) {
+        if let Some(ref attr) = self.attr {
+            attr_list.insert(attr.clone());
         }
     }
 }

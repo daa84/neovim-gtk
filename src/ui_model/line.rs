@@ -279,7 +279,7 @@ impl StyledLine {
         }
 
         style_attr.insert(&attr_list);
-        font_features.insert_attr(&attr_list, line_str.len());
+        font_features.insert_attr(&attr_list);
 
         StyledLine {
             line_str,
