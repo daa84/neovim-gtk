@@ -957,7 +957,7 @@ fn gtk_draw_double_buffer(state: &State, ctx: &cairo::Context) {
     buf_ctx.clip();
 
     let render_state = state.render_state.borrow();
-    render::clear(buf_ctx, &render_state.color_model);
+    render::clear(buf_ctx);
     render::render(
         &buf_ctx,
         state.cursor.as_ref().unwrap(),
@@ -965,6 +965,7 @@ fn gtk_draw_double_buffer(state: &State, ctx: &cairo::Context) {
         &state.model,
         &render_state.color_model,
     );
+    render::fill_background(buf_ctx, &render_state.color_model);
 
     ctx.set_source_surface(&surface.surface, 0.0, 0.0);
     ctx.paint();
@@ -973,7 +974,7 @@ fn gtk_draw_double_buffer(state: &State, ctx: &cairo::Context) {
 
 fn gtk_draw_direct(state: &State, ctx: &cairo::Context) {
     let render_state = state.render_state.borrow();
-    render::clear(ctx, &render_state.color_model);
+    render::clear(ctx);
     render::render(
         ctx,
         state.cursor.as_ref().unwrap(),
@@ -981,6 +982,7 @@ fn gtk_draw_direct(state: &State, ctx: &cairo::Context) {
         &state.model,
         &render_state.color_model,
     );
+    render::fill_background(ctx, &render_state.color_model);
 }
 
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
@@ -1153,7 +1155,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
         &render_state.font_ctx,
         y,
         false,
-        &color_model.bg_color,
+        &color_model,
     );
 }
 
