@@ -276,6 +276,17 @@ impl State {
         self.on_redraw(&RepaintMode::All);
     }
 
+    pub fn set_font_features(&mut self, font_features: String) {
+        let font_features = render::FontFeatures::from(font_features);
+
+        self.render_state
+            .borrow_mut()
+            .font_ctx
+            .update_font_features(font_features);
+        self.model.clear_glyphs();
+        self.on_redraw(&RepaintMode::All);
+    }
+
     pub fn open_file(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
             nvim.command_async(&format!("e {}", path))

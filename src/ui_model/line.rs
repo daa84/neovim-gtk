@@ -1,10 +1,12 @@
 use std::ops::{Index, IndexMut};
 
+use sys::pango as sys_pango;
+use pango;
+
+use render;
 use color;
 use super::cell::Cell;
 use super::item::Item;
-use sys::pango as sys_pango;
-use pango;
 
 pub struct Line {
     pub line: Box<[Cell]>,
@@ -242,8 +244,7 @@ pub struct StyledLine {
 }
 
 impl StyledLine {
-    pub fn from(line: &Line, color_model: &color::ColorModel) -> Self {
-
+    pub fn from(line: &Line, color_model: &color::ColorModel, font_features: &render::FontFeatures) -> Self {
         let average_capacity = line.line.len() * 4 * 2; // code bytes * grapheme cluster
 
         let mut line_str = String::with_capacity(average_capacity);
@@ -278,6 +279,7 @@ impl StyledLine {
         }
 
         style_attr.insert(&attr_list);
+        font_features.insert_attr(&attr_list, line_str.len());
 
         StyledLine {
             line_str,
@@ -410,7 +412,7 @@ mod tests {
         line[1].ch = "b".to_owned();
         line[2].ch = "c".to_owned();
 
-        let styled_line = StyledLine::from(&line, &color::ColorModel::new());
+        let styled_line = StyledLine::from(&line, &color::ColorModel::new(), &render::FontFeatures::new());
         assert_eq!("abc", styled_line.line_str);
         assert_eq!(3, styled_line.cell_to_byte.len());
         assert_eq!(0, styled_line.cell_to_byte[0]);
