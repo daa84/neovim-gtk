@@ -72,7 +72,7 @@ impl Surface {
         let surface = drawing_area
             .get_window()
             .unwrap()
-            .create_similar_surface(cairo::Content::Color, alloc.width, alloc.height)
+            .create_similar_surface(cairo::Content::ColorAlpha, alloc.width, alloc.height)
             .unwrap();
 
         let ctx = cairo::Context::new(&surface);
