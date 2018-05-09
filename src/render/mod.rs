@@ -44,7 +44,7 @@ pub fn render<C: Cursor>(
     let (cursor_row, cursor_col) = ui_model.get_cursor();
 
     // draw text
-    ctx.set_operator(cairo::Operator::Source);
+    ctx.set_operator(cairo::Operator::Over);
 
     for cell_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
         let mut line_x = 0.0;
