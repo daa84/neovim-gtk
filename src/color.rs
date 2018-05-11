@@ -132,7 +132,7 @@ impl ColorModel {
             .cursor()
             .bg
             .clone()
-            .unwrap_or_else(|| self.bg_color.clone())
+            .unwrap_or_else(|| self.fg_color.clone())
     }
 }
 
