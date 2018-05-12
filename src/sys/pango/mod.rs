@@ -2,6 +2,8 @@ mod item;
 mod analysis;
 mod attr_iterator;
 
+pub mod attribute;
+
 pub use self::item::Item;
 pub use self::analysis::Analysis;
 pub use self::attr_iterator::{AttrIterator, AttrIteratorFactory};

@@ -264,8 +264,15 @@ impl State {
     }
 
     pub fn set_font_desc(&mut self, desc: &str) {
+        let font_description = FontDescription::from_string(desc);
+
+        if font_description.get_size() <= 0 {
+            error!("Font size must be > 0");
+            return;
+        }
+
         let pango_context = self.drawing_area.create_pango_context().unwrap();
-        pango_context.set_font_description(&FontDescription::from_string(desc));
+        pango_context.set_font_description(&font_description);
 
         self.render_state
             .borrow_mut()
@@ -273,6 +280,17 @@ impl State {
             .update(pango_context);
         self.model.clear_glyphs();
         self.try_nvim_resize();
+        self.on_redraw(&RepaintMode::All);
+    }
+
+    pub fn set_font_features(&mut self, font_features: String) {
+        let font_features = render::FontFeatures::from(font_features);
+
+        self.render_state
+            .borrow_mut()
+            .font_ctx
+            .update_font_features(font_features);
+        self.model.clear_glyphs();
         self.on_redraw(&RepaintMode::All);
     }
 

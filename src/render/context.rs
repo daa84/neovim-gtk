@@ -8,18 +8,24 @@ use ui_model::StyledLine;
 use super::itemize::ItemizeIterator;
 
 pub struct Context {
-    state: ContextState,
+    font_metrics: FontMetrix,
+    font_features: FontFeatures,
 }
 
 impl Context {
     pub fn new(pango_context: pango::Context) -> Self {
         Context {
-            state: ContextState::new(pango_context),
+            font_metrics: FontMetrix::new(pango_context),
+            font_features: FontFeatures::new(),
         }
     }
 
     pub fn update(&mut self, pango_context: pango::Context) {
-        self.state = ContextState::new(pango_context);
+        self.font_metrics = FontMetrix::new(pango_context);
+    }
+
+    pub fn update_font_features(&mut self, font_features: FontFeatures) {
+        self.font_features = font_features;
     }
 
     pub fn itemize(&self, line: &StyledLine) -> Vec<sys_pango::Item> {
@@ -28,7 +34,7 @@ impl Context {
         ItemizeIterator::new(&line.line_str)
             .flat_map(|(offset, len)| {
                 sys_pango::pango_itemize(
-                    &self.state.pango_context,
+                    &self.font_metrics.pango_context,
                     &line.line_str,
                     offset,
                     len,
@@ -40,32 +46,34 @@ impl Context {
     }
 
     pub fn create_layout(&self) -> pango::Layout {
-        pango::Layout::new(&self.state.pango_context)
+        pango::Layout::new(&self.font_metrics.pango_context)
     }
 
-    #[inline]
     pub fn font_description(&self) -> &pango::FontDescription {
-        &self.state.font_desc
+        &self.font_metrics.font_desc
     }
 
-    #[inline]
     pub fn cell_metrics(&self) -> &CellMetrics {
-        &self.state.cell_metrics
+        &self.font_metrics.cell_metrics
+    }
+
+    pub fn font_features(&self) -> &FontFeatures {
+        &self.font_features
     }
 }
 
-struct ContextState {
+struct FontMetrix {
     pango_context: pango::Context,
     cell_metrics: CellMetrics,
     font_desc: pango::FontDescription,
 }
 
-impl ContextState {
+impl FontMetrix {
     pub fn new(pango_context: pango::Context) -> Self {
         let font_metrics = pango_context.get_metrics(None, None).unwrap();
         let font_desc = pango_context.get_font_description().unwrap();
 
-        ContextState {
+        FontMetrix {
             pango_context,
             cell_metrics: CellMetrics::new(&font_metrics),
             font_desc,
@@ -112,6 +120,34 @@ impl CellMetrics {
             char_width,
             underline_position: 0.0,
             underline_thickness: 0.0,
+        }
+    }
+}
+
+pub struct FontFeatures {
+    attr: Option<pango::Attribute>,
+}
+
+impl FontFeatures {
+    pub fn new() -> Self {
+        FontFeatures {  
+            attr: None,
+        }
+    }
+
+    pub fn from(font_features: String) -> Self {
+        if font_features.trim().is_empty() {
+            return Self::new();
+        }
+
+        FontFeatures {
+            attr: sys_pango::attribute::new_features(&font_features),
+        }
+    }
+
+    pub fn insert_attr(&self, attr_list: &pango::AttrList) {
+        if let Some(ref attr) = self.attr {
+            attr_list.insert(attr.clone());
         }
     }
 }

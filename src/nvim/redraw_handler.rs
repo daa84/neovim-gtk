@@ -86,6 +86,7 @@ pub fn call_gui_event(
 ) -> result::Result<(), String> {
     match method {
         "Font" => call!(ui->set_font(args: str)),
+        "FontFeatures" => call!(ui->set_font_features(args: str)),
         "Clipboard" => match try_str!(args[0]) {
             "Set" => match try_str!(args[1]) {
                 "*" => ui.clipboard_primary_set(try_str!(args[2])),

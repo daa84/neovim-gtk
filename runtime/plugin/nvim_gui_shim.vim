@@ -52,8 +52,10 @@ function s:GuiFontCommand(fname, bang) abort
 		call GuiFont(a:fname, a:bang ==# '!')
 	endif
 endfunction
-command! -nargs=? -bang Guifont call s:GuiFontCommand("<args>", "<bang>")
-command! -nargs=? -bang GuiFont call s:GuiFontCommand("<args>", "<bang>")
+command! -nargs=1 -bang Guifont call s:GuiFontCommand("<args>", "<bang>")
+command! -nargs=1 -bang GuiFont call s:GuiFontCommand("<args>", "<bang>")
+
+command! -nargs=? GuiFontFeatures call rpcnotify(1, 'Gui', 'FontFeatures', <q-args>)
 
 command! NGToggleSidebar call rpcnotify(1, 'Gui', 'Command', 'ToggleSidebar')
 

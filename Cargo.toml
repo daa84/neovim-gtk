@@ -6,7 +6,6 @@ build = "build.rs"
 
 [dependencies]
 cairo-rs = "0.4"
-pango = "0.4"
 pango-sys = "0.6"
 pangocairo = "0.5"
 pangocairo-sys = "0.7"
@@ -50,6 +49,10 @@ atty = "0.2"
 
 [build-dependencies]
 phf_codegen = "0.7"
+
+[dependencies.pango]
+features = ["v1_38"]
+version = "0.4"
 
 [dependencies.gtk]
 version = "0.4"
