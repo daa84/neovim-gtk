@@ -456,6 +456,16 @@ impl State {
         }
     }
 
+    fn edit_copy(&self, clipboard: &str) {
+        let nvim = self.nvim();
+        if let Some(mut nvim) = nvim {
+            let paste_code = format!("normal! \"{}y", clipboard);
+            nvim.command_async(&paste_code)
+                .cb(|r| r.report_err())
+                .call();
+        }
+    }
+
     fn max_popup_width(&self) -> i32 {
         self.drawing_area.get_allocated_width() - 20
     }
@@ -603,6 +613,7 @@ impl Shell {
                     .bits() as i32,
             );
 
+        let menu = self.create_context_menu();
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
         state.drawing_area.connect_button_press_event(move |_, ev| {
@@ -610,6 +621,7 @@ impl Shell {
                 &mut *ref_state.borrow_mut(),
                 &mut *ref_ui_state.borrow_mut(),
                 ev,
+                &menu,
             )
         });
 
@@ -744,6 +756,24 @@ impl Shell {
                 let mut nvim = state.nvim().unwrap();
                 nvim.command_async(&command).cb(|r| r.report_err()).call()
             });
+    }
+
+    fn create_context_menu(&self) -> gtk::Menu {
+        let menu = gtk::Menu::new();
+        let copy = gtk::MenuItem::new_with_label("Copy");
+        let ref_state = self.state.clone();
+        copy.connect_activate(move |_| ref_state.borrow().edit_copy("+"));
+        copy.show_all();
+
+        let paste = gtk::MenuItem::new_with_label("Paste");
+        let ref_state = self.state.clone();
+        paste.connect_activate(move |_| ref_state.borrow().edit_paste("+"));
+        paste.show_all();
+
+        menu.append(&copy);
+        menu.append(&paste);
+
+        menu
     }
 
     #[cfg(unix)]
@@ -905,7 +935,12 @@ fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll)
     Inhibit(false)
 }
 
-fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton) -> Inhibit {
+fn gtk_button_press(
+    shell: &mut State,
+    ui_state: &mut UiState,
+    ev: &EventButton,
+    menu: &gtk::Menu,
+) -> Inhibit {
     if ev.get_event_type() != EventType::ButtonPress {
         return Inhibit(false);
     }
@@ -916,7 +951,8 @@ fn gtk_button_press(shell: &mut State, ui_state: &mut UiState, ev: &EventButton)
         match ev.get_button() {
             1 => mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position()),
             2 => mouse_input(shell, "MiddleMouse", ev.get_state(), ev.get_position()),
-            3 => mouse_input(shell, "RightMouse", ev.get_state(), ev.get_position()),
+            3 => menu.popup_at_pointer(None),
+
             _ => (),
         }
     }
@@ -1168,13 +1204,11 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     pangocairo::functions::show_layout(ctx, &layout);
 
     ctx.move_to(x + width as f64, y);
-    state.cursor.as_ref().unwrap().draw(
-        ctx,
-        &render_state.font_ctx,
-        y,
-        false,
-        &color_model,
-    );
+    state
+        .cursor
+        .as_ref()
+        .unwrap()
+        .draw(ctx, &render_state.font_ctx, y, false, &color_model);
 }
 
 fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
