@@ -264,8 +264,15 @@ impl State {
     }
 
     pub fn set_font_desc(&mut self, desc: &str) {
+        let font_description = FontDescription::from_string(desc);
+
+        if font_description.get_size() <= 0 {
+            error!("Font size must be > 0");
+            return;
+        }
+
         let pango_context = self.drawing_area.create_pango_context().unwrap();
-        pango_context.set_font_description(&FontDescription::from_string(desc));
+        pango_context.set_font_description(&font_description);
 
         self.render_state
             .borrow_mut()
