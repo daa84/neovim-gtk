@@ -580,7 +580,7 @@ impl Entry {
 use settings::SettingsLoader;
 use toml;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 struct ProjectSettings {
     projects: Vec<ProjectEntrySettings>,
 }
@@ -606,10 +606,6 @@ impl ProjectEntrySettings {
 
 impl SettingsLoader for ProjectSettings {
     const SETTINGS_FILE: &'static str = "projects.toml";
-
-    fn empty() -> ProjectSettings {
-        ProjectSettings { projects: vec![] }
-    }
 
     fn from_str(s: &str) -> Result<Self, String> {
         toml::from_str(&s).map_err(|e| format!("{}", e))

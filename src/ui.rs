@@ -445,8 +445,8 @@ struct WindowState {
     sidebar_width: i32,
 }
 
-impl WindowState {
-    pub fn new() -> Self {
+impl Default for WindowState {
+    fn default() -> Self {
         WindowState {
             current_width: DEFAULT_WIDTH,
             current_height: DEFAULT_HEIGHT,
@@ -459,10 +459,6 @@ impl WindowState {
 
 impl SettingsLoader for WindowState {
     const SETTINGS_FILE: &'static str = "window.toml";
-
-    fn empty() -> WindowState {
-        WindowState::new()
-    }
 
     fn from_str(s: &str) -> Result<Self, String> {
         toml::from_str(&s).map_err(|e| format!("{}", e))

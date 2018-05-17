@@ -3,6 +3,7 @@ use toml;
 use settings::SettingsLoader;
 use super::vim_plug;
 
+#[derive(Default)]
 pub struct Store {
     settings: Settings,
 }
@@ -20,15 +21,11 @@ impl Store {
         Store { settings: Settings::load() }
     }
 
-    pub fn empty() -> Self {
-        Store { settings: Settings::empty() }
-    }
-
     pub fn load_from_plug(vim_plug: &vim_plug::Manager) -> Self {
         let settings = match vim_plug.get_plugs() {
             Err(msg) => {
                 error!("{}", msg);
-                Settings::empty()
+                Default::default()
             }
             Ok(plugs) => {
                 let plugs = plugs
@@ -106,15 +103,17 @@ impl Settings {
     }
 }
 
-impl SettingsLoader for Settings {
-    const SETTINGS_FILE: &'static str = "plugs.toml";
-
-    fn empty() -> Self {
+impl Default for Settings {
+    fn default() -> Self {
         Settings {
             plugs: vec![],
             enabled: false,
         }
     }
+}
+
+impl SettingsLoader for Settings {
+    const SETTINGS_FILE: &'static str = "plugs.toml";
 
     fn from_str(s: &str) -> Result<Self, String> {
         toml::from_str(&s).map_err(|e| format!("{}", e))

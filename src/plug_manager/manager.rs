@@ -16,7 +16,7 @@ impl Manager {
         let (plug_manage_state, store) = if Store::is_config_exists() {
             (PlugManageState::NvimGtk, Store::load())
         } else {
-            (PlugManageState::Unknown, Store::empty())
+            (PlugManageState::Unknown, Default::default())
         };
 
         Manager {
@@ -45,14 +45,14 @@ impl Manager {
                     self.store = Store::load_from_plug(&self.vim_plug);
                     self.plug_manage_state = PlugManageState::VimPlug;
                 } else {
-                    self.store = Store::empty();
+                    self.store = Default::default();
                 }
             }
             PlugManageState::NvimGtk => {
                 if Store::is_config_exists() {
                     self.store = Store::load();
                 } else {
-                    self.store = Store::empty();
+                    self.store = Default::default();
                 }
             }
             PlugManageState::VimPlug => {
@@ -60,7 +60,7 @@ impl Manager {
                     self.store = Store::load();
                     self.plug_manage_state = PlugManageState::NvimGtk;
                 } else {
-                    self.store = Store::empty();
+                    self.store = Default::default();
                 }
             }
         }

@@ -111,10 +111,8 @@ use serde;
 
 use dirs;
 
-pub trait SettingsLoader: Sized + serde::Serialize {
+pub trait SettingsLoader: Sized + serde::Serialize + Default {
     const SETTINGS_FILE: &'static str;
-
-    fn empty() -> Self;
 
     fn from_str(s: &str) -> Result<Self, String>;
 
@@ -123,7 +121,7 @@ pub trait SettingsLoader: Sized + serde::Serialize {
             Ok(settings) => settings,
             Err(e) => {
                 error!("{}", e);
-                Self::empty()
+                Default::default()
             }
         }
     }
@@ -154,7 +152,7 @@ fn load_from_file<T: SettingsLoader>(path: &Path) -> Result<T, String> {
         )?;
         T::from_str(&contents)
     } else {
-        Ok(T::empty())
+        Ok(Default::default())
     }
 }
 
