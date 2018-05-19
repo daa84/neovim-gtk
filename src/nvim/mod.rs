@@ -84,6 +84,7 @@ pub fn start(
     handler: NvimHandler,
     nvim_bin_path: Option<&String>,
     timeout: Option<Duration>,
+    args_for_neovim: Vec<String>,
 ) -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
@@ -118,6 +119,10 @@ pub fn start(
         if let Some(path) = nvim_config.to_str() {
             cmd.arg("--cmd").arg(format!("source {}", path));
         }
+    }
+
+    for arg in args_for_neovim {
+        cmd.arg(arg);
     }
 
     let session = Session::new_child_cmd(&mut cmd);

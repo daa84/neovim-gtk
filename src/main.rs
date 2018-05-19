@@ -103,14 +103,17 @@ fn main() {
 
     gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
 
-    let args: Vec<String> = env::args().collect();
-    let argv: Vec<String> = args.iter()
+    let argv: Vec<String> = env::args()
+        .take_while(|a| *a != "--")
         .filter(|a| !a.starts_with(BIN_PATH_ARG))
         .filter(|a| !a.starts_with(TIMEOUT_ARG))
         .filter(|a| !a.starts_with(DISABLE_WIN_STATE_RESTORE))
-        .cloned()
         .collect();
     app.run(&argv);
+}
+
+fn collect_args_for_nvim() -> Vec<String> {
+    std::env::args().skip_while(|a| *a != "--").skip(1).collect()
 }
 
 fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
@@ -122,6 +125,7 @@ fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
         nvim_bin_path(std::env::args()),
         files_list,
         nvim_timeout(std::env::args()),
+        collect_args_for_nvim(),
         None,
     ));
 
@@ -133,6 +137,7 @@ fn activate(app: &gtk::Application, input_data: Option<String>) {
         nvim_bin_path(std::env::args()),
         Vec::new(),
         nvim_timeout(std::env::args()),
+        collect_args_for_nvim(),
         input_data,
     ));
 

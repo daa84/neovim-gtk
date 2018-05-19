@@ -530,6 +530,7 @@ pub struct ShellOptions {
     nvim_bin_path: Option<String>,
     open_paths: Vec<String>,
     timeout: Option<Duration>,
+    args_for_neovim: Vec<String>,
     input_data: Option<String>,
 }
 
@@ -538,12 +539,14 @@ impl ShellOptions {
         nvim_bin_path: Option<String>,
         open_paths: Vec<String>,
         timeout: Option<Duration>,
+        args_for_neovim: Vec<String>,
         input_data: Option<String>,
     ) -> Self {
         ShellOptions {
             nvim_bin_path,
             open_paths,
             timeout,
+            args_for_neovim,
             input_data,
         }
     }
@@ -1093,6 +1096,7 @@ fn init_nvim_async(
         nvim_handler,
         options.nvim_bin_path.as_ref(),
         options.timeout,
+        options.args_for_neovim,
     ) {
         Ok(nvim) => nvim,
         Err(err) => {
