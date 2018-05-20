@@ -2,9 +2,21 @@
 <!-- Generated with glade 3.22.1 -->
 <interface>
   <requires lib="gtk+" version="3.20"/>
+  <object class="GtkImage" id="go-down-symbolic">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">go-down-symbolic</property>
+  </object>
+  <object class="GtkImage" id="go-up-symbolic">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">go-up-symbolic</property>
+  </object>
   <object class="GtkDialog">
     <property name="can_focus">False</property>
     <property name="modal">True</property>
+    <property name="default_width">800</property>
+    <property name="default_height">600</property>
     <property name="destroy_with_parent">True</property>
     <property name="type_hint">dialog</property>
     <child type="titlebar">
@@ -14,7 +26,7 @@
         <property name="title" translatable="yes">Plug</property>
         <property name="show_close_button">True</property>
         <child>
-          <object class="GtkSwitch">
+          <object class="GtkSwitch" id="plug_enable">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
           </object>
@@ -24,7 +36,7 @@
           </packing>
         </child>
         <child>
-          <object class="GtkButton">
+          <object class="GtkButton" id="plug_add">
             <property name="label" translatable="yes">Add..</property>
             <property name="visible">True</property>
             <property name="can_focus">True</property>
@@ -159,9 +171,6 @@
                 <property name="margin_right">10</property>
                 <property name="transition_type">crossfade</property>
                 <child>
-                  <placeholder/>
-                </child>
-                <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
@@ -182,6 +191,7 @@ So &lt;b&gt;after&lt;/b&gt; enabling this manager &lt;b&gt;you must disable vim-
 This manager currently only manage vim-plug configuration and do not any actions on plugin management.
 So you must call all vim-plug (PlugInstall, PlugUpdate, PlugClean) commands manually.</property>
                             <property name="use_markup">True</property>
+                            <property name="xalign">0</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -190,10 +200,12 @@ So you must call all vim-plug (PlugInstall, PlugUpdate, PlugClean) commands manu
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkLabel">
+                          <object class="GtkLabel" id="plug_help_label">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
-                            <property name="label" translatable="yes">label</property>
+                            <property name="label" translatable="yes">Addition info</property>
+                            <property name="use_markup">True</property>
+                            <property name="xalign">0</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -210,16 +222,66 @@ So you must call all vim-plug (PlugInstall, PlugUpdate, PlugClean) commands manu
                     </child>
                   </object>
                   <packing>
-                    <property name="name">page2</property>
-                    <property name="title" translatable="yes">page2</property>
-                    <property name="position">1</property>
+                    <property name="name">help</property>
+                    <property name="title" translatable="yes">Help</property>
                   </packing>
                 </child>
                 <child>
-                  <placeholder/>
-                </child>
-                <child>
-                  <placeholder/>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">7</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="margin_top">4</property>
+                        <property name="margin_bottom">4</property>
+                        <property name="label" translatable="yes">Plugins are taken from: &lt;a href="https://vimawesome.com"&gt;https://vimawesome.com&lt;/a&gt;</property>
+                        <property name="use_markup">True</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="position">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkSearchEntry" id="plug_vimawesome_search">
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="primary_icon_name">edit-find-symbolic</property>
+                        <property name="primary_icon_activatable">False</property>
+                        <property name="primary_icon_sensitive">False</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="position">1</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkBox" id="plug_vimawesome_list">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <placeholder/>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="expand">True</property>
+                        <property name="fill">True</property>
+                        <property name="position">2</property>
+                      </packing>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="name">plugins</property>
+                    <property name="title" translatable="yes">Plugins</property>
+                    <property name="position">1</property>
+                  </packing>
                 </child>
                 <child>
                   <object class="GtkBox">
@@ -227,19 +289,63 @@ So you must call all vim-plug (PlugInstall, PlugUpdate, PlugClean) commands manu
                     <property name="can_focus">False</property>
                     <property name="orientation">vertical</property>
                     <child>
-                      <placeholder/>
+                      <object class="GtkListBox" id="plug_list">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <style>
+                          <class name="view"/>
+                        </style>
+                      </object>
+                      <packing>
+                        <property name="expand">True</property>
+                        <property name="fill">True</property>
+                        <property name="position">0</property>
+                      </packing>
                     </child>
                     <child>
-                      <placeholder/>
-                    </child>
-                    <child>
-                      <placeholder/>
+                      <object class="GtkButtonBox">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="layout_style">center</property>
+                        <child>
+                          <object class="GtkButton" id="plug_move_up">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="receives_default">True</property>
+                            <property name="image">go-up-symbolic</property>
+                          </object>
+                          <packing>
+                            <property name="expand">True</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="plug_move_down">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="receives_default">True</property>
+                            <property name="image">go-down-symbolic</property>
+                            <property name="always_show_image">True</property>
+                          </object>
+                          <packing>
+                            <property name="expand">True</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="position">1</property>
+                      </packing>
                     </child>
                   </object>
                   <packing>
-                    <property name="name">plugins</property>
-                    <property name="title" translatable="yes">Plugins</property>
-                    <property name="position">4</property>
+                    <property name="name">page0</property>
+                    <property name="title" translatable="yes">page0</property>
+                    <property name="position">2</property>
                   </packing>
                 </child>
               </object>
@@ -263,5 +369,4 @@ So you must call all vim-plug (PlugInstall, PlugUpdate, PlugClean) commands manu
       <action-widget response="-5">button2</action-widget>
     </action-widgets>
   </object>
-  <object class="GtkTextBuffer" id="textbuffer1"/>
 </interface>
