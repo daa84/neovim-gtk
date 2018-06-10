@@ -1,4 +1,3 @@
-use std;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
@@ -10,7 +9,6 @@ use std::time::Duration;
 use pango;
 use pango::prelude::*;
 use cairo;
-use cairo::prelude::*;
 use pango::{FontDescription, LayoutExt};
 use gdk;
 use gdk::{EventButton, EventMotion, EventScroll, EventType, ModifierType};
@@ -58,34 +56,6 @@ macro_rules! idle_cb_call {
     )
 }
 
-/// Double buffer surface
-pub struct Surface {
-    surface: cairo::Surface,
-    ctx: cairo::Context,
-    width: i32,
-    height: i32,
-}
-
-impl Surface {
-    pub fn new(drawing_area: &gtk::DrawingArea) -> Self {
-        let alloc = drawing_area.get_allocation();
-        let surface = drawing_area
-            .get_window()
-            .unwrap()
-            .create_similar_surface(cairo::Content::ColorAlpha, alloc.width, alloc.height)
-            .unwrap();
-
-        let ctx = cairo::Context::new(&surface);
-
-        Surface {
-            surface,
-            ctx,
-            width: alloc.width,
-            height: alloc.height,
-        }
-    }
-}
-
 pub struct RenderState {
     pub font_ctx: render::Context,
     pub color_model: ColorModel,
@@ -112,9 +82,6 @@ pub struct State {
     cmd_line: CmdLine,
     settings: Rc<RefCell<Settings>>,
     render_state: Rc<RefCell<RenderState>>,
-
-    surface: Option<Surface>,
-    enable_double_buffer: bool,
 
     resize_request: (i64, i64),
     resize_timer: Rc<Cell<Option<glib::SourceId>>>,
@@ -160,11 +127,6 @@ impl State {
             settings,
             render_state,
 
-            surface: None,
-            enable_double_buffer: std::env::var("NVIM_GTK_DOUBLE_BUFFER")
-                .map(|opt| opt.trim() == "1")
-                .unwrap_or(false),
-
             resize_request: (-1, -1),
             resize_timer: Rc::new(Cell::new(None)),
 
@@ -186,22 +148,6 @@ impl State {
             command_cb: None,
 
             subscriptions: RefCell::new(Subscriptions::new()),
-        }
-    }
-
-    fn resize_surface(&mut self) {
-        if !self.enable_double_buffer {
-            return;
-        }
-
-        if let Some(Surface { width, height, .. }) = self.surface {
-            let alloc = self.drawing_area.get_allocation();
-
-            if width != alloc.width || height != alloc.height {
-                self.surface = Some(Surface::new(&self.drawing_area));
-            }
-        } else {
-            self.surface = Some(Surface::new(&self.drawing_area));
         }
     }
 
@@ -726,7 +672,6 @@ impl Shell {
             debug!("configure_event {:?}", ev.get_size());
 
             let mut state = ref_state.borrow_mut();
-            state.resize_surface();
             state.try_nvim_resize();
 
             false
@@ -1002,34 +947,9 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
     Inhibit(false)
 }
 
-fn gtk_draw_double_buffer(state: &State, ctx: &cairo::Context) {
-    let (x1, y1, x2, y2) = ctx.clip_extents();
-    let surface = state.surface.as_ref().unwrap();
-    let buf_ctx = &surface.ctx;
+fn draw_content(state: &State, ctx: &cairo::Context) {
+    ctx.push_group();
 
-    surface.surface.flush();
-
-    buf_ctx.save();
-    buf_ctx.rectangle(x1, y1, x2 - x1, y2 - y1);
-    buf_ctx.clip();
-
-    let render_state = state.render_state.borrow();
-    render::clear(buf_ctx);
-    render::render(
-        &buf_ctx,
-        state.cursor.as_ref().unwrap(),
-        &render_state.font_ctx,
-        &state.model,
-        &render_state.color_model,
-    );
-    render::fill_background(buf_ctx, &render_state.color_model);
-
-    ctx.set_source_surface(&surface.surface, 0.0, 0.0);
-    ctx.paint();
-    buf_ctx.restore();
-}
-
-fn gtk_draw_direct(state: &State, ctx: &cairo::Context) {
     let render_state = state.render_state.borrow();
     render::clear(ctx);
     render::render(
@@ -1040,16 +960,15 @@ fn gtk_draw_direct(state: &State, ctx: &cairo::Context) {
         &render_state.color_model,
     );
     render::fill_background(ctx, &render_state.color_model);
+
+    ctx.pop_group_to_source();
+    ctx.paint();
 }
 
 fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
     let state = state_arc.borrow();
     if state.nvim.is_initialized() {
-        if state.enable_double_buffer {
-            gtk_draw_double_buffer(&*state, ctx);
-        } else {
-            gtk_draw_direct(&*state, ctx);
-        }
+        draw_content(&*state, ctx);
     } else if state.nvim.is_initializing() {
         draw_initializing(&*state, ctx);
     }
