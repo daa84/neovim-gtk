@@ -1,5 +1,6 @@
 #![windows_subsystem = "windows"]
 
+extern crate unix_daemonize;
 extern crate cairo;
 extern crate env_logger;
 extern crate gdk;
@@ -63,6 +64,7 @@ mod file_browser;
 mod subscriptions;
 mod misc;
 
+use unix_daemonize::{daemonize_redirect, ChdirMode};
 use std::env;
 use std::io::Read;
 use std::cell::RefCell;
@@ -77,6 +79,7 @@ use shell::ShellOptions;
 const BIN_PATH_ARG: &str = "--nvim-bin-path";
 const TIMEOUT_ARG: &str = "--timeout";
 const DISABLE_WIN_STATE_RESTORE: &str = "--disable-win-restore";
+const NO_FORK: &str = "--no-fork";
 
 fn main() {
     env_logger::init();
@@ -108,7 +111,23 @@ fn main() {
         .filter(|a| !a.starts_with(BIN_PATH_ARG))
         .filter(|a| !a.starts_with(TIMEOUT_ARG))
         .filter(|a| !a.starts_with(DISABLE_WIN_STATE_RESTORE))
+        .filter(|a| !a.starts_with(NO_FORK))
         .collect();
+
+    // fork to background by default
+    let want_fork = env::args()
+        .take_while(|a| *a != "--")
+        .skip(1)
+        .find(|a| a.starts_with(NO_FORK))
+        .is_none();
+
+    if want_fork {
+        daemonize_redirect(Some("/tmp/nvim-gtk_stdout.log"),
+                Some("/tmp/nvim-gtk_stderr.log"),
+                ChdirMode::NoChdir)
+            .unwrap();
+    }
+
     app.run(&argv);
 }
 
