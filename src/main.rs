@@ -1,5 +1,6 @@
 #![windows_subsystem = "windows"]
 
+#[cfg(unix)]
 extern crate unix_daemonize;
 extern crate cairo;
 extern crate env_logger;
@@ -64,6 +65,7 @@ mod file_browser;
 mod subscriptions;
 mod misc;
 
+#[cfg(unix)]
 use unix_daemonize::{daemonize_redirect, ChdirMode};
 use std::env;
 use std::io::Read;
@@ -114,18 +116,20 @@ fn main() {
         .filter(|a| !a.starts_with(NO_FORK))
         .collect();
 
-    // fork to background by default
-    let want_fork = env::args()
-        .take_while(|a| *a != "--")
-        .skip(1)
-        .find(|a| a.starts_with(NO_FORK))
-        .is_none();
+    #[cfg(unix)] {
+        // fork to background by default
+        let want_fork = env::args()
+            .take_while(|a| *a != "--")
+            .skip(1)
+            .find(|a| a.starts_with(NO_FORK))
+            .is_none();
 
-    if want_fork {
-        daemonize_redirect(Some("/tmp/nvim-gtk_stdout.log"),
-                Some("/tmp/nvim-gtk_stderr.log"),
-                ChdirMode::NoChdir)
-            .unwrap();
+        if want_fork {
+            daemonize_redirect(Some("/tmp/nvim-gtk_stdout.log"),
+            Some("/tmp/nvim-gtk_stderr.log"),
+            ChdirMode::NoChdir)
+                .unwrap();
+        }
     }
 
     app.run(&argv);
