@@ -468,9 +468,6 @@ pub struct UiState {
     scroll_delta: (f64, f64),
 
     mouse_cursor: MouseCursor,
-    text_cursor: Option<gdk::Cursor>,
-    none_cursor: Option<gdk::Cursor>,
-    default_cursor: Option<gdk::Cursor>,
 }
 
 impl UiState {
@@ -480,9 +477,6 @@ impl UiState {
             scroll_delta: (0.0, 0.0),
 
             mouse_cursor: MouseCursor::None,
-            text_cursor: None,
-            none_cursor: None,
-            default_cursor: None,
         }
     }
 
@@ -571,12 +565,6 @@ impl Shell {
 
     pub fn init(&mut self) {
         let state = self.state.borrow();
-        let mut ui_state = self.ui_state.borrow_mut();
-        let display = state.drawing_area.get_display().unwrap();
-
-        ui_state.text_cursor = Some(gdk::Cursor::new_from_name(&display, "text"));
-        ui_state.none_cursor = Some(gdk::Cursor::new_from_name(&display, "none"));
-        ui_state.default_cursor = Some(gdk::Cursor::new_from_name(&display, "default"));
 
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
@@ -596,13 +584,14 @@ impl Shell {
 
         state
             .drawing_area
-            .set_events(
+            .add_events(
                 (gdk::EventMask::BUTTON_RELEASE_MASK | gdk::EventMask::BUTTON_PRESS_MASK
                     | gdk::EventMask::BUTTON_MOTION_MASK
                     | gdk::EventMask::SCROLL_MASK
                     | gdk::EventMask::SMOOTH_SCROLL_MASK
                     | gdk::EventMask::ENTER_NOTIFY_MASK
-                    | gdk::EventMask::LEAVE_NOTIFY_MASK)
+                    | gdk::EventMask::LEAVE_NOTIFY_MASK
+                    | gdk::EventMask::POINTER_MOTION_MASK)
                     .bits() as i32,
             );
 
