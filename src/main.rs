@@ -1,12 +1,12 @@
 #![windows_subsystem = "windows"]
 
-#[cfg(unix)]
-extern crate unix_daemonize;
 extern crate cairo;
 extern crate env_logger;
 extern crate gdk;
 extern crate gdk_sys;
 extern crate gio;
+#[cfg(unix)]
+extern crate unix_daemonize;
 #[macro_use]
 extern crate glib;
 extern crate glib_sys as glib_ffi;
@@ -39,40 +39,40 @@ extern crate toml;
 
 mod sys;
 
-mod nvim_config;
-mod dirs;
-mod theme;
 mod color;
-mod value;
+mod dirs;
 mod mode;
+mod nvim_config;
+mod theme;
 mod ui_model;
+mod value;
 #[macro_use]
 mod ui;
-mod plug_manager;
-mod nvim;
-mod render;
-mod shell;
-mod input;
-mod settings;
-mod cursor;
 mod cmd_line;
-mod shell_dlg;
-mod popup_menu;
-mod project;
-mod tabline;
+mod cursor;
 mod error;
 mod file_browser;
-mod subscriptions;
+mod input;
 mod misc;
+mod nvim;
+mod plug_manager;
+mod popup_menu;
+mod project;
+mod render;
+mod settings;
+mod shell;
+mod shell_dlg;
+mod subscriptions;
+mod tabline;
 
-#[cfg(unix)]
-use unix_daemonize::{daemonize_redirect, ChdirMode};
+use gio::prelude::*;
+use std::cell::RefCell;
 use std::env;
 use std::io::Read;
-use std::cell::RefCell;
-use std::time::Duration;
 use std::str::FromStr;
-use gio::prelude::*;
+use std::time::Duration;
+#[cfg(unix)]
+use unix_daemonize::{daemonize_redirect, ChdirMode};
 
 use ui::Ui;
 
@@ -87,6 +87,32 @@ fn main() {
     env_logger::init();
 
     let input_data = RefCell::new(read_piped_input());
+
+    let argv: Vec<String> = env::args()
+        .take_while(|a| *a != "--")
+        .filter(|a| !a.starts_with(BIN_PATH_ARG))
+        .filter(|a| !a.starts_with(TIMEOUT_ARG))
+        .filter(|a| !a.starts_with(DISABLE_WIN_STATE_RESTORE))
+        .filter(|a| !a.starts_with(NO_FORK))
+        .collect();
+
+    #[cfg(unix)]
+    {
+        // fork to background by default
+        let want_fork = env::args()
+            .take_while(|a| *a != "--")
+            .skip(1)
+            .find(|a| a.starts_with(NO_FORK))
+            .is_none();
+
+        if want_fork {
+            daemonize_redirect(
+                Some("/tmp/nvim-gtk_stdout.log"),
+                Some("/tmp/nvim-gtk_stderr.log"),
+                ChdirMode::NoChdir,
+            ).unwrap();
+        }
+    }
 
     let app_flags = gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::NON_UNIQUE;
 
@@ -108,35 +134,14 @@ fn main() {
 
     gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
 
-    let argv: Vec<String> = env::args()
-        .take_while(|a| *a != "--")
-        .filter(|a| !a.starts_with(BIN_PATH_ARG))
-        .filter(|a| !a.starts_with(TIMEOUT_ARG))
-        .filter(|a| !a.starts_with(DISABLE_WIN_STATE_RESTORE))
-        .filter(|a| !a.starts_with(NO_FORK))
-        .collect();
-
-    #[cfg(unix)] {
-        // fork to background by default
-        let want_fork = env::args()
-            .take_while(|a| *a != "--")
-            .skip(1)
-            .find(|a| a.starts_with(NO_FORK))
-            .is_none();
-
-        if want_fork {
-            daemonize_redirect(Some("/tmp/nvim-gtk_stdout.log"),
-            Some("/tmp/nvim-gtk_stderr.log"),
-            ChdirMode::NoChdir)
-                .unwrap();
-        }
-    }
-
     app.run(&argv);
 }
 
 fn collect_args_for_nvim() -> Vec<String> {
-    std::env::args().skip_while(|a| *a != "--").skip(1).collect()
+    std::env::args()
+        .skip_while(|a| *a != "--")
+        .skip(1)
+        .collect()
 }
 
 fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
@@ -239,7 +244,7 @@ mod tests {
             nvim_timeout(
                 vec!["neovim-gtk", "--timeout=100"]
                     .iter()
-                    .map(|s| s.to_string(),)
+                    .map(|s| s.to_string())
             )
         );
     }
