@@ -1,45 +1,44 @@
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
-use std::ops::Deref;
 use std::thread;
-use std::collections::HashMap;
 use std::time::Duration;
 
-use pango;
-use pango::prelude::*;
 use cairo;
-use pango::{FontDescription, LayoutExt};
 use gdk;
-use gdk::{EventButton, EventMotion, EventScroll, EventType, ModifierType};
-use gdk_sys;
+use gdk::{EventButton, EventMotion, EventScroll, EventType, ModifierType, WindowExt};
 use glib;
 use gtk;
 use gtk::prelude::*;
+use pango;
+use pango::prelude::*;
+use pango::{FontDescription, LayoutExt};
 use pangocairo;
 
-use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 use neovim_lib::neovim_api::Tabpage;
+use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 
-use misc::{decode_uri, escape_filename};
-use settings::{FontSource, Settings};
-use ui_model::{Attrs, ModelRect, UiModel};
 use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
+use misc::{decode_uri, escape_filename};
 use nvim::{self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef,
            NvimHandler, RepaintMode};
+use settings::{FontSource, Settings};
+use ui_model::{Attrs, ModelRect, UiModel};
 
+use cmd_line::{CmdLine, CmdLineContext};
+use cursor::{BlinkCursor, Cursor, CursorRedrawCb};
+use error;
 use input;
 use input::keyval_to_input_string;
-use cursor::{BlinkCursor, Cursor, CursorRedrawCb};
-use ui::UiMutex;
-use popup_menu::{self, PopupMenu};
-use tabline::Tabline;
-use cmd_line::{CmdLine, CmdLineContext};
-use error;
 use mode;
+use popup_menu::{self, PopupMenu};
 use render;
 use render::CellMetrics;
 use subscriptions::{SubscriptionHandle, Subscriptions};
+use tabline::Tabline;
+use ui::UiMutex;
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2.2";
@@ -457,9 +456,18 @@ impl State {
     }
 }
 
+#[derive(PartialEq)]
+enum MouseCursor {
+    None,
+    Text,
+    Default,
+}
+
 pub struct UiState {
     mouse_pressed: bool,
     scroll_delta: (f64, f64),
+
+    mouse_cursor: MouseCursor,
 }
 
 impl UiState {
@@ -467,6 +475,26 @@ impl UiState {
         UiState {
             mouse_pressed: false,
             scroll_delta: (0.0, 0.0),
+
+            mouse_cursor: MouseCursor::None,
+        }
+    }
+
+    fn apply_mouse_cursor(&mut self, cursor: MouseCursor, window: Option<gdk::Window>) {
+        if self.mouse_cursor == cursor {
+            return;
+        }
+
+        self.mouse_cursor = cursor;
+
+        if let Some(window) = window {
+            let cursor = match self.mouse_cursor {
+                MouseCursor::Default => "default",
+                MouseCursor::None => "none",
+                MouseCursor::Text => "text",
+            };
+
+            window.set_cursor(&gdk::Cursor::new_from_name(&window.get_display(), cursor));
         }
     }
 }
@@ -537,6 +565,7 @@ impl Shell {
 
     pub fn init(&mut self) {
         let state = self.state.borrow();
+
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
         state.drawing_area.set_can_focus(true);
@@ -555,10 +584,14 @@ impl Shell {
 
         state
             .drawing_area
-            .set_events(
-                (gdk_sys::GDK_BUTTON_RELEASE_MASK | gdk_sys::GDK_BUTTON_PRESS_MASK
-                    | gdk_sys::GDK_BUTTON_MOTION_MASK | gdk_sys::GDK_SCROLL_MASK
-                    | gdk_sys::GDK_SMOOTH_SCROLL_MASK)
+            .add_events(
+                (gdk::EventMask::BUTTON_RELEASE_MASK | gdk::EventMask::BUTTON_PRESS_MASK
+                    | gdk::EventMask::BUTTON_MOTION_MASK
+                    | gdk::EventMask::SCROLL_MASK
+                    | gdk::EventMask::SMOOTH_SCROLL_MASK
+                    | gdk::EventMask::ENTER_NOTIFY_MASK
+                    | gdk::EventMask::LEAVE_NOTIFY_MASK
+                    | gdk::EventMask::POINTER_MOTION_MASK)
                     .bits() as i32,
             );
 
@@ -603,6 +636,7 @@ impl Shell {
             .drawing_area
             .connect_draw(move |_, ctx| gtk_draw(&ref_state, ctx));
 
+        let ref_ui_state = self.ui_state.clone();
         let ref_state = self.state.clone();
         state.drawing_area.connect_key_press_event(move |_, ev| {
             ref_state
@@ -625,8 +659,9 @@ impl Shell {
             }
         });
         let ref_state = self.state.clone();
-        state.drawing_area.connect_key_release_event(move |_, ev| {
+        state.drawing_area.connect_key_release_event(move |da, ev| {
             ref_state.borrow().im_context.filter_keypress(ev);
+            ref_ui_state.borrow_mut().apply_mouse_cursor(MouseCursor::None, da.get_window());
             Inhibit(false)
         });
 
@@ -683,9 +718,11 @@ impl Shell {
         });
 
         let ref_state = self.state.clone();
-        let targets = vec![
-            gtk::TargetEntry::new("text/uri-list", gtk::TargetFlags::OTHER_APP, 0),
-        ];
+        let targets = vec![gtk::TargetEntry::new(
+            "text/uri-list",
+            gtk::TargetFlags::OTHER_APP,
+            0,
+        )];
         state
             .drawing_area
             .drag_dest_set(gtk::DestDefaults::ALL, &targets, gdk::DragAction::COPY);
@@ -704,6 +741,18 @@ impl Shell {
                 let mut nvim = state.nvim().unwrap();
                 nvim.command_async(&command).cb(|r| r.report_err()).call()
             });
+
+        let ui_state_ref = self.ui_state.clone();
+        state.drawing_area.connect_enter_notify_event(move |_, ev| {
+            ui_state_ref.borrow_mut().apply_mouse_cursor(MouseCursor::Text, ev.get_window());
+            gtk::Inhibit(false)
+        });
+
+        let ui_state_ref = self.ui_state.clone();
+        state.drawing_area.connect_leave_notify_event(move |_, ev| {
+            ui_state_ref.borrow_mut().apply_mouse_cursor(MouseCursor::Default, ev.get_window());
+            gtk::Inhibit(false)
+        });
     }
 
     fn create_context_menu(&self) -> gtk::Menu {
@@ -944,6 +993,8 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
     if shell.mouse_enabled && ui_state.mouse_pressed {
         mouse_input(shell, "LeftDrag", ev.get_state(), ev.get_position());
     }
+
+    ui_state.apply_mouse_cursor(MouseCursor::Text, shell.drawing_area.get_window());
     Inhibit(false)
 }
 
