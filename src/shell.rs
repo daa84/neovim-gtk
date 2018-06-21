@@ -601,7 +601,7 @@ impl Shell {
         state.drawing_area.connect_button_press_event(move |_, ev| {
             gtk_button_press(
                 &mut *ref_state.borrow_mut(),
-                &mut *ref_ui_state.borrow_mut(),
+                &ref_ui_state,
                 ev,
                 &menu,
             )
@@ -934,7 +934,7 @@ fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll)
 
 fn gtk_button_press(
     shell: &mut State,
-    ui_state: &mut UiState,
+    ui_state: &Rc<RefCell<UiState>>,
     ev: &EventButton,
     menu: &gtk::Menu,
 ) -> Inhibit {
@@ -943,7 +943,7 @@ fn gtk_button_press(
     }
 
     if shell.mouse_enabled {
-        ui_state.mouse_pressed = true;
+        ui_state.borrow_mut().mouse_pressed = true;
 
         match ev.get_button() {
             1 => mouse_input(shell, "LeftMouse", ev.get_state(), ev.get_position()),
