@@ -24,10 +24,11 @@ pub fn clear(ctx: &cairo::Context) {
 pub fn fill_background(ctx: &cairo::Context, color_model: &color::ColorModel) {
     // must be dest over here
     //ctx.set_operator(cairo::Operator::DestOver);
-    ctx.set_source_rgb(
+    ctx.set_source_rgba(
         color_model.bg_color.0,
         color_model.bg_color.1,
         color_model.bg_color.2,
+        0.5,
     );
     ctx.paint();
 }

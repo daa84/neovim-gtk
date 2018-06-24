@@ -30,6 +30,10 @@ macro_rules! try_bool {
     ($exp:expr) => ($exp.as_bool().ok_or_else(|| "Can't convert argument to bool".to_owned())?)
 }
 
+macro_rules! try_float {
+    ($exp:expr) => ($exp.as_f64().ok_or_else(|| "Can't convert argument to float".to_owned())?)
+}
+
 macro_rules! map_array {
     ($arg:expr, $err:expr, |$item:ident| $exp:expr) => (
         $arg.as_array()
@@ -51,6 +55,7 @@ macro_rules! try_arg {
     ($value:expr, bool) => (try_bool!($value));
     ($value:expr, uint) => (try_uint!($value));
     ($value:expr, int) => (try_int!($value));
+    ($value:expr, float) => (try_float!($value));
     ($value:expr, str) => (
         match $value {
             Value::String(s) => {
@@ -87,6 +92,7 @@ pub fn call_gui_event(
     match method {
         "Font" => call!(ui->set_font(args: str)),
         "FontFeatures" => call!(ui->set_font_features(args: str)),
+        "Transparency" => call!(ui->set_transparency(args: float, float)),
         "Clipboard" => match try_str!(args[0]) {
             "Set" => match try_str!(args[1]) {
                 "*" => ui.clipboard_primary_set(try_str!(args[2])),

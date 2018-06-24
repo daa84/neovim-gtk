@@ -71,6 +71,22 @@ impl RenderState {
     }
 }
 
+pub struct TransparencySettigns {
+    background_alpha: f32,
+    filled_alpha: f32,
+    enabled: bool,
+}
+
+impl TransparencySettigns {
+    pub fn new() -> Self {
+        TransparencySettigns {  
+            background_alpha: 1.0,
+            filled_alpha: 1.0,
+            enabled: false,
+        }
+    }
+}
+
 pub struct State {
     pub model: UiModel,
     cur_attrs: Option<Attrs>,
@@ -96,10 +112,11 @@ pub struct State {
     error_area: error::ErrorArea,
 
     options: ShellOptions,
+    transparencySettings: TransparencySettigns,
 
     detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
     nvim_started_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
-    command_cb: Option<Box<FnMut(Vec<Value>) + Send + 'static>>,
+    command_cb: Option<Box<FnMut(&mut State, Vec<Value>) + Send + 'static>>,
 
     subscriptions: RefCell<Subscriptions>,
 }
@@ -141,6 +158,7 @@ impl State {
             error_area: error::ErrorArea::new(),
 
             options,
+            transparencySettings: TransparencySettigns::new(),
 
             detach_cb: None,
             nvim_started_cb: None,
@@ -199,7 +217,7 @@ impl State {
 
     pub fn set_nvim_command_cb<F>(&mut self, cb: Option<F>)
     where
-        F: FnMut(Vec<Value>) + Send + 'static,
+        F: FnMut(&mut State, Vec<Value>) + Send + 'static,
     {
         if cb.is_some() {
             self.command_cb = Some(Box::new(cb.unwrap()));
@@ -236,6 +254,17 @@ impl State {
             .font_ctx
             .update_font_features(font_features);
         self.model.clear_glyphs();
+        self.on_redraw(&RepaintMode::All);
+    }
+
+    pub fn set_transparency(&mut self, background_alpha: f64, filled_alpha: f64) {
+        if background_alpha < 1.0 || filled_alpha < 1.0 {
+            self.transparencySettings.background_alpha = background_alpha as f32;
+            self.transparencySettings.filled_alpha = filled_alpha as f32;
+        } else {
+            self.transparencySettings.enabled = false;
+        }
+
         self.on_redraw(&RepaintMode::All);
     }
 
@@ -451,7 +480,7 @@ impl State {
 
     pub fn on_command(&mut self, args: Vec<Value>) {
         if let Some(ref mut cb) = self.command_cb {
-            cb(args);
+            cb(self, args);
         }
     }
 }
@@ -839,7 +868,7 @@ impl Shell {
 
     pub fn set_nvim_command_cb<F>(&self, cb: Option<F>)
     where
-        F: FnMut(Vec<Value>) + Send + 'static,
+        F: FnMut(&mut State, Vec<Value>) + Send + 'static,
     {
         let mut state = self.state.borrow_mut();
         state.set_nvim_command_cb(cb);
@@ -1002,7 +1031,6 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
     ctx.push_group();
 
     let render_state = state.render_state.borrow();
-    render::clear(ctx);
     render::render(
         ctx,
         state.cursor.as_ref().unwrap(),

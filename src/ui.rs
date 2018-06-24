@@ -4,7 +4,7 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk;
+use gdk::{self, ScreenExt};
 use gtk;
 use gtk::prelude::*;
 use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned, SettingsExt};
@@ -124,6 +124,8 @@ impl Ui {
         settings.init();
 
         let window = ApplicationWindow::new(app);
+        window.set_app_paintable(true);
+
         let main = Paned::new(Orientation::Horizontal);
 
         {
@@ -283,13 +285,28 @@ impl Ui {
         }));
 
         let sidebar_action = UiMutex::new(show_sidebar_action);
-        shell.set_nvim_command_cb(Some(move |args: Vec<Value>| {
+        let comps_ref = self.comps.clone();
+        shell.set_nvim_command_cb(Some(move |shell: &mut shell::State, args: Vec<Value>| {
             if let Some(cmd) = args[0].as_str() {
                 match cmd {
                     "ToggleSidebar" => {
                         let action = sidebar_action.borrow();
                         let state = !bool::from_variant(&action.get_state().unwrap()).unwrap();
                         action.change_state(&state.to_variant());
+                    }
+                    "Transparency" => {
+                        let comps = comps_ref.borrow();
+                        let window = comps.window.as_ref().unwrap();
+
+                        let screen = window.get_screen().unwrap();
+                        if screen.is_composited() {
+                            if shell.set_transparency(try_float!(), try_float!()) {
+                                let visual = screen.get_rgba_visual();
+                                if let Some(visual) = visual {
+                                    window.set_visual(&visual);
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }
