@@ -531,12 +531,12 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
 
     let render_state = state.render_state.borrow();
 
+    ctx.push_group();
+
     let gap = state.drawing_area.get_allocated_height() - preferred_height;
     if gap > 0 {
         ctx.translate(0.0, (gap / 2) as f64);
     }
-
-    render::clear(ctx);
 
     if let Some(block) = block {
         render::render(
@@ -545,6 +545,7 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
             &render_state.font_ctx,
             &block.model_layout.model,
             &render_state.color_model,
+            1.0,
         );
 
         ctx.translate(0.0, block.preferred_height as f64);
@@ -557,10 +558,14 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
             &render_state.font_ctx,
             &level.model_layout.model,
             &render_state.color_model,
+            1.0,
         );
     }
 
-    render::fill_background(ctx, &render_state.color_model);
+    render::fill_background(ctx, &render_state.color_model, 1.0);
+
+    ctx.pop_group_to_source();
+    ctx.paint();
 
     Inhibit(false)
 }

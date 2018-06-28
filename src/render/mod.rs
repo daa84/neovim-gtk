@@ -16,19 +16,14 @@ use pangocairo;
 use cursor::Cursor;
 use ui_model;
 
-pub fn clear(ctx: &cairo::Context) {
-    ctx.set_operator(cairo::Operator::Clear);
-    ctx.paint();
-}
-
-pub fn fill_background(ctx: &cairo::Context, color_model: &color::ColorModel) {
+pub fn fill_background(ctx: &cairo::Context, color_model: &color::ColorModel, alpha: f64) {
     // must be dest over here
     //ctx.set_operator(cairo::Operator::DestOver);
     ctx.set_source_rgba(
         color_model.bg_color.0,
         color_model.bg_color.1,
         color_model.bg_color.2,
-        0.5,
+        alpha,
     );
     ctx.paint();
 }
@@ -39,6 +34,7 @@ pub fn render<C: Cursor>(
     font_ctx: &context::Context,
     ui_model: &ui_model::UiModel,
     color_model: &color::ColorModel,
+    bg_alpha: f64,
 ) {
     let cell_metrics = font_ctx.cell_metrics();
     let &CellMetrics { char_width, .. } = cell_metrics;
@@ -82,7 +78,7 @@ pub fn render<C: Cursor>(
         let mut line_x = 0.0;
 
         for (col, cell) in cell_view.line.line.iter().enumerate() {
-            draw_cell_bg(&cell_view, color_model, cell, col, line_x);
+            draw_cell_bg(&cell_view, color_model, cell, col, line_x, bg_alpha);
             line_x += char_width;
         }
     }
@@ -141,6 +137,7 @@ fn draw_cell_bg(
     cell: &ui_model::Cell,
     col: usize,
     line_x: f64,
+    bg_alpha: f64,
 ) {
     let &RowView {
         ctx,
@@ -160,12 +157,12 @@ fn draw_cell_bg(
     if let Some(bg) = bg {
         if !line.is_binded_to_item(col) {
             if bg != &color_model.bg_color {
-                ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                ctx.set_source_rgba(bg.0, bg.1, bg.2, bg_alpha);
                 ctx.rectangle(line_x, line_y, char_width, line_height);
                 ctx.fill();
             }
         } else {
-            ctx.set_source_rgb(bg.0, bg.1, bg.2);
+            ctx.set_source_rgba(bg.0, bg.1, bg.2, bg_alpha);
             ctx.rectangle(
                 line_x,
                 line_y,

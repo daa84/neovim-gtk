@@ -1,3 +1,4 @@
+use std::num::ParseFloatError;
 use std::result;
 use std::sync::Arc;
 
@@ -40,13 +41,6 @@ macro_rules! try_bool {
     ($exp:expr) => {
         $exp.as_bool()
             .ok_or_else(|| "Can't convert argument to bool".to_owned())?
-    };
-}
-
-macro_rules! try_float {
-    ($exp:expr) => {
-        $exp.as_f64()
-            .ok_or_else(|| "Can't convert argument to float".to_owned())?
     };
 }
 
@@ -160,8 +154,12 @@ pub fn call_gui_event(
             match try_str!(args[0]) {
                 "ToggleSidebar" => ui.on_command(NvimCommand::ToggleSidebar),
                 "Transparency" => ui.on_command(NvimCommand::Transparency(
-                    try_float!(args[1]),
-                    try_float!(args[2]),
+                    try_str!(args.get(1).cloned().unwrap_or("1.0".into()))
+                        .parse()
+                        .map_err(|e: ParseFloatError| e.to_string())?,
+                    try_str!(args.get(2).cloned().unwrap_or("1.0".into()))
+                        .parse()
+                        .map_err(|e: ParseFloatError| e.to_string())?,
                 )),
                 _ => error!("Unknown command"),
             };

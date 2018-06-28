@@ -72,8 +72,8 @@ impl RenderState {
 }
 
 pub struct TransparencySettigns {
-    background_alpha: f32,
-    filled_alpha: f32,
+    background_alpha: f64,
+    filled_alpha: f64,
     enabled: bool,
 }
 
@@ -259,10 +259,12 @@ impl State {
 
     pub fn set_transparency(&mut self, background_alpha: f64, filled_alpha: f64) -> bool {
         if background_alpha < 1.0 || filled_alpha < 1.0 {
-            self.transparency_settings.background_alpha = background_alpha as f32;
-            self.transparency_settings.filled_alpha = filled_alpha as f32;
+            self.transparency_settings.background_alpha = background_alpha;
+            self.transparency_settings.filled_alpha = filled_alpha;
         } else {
             self.transparency_settings.enabled = false;
+            self.transparency_settings.background_alpha = 1.0;
+            self.transparency_settings.filled_alpha = 1.0;
         }
 
         self.on_redraw(&RepaintMode::All);
@@ -1044,8 +1046,13 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
         &render_state.font_ctx,
         &state.model,
         &render_state.color_model,
+        state.transparency_settings.filled_alpha,
     );
-    render::fill_background(ctx, &render_state.color_model);
+    render::fill_background(
+        ctx,
+        &render_state.color_model,
+        state.transparency_settings.background_alpha,
+    );
 
     ctx.pop_group_to_source();
     ctx.paint();
