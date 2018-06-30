@@ -15,13 +15,13 @@ pub struct Context {
 impl Context {
     pub fn new(pango_context: pango::Context) -> Self {
         Context {
-            font_metrics: FontMetrix::new(pango_context),
+            font_metrics: FontMetrix::new(pango_context, -10),
             font_features: FontFeatures::new(),
         }
     }
 
     pub fn update(&mut self, pango_context: pango::Context) {
-        self.font_metrics = FontMetrix::new(pango_context);
+        self.font_metrics = FontMetrix::new(pango_context, -10);
     }
 
     pub fn update_font_features(&mut self, font_features: FontFeatures) {
@@ -69,13 +69,13 @@ struct FontMetrix {
 }
 
 impl FontMetrix {
-    pub fn new(pango_context: pango::Context) -> Self {
+    pub fn new(pango_context: pango::Context, line_space: i32) -> Self {
         let font_metrics = pango_context.get_metrics(None, None).unwrap();
         let font_desc = pango_context.get_font_description().unwrap();
 
         FontMetrix {
             pango_context,
-            cell_metrics: CellMetrics::new(&font_metrics),
+            cell_metrics: CellMetrics::new(&font_metrics, line_space),
             font_desc,
         }
     }
@@ -93,19 +93,21 @@ pub struct CellMetrics {
 }
 
 impl CellMetrics {
-    fn new(font_metrics: &pango::FontMetrics) -> Self {
+    fn new(font_metrics: &pango::FontMetrics, line_space: i32) -> Self {
         CellMetrics {
             pango_ascent: font_metrics.get_ascent(),
             pango_descent: font_metrics.get_descent(),
             pango_char_width: font_metrics.get_approximate_digit_width(),
-            ascent: font_metrics.get_ascent() as f64 / pango::SCALE as f64,
-            line_height: (font_metrics.get_ascent() + font_metrics.get_descent()) as f64
-                / pango::SCALE as f64,
-            char_width: font_metrics.get_approximate_digit_width() as f64 / pango::SCALE as f64,
-            underline_position: (font_metrics.get_ascent() - font_metrics.get_underline_position())
-                as f64 / pango::SCALE as f64,
-            underline_thickness: font_metrics.get_underline_thickness() as f64
-                / pango::SCALE as f64,
+            ascent: f64::from(font_metrics.get_ascent()) / f64::from(pango::SCALE),
+            line_height: f64::from(font_metrics.get_ascent() + font_metrics.get_descent())
+                / f64::from(pango::SCALE) + f64::from(line_space),
+            char_width: f64::from(font_metrics.get_approximate_digit_width())
+                / f64::from(pango::SCALE),
+            underline_position: f64::from(
+                font_metrics.get_ascent() - font_metrics.get_underline_position(),
+            ) / f64::from(pango::SCALE),
+            underline_thickness: f64::from(font_metrics.get_underline_thickness())
+                / f64::from(pango::SCALE),
         }
     }
 
