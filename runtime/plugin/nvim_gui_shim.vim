@@ -58,4 +58,5 @@ command! -nargs=1 -bang GuiFont call s:GuiFontCommand("<args>", "<bang>")
 command! -nargs=? GuiFontFeatures call rpcnotify(1, 'Gui', 'FontFeatures', <q-args>)
 
 command! NGToggleSidebar call rpcnotify(1, 'Gui', 'Command', 'ToggleSidebar')
+command! -nargs=+ NGTransparency call rpcnotify(1, 'Gui', 'Command', 'Transparency', <f-args>)
 

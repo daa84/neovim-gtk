@@ -71,6 +71,38 @@ impl RenderState {
     }
 }
 
+pub struct TransparencySettigns {
+    background_alpha: f64,
+    filled_alpha: f64,
+    enabled: bool,
+}
+
+impl TransparencySettigns {
+    pub fn new() -> Self {
+        TransparencySettigns {
+            background_alpha: 1.0,
+            filled_alpha: 1.0,
+            enabled: false,
+        }
+    }
+
+    fn filled_alpha(&self) -> Option<f64> {
+        if self.enabled {
+            Some(self.filled_alpha)
+        } else {
+            None
+        }
+    }
+
+    fn background_alpha(&self) -> Option<f64> {
+        if self.enabled {
+            Some(self.background_alpha)
+        } else {
+            None
+        }
+    }
+}
+
 pub struct State {
     pub model: UiModel,
     cur_attrs: Option<Attrs>,
@@ -96,10 +128,11 @@ pub struct State {
     error_area: error::ErrorArea,
 
     options: ShellOptions,
+    transparency_settings: TransparencySettigns,
 
     detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
     nvim_started_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
-    command_cb: Option<Box<FnMut(Vec<Value>) + Send + 'static>>,
+    command_cb: Option<Box<FnMut(&mut State, nvim::NvimCommand) + Send + 'static>>,
 
     subscriptions: RefCell<Subscriptions>,
 }
@@ -141,6 +174,7 @@ impl State {
             error_area: error::ErrorArea::new(),
 
             options,
+            transparency_settings: TransparencySettigns::new(),
 
             detach_cb: None,
             nvim_started_cb: None,
@@ -199,7 +233,7 @@ impl State {
 
     pub fn set_nvim_command_cb<F>(&mut self, cb: Option<F>)
     where
-        F: FnMut(Vec<Value>) + Send + 'static,
+        F: FnMut(&mut State, nvim::NvimCommand) + Send + 'static,
     {
         if cb.is_some() {
             self.command_cb = Some(Box::new(cb.unwrap()));
@@ -237,6 +271,25 @@ impl State {
             .update_font_features(font_features);
         self.model.clear_glyphs();
         self.on_redraw(&RepaintMode::All);
+    }
+
+    /// return true if transparency changed to enabled
+    pub fn set_transparency(&mut self, background_alpha: f64, filled_alpha: f64) -> bool {
+        let old_enabled = self.transparency_settings.enabled;
+
+        if background_alpha < 1.0 || filled_alpha < 1.0 {
+            self.transparency_settings.background_alpha = background_alpha;
+            self.transparency_settings.filled_alpha = filled_alpha;
+            self.transparency_settings.enabled = true;
+        } else {
+            self.transparency_settings.background_alpha = 1.0;
+            self.transparency_settings.filled_alpha = 1.0;
+            self.transparency_settings.enabled = false;
+        }
+
+        self.on_redraw(&RepaintMode::All);
+
+        self.transparency_settings.enabled && old_enabled == false
     }
 
     pub fn open_file(&self, path: &str) {
@@ -449,10 +502,14 @@ impl State {
         self.set_font_desc(&font_desc);
     }
 
-    pub fn on_command(&mut self, args: Vec<Value>) {
-        if let Some(ref mut cb) = self.command_cb {
-            cb(args);
+    pub fn on_command(&mut self, command: nvim::NvimCommand) {
+        let mut cb = self.command_cb.take();
+
+        if let Some(ref mut cb) = cb {
+            cb(self, command);
         }
+
+        self.command_cb = cb;
     }
 }
 
@@ -599,12 +656,7 @@ impl Shell {
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
         state.drawing_area.connect_button_press_event(move |_, ev| {
-            gtk_button_press(
-                &mut *ref_state.borrow_mut(),
-                &ref_ui_state,
-                ev,
-                &menu,
-            )
+            gtk_button_press(&mut *ref_state.borrow_mut(), &ref_ui_state, ev, &menu)
         });
 
         let ref_state = self.state.clone();
@@ -661,7 +713,9 @@ impl Shell {
         let ref_state = self.state.clone();
         state.drawing_area.connect_key_release_event(move |da, ev| {
             ref_state.borrow().im_context.filter_keypress(ev);
-            ref_ui_state.borrow_mut().apply_mouse_cursor(MouseCursor::None, da.get_window());
+            ref_ui_state
+                .borrow_mut()
+                .apply_mouse_cursor(MouseCursor::None, da.get_window());
             Inhibit(false)
         });
 
@@ -744,13 +798,17 @@ impl Shell {
 
         let ui_state_ref = self.ui_state.clone();
         state.drawing_area.connect_enter_notify_event(move |_, ev| {
-            ui_state_ref.borrow_mut().apply_mouse_cursor(MouseCursor::Text, ev.get_window());
+            ui_state_ref
+                .borrow_mut()
+                .apply_mouse_cursor(MouseCursor::Text, ev.get_window());
             gtk::Inhibit(false)
         });
 
         let ui_state_ref = self.ui_state.clone();
         state.drawing_area.connect_leave_notify_event(move |_, ev| {
-            ui_state_ref.borrow_mut().apply_mouse_cursor(MouseCursor::Default, ev.get_window());
+            ui_state_ref
+                .borrow_mut()
+                .apply_mouse_cursor(MouseCursor::Default, ev.get_window());
             gtk::Inhibit(false)
         });
     }
@@ -839,7 +897,7 @@ impl Shell {
 
     pub fn set_nvim_command_cb<F>(&self, cb: Option<F>)
     where
-        F: FnMut(Vec<Value>) + Send + 'static,
+        F: FnMut(&mut State, nvim::NvimCommand) + Send + 'static,
     {
         let mut state = self.state.borrow_mut();
         state.set_nvim_command_cb(cb);
@@ -1002,15 +1060,19 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
     ctx.push_group();
 
     let render_state = state.render_state.borrow();
-    render::clear(ctx);
     render::render(
         ctx,
         state.cursor.as_ref().unwrap(),
         &render_state.font_ctx,
         &state.model,
         &render_state.color_model,
+        state.transparency_settings.filled_alpha(),
     );
-    render::fill_background(ctx, &render_state.color_model);
+    render::fill_background(
+        ctx,
+        &render_state.color_model,
+        state.transparency_settings.background_alpha(),
+    );
 
     ctx.pop_group_to_source();
     ctx.paint();

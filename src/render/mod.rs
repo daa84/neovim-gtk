@@ -2,33 +2,38 @@ mod context;
 mod itemize;
 mod model_clip_iterator;
 
-pub use self::context::{Context, FontFeatures};
 pub use self::context::CellMetrics;
+pub use self::context::{Context, FontFeatures};
 use self::model_clip_iterator::{ModelClipIteratorFactory, RowView};
 
+use cairo;
 use color;
+use pango;
+use pangocairo;
 use sys::pango::*;
 use sys::pangocairo::*;
-use pango;
-use cairo;
-use pangocairo;
 
 use cursor::Cursor;
 use ui_model;
 
-pub fn clear(ctx: &cairo::Context) {
-    ctx.set_operator(cairo::Operator::Clear);
-    ctx.paint();
+trait ContextAlpha {
+    fn set_source_rgbo(&self, &color::Color, Option<f64>);
 }
 
-pub fn fill_background(ctx: &cairo::Context, color_model: &color::ColorModel) {
+impl ContextAlpha for cairo::Context {
+    fn set_source_rgbo(&self, color: &color::Color, alpha: Option<f64>) {
+        if let Some(alpha) = alpha {
+            self.set_source_rgba(color.0, color.1, color.2, alpha);
+        } else {
+            self.set_source_rgb(color.0, color.1, color.2);
+        }
+    }
+}
+
+pub fn fill_background(ctx: &cairo::Context, color_model: &color::ColorModel, alpha: Option<f64>) {
     // must be dest over here
     //ctx.set_operator(cairo::Operator::DestOver);
-    ctx.set_source_rgb(
-        color_model.bg_color.0,
-        color_model.bg_color.1,
-        color_model.bg_color.2,
-    );
+    ctx.set_source_rgbo(&color_model.bg_color, alpha);
     ctx.paint();
 }
 
@@ -38,6 +43,7 @@ pub fn render<C: Cursor>(
     font_ctx: &context::Context,
     ui_model: &ui_model::UiModel,
     color_model: &color::ColorModel,
+    bg_alpha: Option<f64>,
 ) {
     let cell_metrics = font_ctx.cell_metrics();
     let &CellMetrics { char_width, .. } = cell_metrics;
@@ -56,7 +62,6 @@ pub fn render<C: Cursor>(
             line_x += char_width;
         }
     }
-
 
     // draw cursor
     ctx.set_operator(cairo::Operator::Xor);
@@ -81,7 +86,7 @@ pub fn render<C: Cursor>(
         let mut line_x = 0.0;
 
         for (col, cell) in cell_view.line.line.iter().enumerate() {
-            draw_cell_bg(&cell_view, color_model, cell, col, line_x);
+            draw_cell_bg(&cell_view, color_model, cell, col, line_x, bg_alpha);
             line_x += char_width;
         }
     }
@@ -140,6 +145,7 @@ fn draw_cell_bg(
     cell: &ui_model::Cell,
     col: usize,
     line_x: f64,
+    bg_alpha: Option<f64>,
 ) {
     let &RowView {
         ctx,
@@ -159,12 +165,12 @@ fn draw_cell_bg(
     if let Some(bg) = bg {
         if !line.is_binded_to_item(col) {
             if bg != &color_model.bg_color {
-                ctx.set_source_rgb(bg.0, bg.1, bg.2);
+                ctx.set_source_rgbo(bg, bg_alpha);
                 ctx.rectangle(line_x, line_y, char_width, line_height);
                 ctx.fill();
             }
         } else {
-            ctx.set_source_rgb(bg.0, bg.1, bg.2);
+            ctx.set_source_rgbo(bg, bg_alpha);
             ctx.rectangle(
                 line_x,
                 line_y,

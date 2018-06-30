@@ -1,27 +1,27 @@
-use std::iter;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::Arc;
 use std::cell::RefCell;
 use std::cmp::{max, min};
+use std::collections::HashMap;
+use std::iter;
+use std::rc::Rc;
+use std::sync::Arc;
 
+use cairo;
 use gtk;
 use gtk::prelude::*;
-use cairo;
 use pango;
 
 use unicode_segmentation::UnicodeSegmentation;
 
 use neovim_lib::Value;
 
-use nvim::{self, NeovimClient};
+use cursor;
 use mode;
-use ui_model::{Attrs, ModelLayout};
-use ui::UiMutex;
+use nvim::{self, NeovimClient};
+use popup_menu;
 use render::{self, CellMetrics};
 use shell;
-use cursor;
-use popup_menu;
+use ui::UiMutex;
+use ui_model::{Attrs, ModelLayout};
 
 pub struct Level {
     model_layout: ModelLayout,
@@ -85,11 +85,7 @@ impl Level {
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
-        Level::from_lines(
-            content.to_attributed_content(),
-            max_width,
-            render_state,
-        )
+        Level::from_lines(content.to_attributed_content(), max_width, render_state)
     }
 
     pub fn from_lines(
@@ -138,14 +134,12 @@ fn prompt_lines(
         if firstc.len() >= indent as usize {
             vec![(None, vec![firstc.to_owned()])]
         } else {
-            vec![
-                (
-                    None,
-                    iter::once(firstc.to_owned())
-                        .chain((firstc.len()..indent as usize).map(|_| " ".to_owned()))
-                        .collect(),
-                ),
-            ]
+            vec![(
+                None,
+                iter::once(firstc.to_owned())
+                    .chain((firstc.len()..indent as usize).map(|_| " ".to_owned()))
+                    .collect(),
+            )]
         }
     } else if !prompt.is_empty() {
         prompt
@@ -531,12 +525,12 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
 
     let render_state = state.render_state.borrow();
 
+    ctx.push_group();
+
     let gap = state.drawing_area.get_allocated_height() - preferred_height;
     if gap > 0 {
         ctx.translate(0.0, (gap / 2) as f64);
     }
-
-    render::clear(ctx);
 
     if let Some(block) = block {
         render::render(
@@ -545,6 +539,7 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
             &render_state.font_ctx,
             &block.model_layout.model,
             &render_state.color_model,
+            None,
         );
 
         ctx.translate(0.0, block.preferred_height as f64);
@@ -557,10 +552,14 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
             &render_state.font_ctx,
             &level.model_layout.model,
             &render_state.color_model,
+            None,
         );
     }
 
-    render::fill_background(ctx, &render_state.color_model);
+    render::fill_background(ctx, &render_state.color_model, None);
+
+    ctx.pop_group_to_source();
+    ctx.paint();
 
     Inhibit(false)
 }
@@ -590,7 +589,9 @@ impl<'a> CmdLineContext<'a> {
         if content.is_empty() {
             content.push(content_line.remove(0));
         } else {
-            content.last_mut().map(|line| line.extend(content_line.remove(0)));
+            content
+                .last_mut()
+                .map(|line| line.extend(content_line.remove(0)));
         }
 
         LineContent {

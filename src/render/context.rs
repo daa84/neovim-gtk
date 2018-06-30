@@ -1,11 +1,11 @@
-use pango::prelude::*;
 use pango;
+use pango::prelude::*;
 
 use sys::pango as sys_pango;
 use sys::pango::AttrIteratorFactory;
 
-use ui_model::StyledLine;
 use super::itemize::ItemizeIterator;
+use ui_model::StyledLine;
 
 pub struct Context {
     font_metrics: FontMetrix,
@@ -130,9 +130,7 @@ pub struct FontFeatures {
 
 impl FontFeatures {
     pub fn new() -> Self {
-        FontFeatures {  
-            attr: None,
-        }
+        FontFeatures { attr: None }
     }
 
     pub fn from(font_features: String) -> Self {

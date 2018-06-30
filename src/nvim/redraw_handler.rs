@@ -1,57 +1,82 @@
+use std::num::ParseFloatError;
 use std::result;
 use std::sync::Arc;
 
-use neovim_lib::{UiOption, Value};
 use neovim_lib::neovim_api::Tabpage;
+use neovim_lib::{UiOption, Value};
 
-use ui::UiMutex;
-use shell;
 use gtk::ClipboardExt;
+use shell;
+use ui::UiMutex;
 
-use value::ValueMapExt;
 use rmpv;
+use value::ValueMapExt;
 
-use super::repaint_mode::RepaintMode;
 use super::handler::NvimHandler;
+use super::repaint_mode::RepaintMode;
 
 macro_rules! try_str {
-    ($exp:expr) => ($exp.as_str().ok_or_else(|| "Can't convert argument to string".to_owned())?)
+    ($exp:expr) => {
+        $exp.as_str()
+            .ok_or_else(|| "Can't convert argument to string".to_owned())?
+    };
 }
 
 macro_rules! try_int {
-    ($expr:expr) => ($expr.as_i64().ok_or_else(|| "Can't convert argument to int".to_owned())?)
+    ($expr:expr) => {
+        $expr
+            .as_i64()
+            .ok_or_else(|| "Can't convert argument to int".to_owned())?
+    };
 }
 
 macro_rules! try_uint {
-    ($exp:expr) => ($exp.as_u64().ok_or_else(|| "Can't convert argument to u64".to_owned())?)
+    ($exp:expr) => {
+        $exp.as_u64()
+            .ok_or_else(|| "Can't convert argument to u64".to_owned())?
+    };
 }
 
 macro_rules! try_bool {
-    ($exp:expr) => ($exp.as_bool().ok_or_else(|| "Can't convert argument to bool".to_owned())?)
+    ($exp:expr) => {
+        $exp.as_bool()
+            .ok_or_else(|| "Can't convert argument to bool".to_owned())?
+    };
 }
 
 macro_rules! map_array {
-    ($arg:expr, $err:expr, |$item:ident| $exp:expr) => (
-        $arg.as_array()
-            .ok_or_else(|| $err)
-            .and_then(|items| items.iter().map(|$item| {
-                $exp
-            }).collect::<Result<Vec<_>, _>>())
-    );
-    ($arg:expr, $err:expr, |$item:ident| {$exp:expr}) => (
-        $arg.as_array()
-            .ok_or_else(|| $err)
-            .and_then(|items| items.iter().map(|$item| {
-                $exp
-            }).collect::<Result<Vec<_>, _>>())
-    );
+    ($arg:expr, $err:expr, | $item:ident | $exp:expr) => {
+        $arg.as_array().ok_or_else(|| $err).and_then(|items| {
+            items
+                .iter()
+                .map(|$item| $exp)
+                .collect::<Result<Vec<_>, _>>()
+        })
+    };
+    ($arg:expr, $err:expr, | $item:ident |  { $exp:expr }) => {
+        $arg.as_array().ok_or_else(|| $err).and_then(|items| {
+            items
+                .iter()
+                .map(|$item| $exp)
+                .collect::<Result<Vec<_>, _>>()
+        })
+    };
 }
 
 macro_rules! try_arg {
-    ($value:expr, bool) => (try_bool!($value));
-    ($value:expr, uint) => (try_uint!($value));
-    ($value:expr, int) => (try_int!($value));
-    ($value:expr, str) => (
+    ($value:expr,bool) => {
+        try_bool!($value)
+    };
+    ($value:expr,uint) => {
+        try_uint!($value)
+    };
+    ($value:expr,int) => {
+        try_int!($value)
+    };
+    ($value:expr,float) => {
+        try_float!($value)
+    };
+    ($value:expr,str) => {
         match $value {
             Value::String(s) => {
                 if let Some(s) = s.into_str() {
@@ -61,8 +86,11 @@ macro_rules! try_arg {
                 }
             }
             _ => Err("Can't convert to string".to_owned()),
-        }?);
-    ($value:expr, ext) => (rmpv::ext::from_value($value).map_err(|e| e.to_string())?);
+        }?
+    };
+    ($value:expr,ext) => {
+        rmpv::ext::from_value($value).map_err(|e| e.to_string())?
+    };
 }
 
 macro_rules! call {
@@ -77,6 +105,11 @@ macro_rules! call {
             ),+ )
         }
     )
+}
+
+pub enum NvimCommand {
+    ToggleSidebar,
+    Transparency(f64, f64),
 }
 
 pub fn call_gui_event(
@@ -118,7 +151,18 @@ pub fn call_gui_event(
             opt => error!("Unknown option {}", opt),
         },
         "Command" => {
-            ui.on_command(args);
+            match try_str!(args[0]) {
+                "ToggleSidebar" => ui.on_command(NvimCommand::ToggleSidebar),
+                "Transparency" => ui.on_command(NvimCommand::Transparency(
+                    try_str!(args.get(1).cloned().unwrap_or("1.0".into()))
+                        .parse()
+                        .map_err(|e: ParseFloatError| e.to_string())?,
+                    try_str!(args.get(2).cloned().unwrap_or("1.0".into()))
+                        .parse()
+                        .map_err(|e: ParseFloatError| e.to_string())?,
+                )),
+                _ => error!("Unknown command"),
+            };
         }
         _ => return Err(format!("Unsupported event {}({:?})", method, args)),
     }
@@ -206,8 +250,10 @@ pub fn call(
         "popupmenu_hide" => ui.popupmenu_hide(),
         "popupmenu_select" => call!(ui->popupmenu_select(args: int)),
         "tabline_update" => {
-            let tabs_out = map_array!(args[1], "Error get tabline list".to_owned(), |tab| {
-                tab.as_map()
+            let tabs_out = map_array!(
+                args[1],
+                "Error get tabline list".to_owned(),
+                |tab| tab.as_map()
                     .ok_or_else(|| "Error get map for tab".to_owned())
                     .and_then(|tab_map| tab_map.to_attrs_map())
                     .map(|tab_attrs| {
@@ -221,7 +267,7 @@ pub fn call(
 
                         (tab_attr, name_attr)
                     })
-            })?;
+            )?;
             ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
         }
         "mode_info_set" => call!(ui->mode_info_set(args: bool, ext)),
