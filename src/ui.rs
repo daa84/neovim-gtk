@@ -286,28 +286,39 @@ impl Ui {
         let sidebar_action = UiMutex::new(show_sidebar_action);
         let comps_ref = self.comps.clone();
         shell.set_nvim_command_cb(Some(
-            move |shell: &mut shell::State, command: NvimCommand| match command {
-                NvimCommand::ToggleSidebar => {
-                    let action = sidebar_action.borrow();
-                    let state = !bool::from_variant(&action.get_state().unwrap()).unwrap();
-                    action.change_state(&state.to_variant());
-                }
-                NvimCommand::Transparency(background_alpha, filled_alpha) => {
-                    let comps = comps_ref.borrow();
-                    let window = comps.window.as_ref().unwrap();
+            move |shell: &mut shell::State, command: NvimCommand| {
+                Ui::nvim_command(shell, command, &sidebar_action, &comps_ref);
+            },
+        ));
+    }
 
-                    let screen = window.get_screen().unwrap();
-                    if screen.is_composited() {
-                        if shell.set_transparency(background_alpha, filled_alpha) {
-                            let visual = screen.get_rgba_visual();
-                            if let Some(visual) = visual {
-                                window.set_visual(&visual);
-                            }
+    fn nvim_command(
+        shell: &mut shell::State,
+        command: NvimCommand,
+        sidebar_action: &UiMutex<SimpleAction>,
+        comps: &UiMutex<Components>,
+    ) {
+        match command {
+            NvimCommand::ToggleSidebar => {
+                let action = sidebar_action.borrow();
+                let state = !bool::from_variant(&action.get_state().unwrap()).unwrap();
+                action.change_state(&state.to_variant());
+            }
+            NvimCommand::Transparency(background_alpha, filled_alpha) => {
+                let comps = comps.borrow();
+                let window = comps.window.as_ref().unwrap();
+
+                let screen = window.get_screen().unwrap();
+                if screen.is_composited() {
+                    if shell.set_transparency(background_alpha, filled_alpha) {
+                        let visual = screen.get_rgba_visual();
+                        if let Some(visual) = visual {
+                            window.set_visual(&visual);
                         }
                     }
                 }
-            },
-        ));
+            }
+        }
     }
 
     fn create_header_bar(&self) -> SubscriptionHandle {

@@ -85,6 +85,22 @@ impl TransparencySettigns {
             enabled: false,
         }
     }
+
+    fn filled_alpha(&self) -> Option<f64> {
+        if self.enabled {
+            Some(self.filled_alpha)
+        } else {
+            None
+        }
+    }
+
+    fn background_alpha(&self) -> Option<f64> {
+        if self.enabled {
+            Some(self.background_alpha)
+        } else {
+            None
+        }
+    }
 }
 
 pub struct State {
@@ -257,19 +273,23 @@ impl State {
         self.on_redraw(&RepaintMode::All);
     }
 
+    /// return true if transparency changed to enabled
     pub fn set_transparency(&mut self, background_alpha: f64, filled_alpha: f64) -> bool {
+        let old_enabled = self.transparency_settings.enabled;
+
         if background_alpha < 1.0 || filled_alpha < 1.0 {
             self.transparency_settings.background_alpha = background_alpha;
             self.transparency_settings.filled_alpha = filled_alpha;
+            self.transparency_settings.enabled = true;
         } else {
-            self.transparency_settings.enabled = false;
             self.transparency_settings.background_alpha = 1.0;
             self.transparency_settings.filled_alpha = 1.0;
+            self.transparency_settings.enabled = false;
         }
 
         self.on_redraw(&RepaintMode::All);
 
-        self.transparency_settings.enabled
+        self.transparency_settings.enabled && old_enabled == false
     }
 
     pub fn open_file(&self, path: &str) {
@@ -1046,12 +1066,12 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
         &render_state.font_ctx,
         &state.model,
         &render_state.color_model,
-        state.transparency_settings.filled_alpha,
+        state.transparency_settings.filled_alpha(),
     );
     render::fill_background(
         ctx,
         &render_state.color_model,
-        state.transparency_settings.background_alpha,
+        state.transparency_settings.background_alpha(),
     );
 
     ctx.pop_group_to_source();
