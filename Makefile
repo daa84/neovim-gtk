@@ -4,7 +4,7 @@ test:
 	RUST_BACKTRACE=1 cargo test
 
 run:
-	RUST_BACKTRACE=1 cargo run
+	RUST_BACKTRACE=1 cargo run -- --no-fork
 
 install: install-resources
 	cargo install --force --root $(PREFIX)

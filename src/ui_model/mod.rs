@@ -1,15 +1,14 @@
 mod cell;
-mod line;
 mod item;
-mod model_rect;
+mod line;
 mod model_layout;
+mod model_rect;
 
-pub use self::cell::{Cell, Attrs};
-pub use self::line::{Line, StyledLine};
+pub use self::cell::{Attrs, Cell};
 pub use self::item::Item;
-pub use self::model_rect::{ModelRect, ModelRectVec};
+pub use self::line::{Line, StyledLine};
 pub use self::model_layout::ModelLayout;
-
+pub use self::model_rect::{ModelRect, ModelRectVec};
 
 pub struct UiModel {
     pub columns: usize,
@@ -86,7 +85,6 @@ impl UiModel {
         changed_region.join(&self.cur_point());
 
         changed_region
-
     }
 
     pub fn get_cursor(&self) -> (usize, usize) {
@@ -126,15 +124,15 @@ impl UiModel {
     /// Copy rows from 0 to to_row, col from 0 self.columns
     ///
     /// Don't do any validation!
-    pub fn copy_rows(&self, target: &mut UiModel, to_row: usize) {
-        for (row_idx, line) in self.model[0..to_row + 1].iter().enumerate() {
+    pub fn swap_rows(&mut self, target: &mut UiModel, to_row: usize) {
+        for (row_idx, line) in self.model[0..to_row + 1].iter_mut().enumerate() {
             let mut target_row = &mut target.model[row_idx];
-            line.copy_to(target_row, 0, self.columns - 1);
+            line.swap_with(target_row, 0, self.columns - 1);
         }
     }
 
     #[inline]
-    fn copy_row(&mut self, target_row: i64, offset: i64, left_col: usize, right_col: usize) {
+    fn swap_row(&mut self, target_row: i64, offset: i64, left_col: usize, right_col: usize) {
         debug_assert_ne!(0, offset);
 
         let from_row = (target_row + offset) as usize;
@@ -146,12 +144,12 @@ impl UiModel {
         };
 
         let (source_row, target_row) = if offset > 0 {
-            (&right[0], &mut left[target_row as usize])
+            (&mut right[0], &mut left[target_row as usize])
         } else {
-            (&left[from_row], &mut right[0])
+            (&mut left[from_row], &mut right[0])
         };
 
-        source_row.copy_to(target_row, left_col, right_col);
+        source_row.swap_with(target_row, left_col, right_col);
     }
 
     pub fn scroll(&mut self, count: i64) -> ModelRect {
@@ -159,11 +157,11 @@ impl UiModel {
 
         if count > 0 {
             for row in top..(bot - count + 1) {
-                self.copy_row(row, count, left, right);
+                self.swap_row(row, count, left, right);
             }
         } else {
             for row in ((top - count)..(bot + 1)).rev() {
-                self.copy_row(row, count, left, right);
+                self.swap_row(row, count, left, right);
             }
         }
 
@@ -279,7 +277,6 @@ mod tests {
         assert_eq!(1, rect.list[0].left);
         assert_eq!(1, rect.list[0].bot);
         assert_eq!(1, rect.list[0].right);
-
 
         assert_eq!(5, rect.list[1].top);
         assert_eq!(5, rect.list[1].left);
