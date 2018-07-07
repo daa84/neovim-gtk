@@ -273,6 +273,21 @@ impl State {
         self.on_redraw(&RepaintMode::All);
     }
 
+    pub fn set_line_space(&mut self, line_space: String) {
+        let line_space: i32 = match line_space.parse() {
+            Ok(line_space) => line_space,
+            Err(e) => {
+                error!("Can't convert argument to integer: {}", e.to_string());
+                return;
+            }
+        };
+
+        self.render_state.borrow_mut().font_ctx.update_line_space(line_space);
+        self.model.clear_glyphs();
+        self.try_nvim_resize();
+        self.on_redraw(&RepaintMode::All);
+    }
+
     /// return true if transparency changed to enabled
     pub fn set_transparency(&mut self, background_alpha: f64, filled_alpha: f64) -> bool {
         let old_enabled = self.transparency_settings.enabled;

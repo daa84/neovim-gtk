@@ -10,22 +10,30 @@ use ui_model::StyledLine;
 pub struct Context {
     font_metrics: FontMetrix,
     font_features: FontFeatures,
+    line_space: i32,
 }
 
 impl Context {
     pub fn new(pango_context: pango::Context) -> Self {
         Context {
-            font_metrics: FontMetrix::new(pango_context, -10),
+            line_space: 0,
+            font_metrics: FontMetrix::new(pango_context, 0),
             font_features: FontFeatures::new(),
         }
     }
 
     pub fn update(&mut self, pango_context: pango::Context) {
-        self.font_metrics = FontMetrix::new(pango_context, -10);
+        self.font_metrics = FontMetrix::new(pango_context, self.line_space);
     }
 
     pub fn update_font_features(&mut self, font_features: FontFeatures) {
         self.font_features = font_features;
+    }
+
+    pub fn update_line_space(&mut self, line_space: i32) {
+        self.line_space = line_space;
+        let pango_context = self.font_metrics.pango_context.clone();
+        self.font_metrics = FontMetrix::new(pango_context, self.line_space);
     }
 
     pub fn itemize(&self, line: &StyledLine) -> Vec<sys_pango::Item> {
