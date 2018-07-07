@@ -1,7 +1,7 @@
 use render;
 
-use sys::pango as sys_pango;
 use pango;
+use sys::pango as sys_pango;
 
 #[derive(Clone)]
 pub struct Item {

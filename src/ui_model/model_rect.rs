@@ -1,7 +1,6 @@
-use super::UiModel;
 use super::item::Item;
+use super::UiModel;
 use render::CellMetrics;
-
 
 #[derive(Clone, Debug)]
 pub struct ModelRectVec {
@@ -19,13 +18,13 @@ impl ModelRectVec {
 
     fn find_neighbor(&self, neighbor: &ModelRect) -> Option<usize> {
         for (i, rect) in self.list.iter().enumerate() {
-            if (neighbor.top > 0 && rect.top == neighbor.top - 1 ||
-                    rect.bot == neighbor.bot + 1) && neighbor.in_horizontal(rect)
+            if (neighbor.top > 0 && rect.top == neighbor.top - 1 || rect.bot == neighbor.bot + 1)
+                && neighbor.in_horizontal(rect)
             {
                 return Some(i);
-            } else if (neighbor.left > 0 && rect.left == neighbor.left - 1 ||
-                           rect.right == neighbor.right + 1) &&
-                       neighbor.in_vertical(rect)
+            } else if (neighbor.left > 0 && rect.left == neighbor.left - 1
+                || rect.right == neighbor.right + 1)
+                && neighbor.in_vertical(rect)
             {
                 return Some(i);
             } else if rect.in_horizontal(neighbor) && rect.in_vertical(neighbor) {
@@ -78,19 +77,21 @@ impl ModelRect {
 
     #[inline]
     fn in_horizontal(&self, other: &ModelRect) -> bool {
-        other.left >= self.left && other.left <= self.right ||
-            other.right >= self.left && other.right >= self.right
+        other.left >= self.left && other.left <= self.right
+            || other.right >= self.left && other.right >= self.right
     }
 
     #[inline]
     fn in_vertical(&self, other: &ModelRect) -> bool {
-        other.top >= self.top && other.top <= self.bot ||
-            other.bot >= self.top && other.bot <= self.bot
+        other.top >= self.top && other.top <= self.bot
+            || other.bot >= self.top && other.bot <= self.bot
     }
 
     fn contains(&self, other: &ModelRect) -> bool {
-        self.top <= other.top && self.bot >= other.bot && self.left <= other.left &&
-            self.right >= other.right
+        self.top <= other.top
+            && self.bot >= other.bot
+            && self.left <= other.left
+            && self.right >= other.right
     }
 
     /// Extend rect to left and right to make changed Item rerendered
@@ -141,7 +142,6 @@ impl ModelRect {
         model: &UiModel,
         cell_metrics: &CellMetrics,
     ) -> (i32, i32, i32, i32) {
-
         let (x, x2) = self.extend_left_right_area(model, cell_metrics);
         let (y, y2) = self.extend_top_bottom_area(model, cell_metrics);
 
@@ -155,11 +155,12 @@ impl ModelRect {
         let mut max_x_offset = 0.0;
 
         for row in self.top..self.bot + 1 {
-
             // left
             let line = &model.model[row];
-            if let Some(&Item { ink_overflow: Some(ref overflow), .. }) =
-                line.item_line[self.left].as_ref()
+            if let Some(&Item {
+                ink_overflow: Some(ref overflow),
+                ..
+            }) = line.item_line[self.left].as_ref()
             {
                 if min_x_offset < overflow.left {
                     min_x_offset = overflow.left;
@@ -169,11 +170,13 @@ impl ModelRect {
             // right
             let line = &model.model[row];
             // check if this item ends here
-            if self.right < model.columns - 1 &&
-                line.cell_to_item(self.right) != line.cell_to_item(self.right + 1)
+            if self.right < model.columns - 1
+                && line.cell_to_item(self.right) != line.cell_to_item(self.right + 1)
             {
-                if let Some(&Item { ink_overflow: Some(ref overflow), .. }) =
-                    line.get_item(self.left)
+                if let Some(&Item {
+                    ink_overflow: Some(ref overflow),
+                    ..
+                }) = line.get_item(self.left)
                 {
                     if max_x_offset < overflow.right {
                         max_x_offset = overflow.right;
@@ -195,10 +198,13 @@ impl ModelRect {
         let mut max_y_offset = 0.0;
 
         for col in self.left..self.right + 1 {
-
             // top
             let line = &model.model[self.top];
-            if let Some(&Item { ink_overflow: Some(ref overflow), .. }) = line.get_item(col) {
+            if let Some(&Item {
+                ink_overflow: Some(ref overflow),
+                ..
+            }) = line.get_item(col)
+            {
                 if min_y_offset < overflow.top {
                     min_y_offset = overflow.top;
                 }
@@ -206,7 +212,11 @@ impl ModelRect {
 
             // bottom
             let line = &model.model[self.bot];
-            if let Some(&Item { ink_overflow: Some(ref overflow), .. }) = line.get_item(col) {
+            if let Some(&Item {
+                ink_overflow: Some(ref overflow),
+                ..
+            }) = line.get_item(col)
+            {
                 if max_y_offset < overflow.top {
                     max_y_offset = overflow.top;
                 }
@@ -300,7 +310,6 @@ mod tests {
         assert_eq!(10, height);
     }
 
-
     #[test]
     fn test_from_area() {
         let rect = ModelRect::from_area(&CellMetrics::new_hw(10.0, 5.0), 3.0, 3.0, 9.0, 17.0);
@@ -310,14 +319,12 @@ mod tests {
         assert_eq!(1, rect.bot);
         assert_eq!(1, rect.right);
 
-
         let rect = ModelRect::from_area(&CellMetrics::new_hw(10.0, 5.0), 0.0, 0.0, 10.0, 20.0);
 
         assert_eq!(0, rect.top);
         assert_eq!(0, rect.left);
         assert_eq!(1, rect.bot);
         assert_eq!(1, rect.right);
-
 
         let rect = ModelRect::from_area(&CellMetrics::new_hw(10.0, 5.0), 0.0, 0.0, 11.0, 21.0);
 

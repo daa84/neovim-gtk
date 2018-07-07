@@ -1,12 +1,12 @@
 use std::ops::{Index, IndexMut};
 
-use sys::pango as sys_pango;
 use pango;
+use sys::pango as sys_pango;
 
-use render;
-use color;
 use super::cell::Cell;
 use super::item::Item;
+use color;
+use render;
 
 pub struct Line {
     pub line: Box<[Cell]>,
@@ -30,22 +30,17 @@ impl Line {
         }
     }
 
-    pub fn copy_to(&self, target: &mut Self, left: usize, right: usize) {
-        target.line[left..right + 1].clone_from_slice(&self.line[left..right + 1]);
-        target.item_line[left..right + 1].clone_from_slice(&self.item_line[left..right + 1]);
-        target.cell_to_item[left..right + 1].copy_from_slice(&self.cell_to_item[left..right + 1]);
-        target.dirty_line = self.dirty_line;
+    pub fn swap_with(&mut self, target: &mut Self, left: usize, right: usize) {
+        // swap is faster then clone
+        target.line[left..right + 1].swap_with_slice(&mut self.line[left..right + 1]);
+
+        // this is because copy can change Item layout
+        target.dirty_line = true;
     }
 
     pub fn clear(&mut self, left: usize, right: usize) {
         for cell in &mut self.line[left..right + 1] {
             cell.clear();
-        }
-        for item in &mut self.item_line[left..right + 1] {
-            item.clone_from(&None);
-        }
-        for i in left..right + 1 {
-            self.cell_to_item[i] = -1;
         }
         self.dirty_line = true;
     }
@@ -85,7 +80,8 @@ impl Line {
         // in case different item length was in previous iteration
         // mark all item as dirty
         if start_item_idx != new_item.start_cell as i32
-            || new_item.cells_count() != start_item_cells_count || start_item_idx == -1
+            || new_item.cells_count() != start_item_cells_count
+            || start_item_idx == -1
             || end_item_idx == -1
         {
             self.initialize_cell_item(new_item.start_cell, new_item.end_cell, new_item.item);
@@ -186,7 +182,10 @@ impl Line {
 
         if item_idx >= 0 {
             let item_idx = item_idx as usize;
-            self.item_line[item_idx].as_ref().unwrap().cells_count - (start_idx - item_idx)
+            let cells_count = self.item_line[item_idx].as_ref().unwrap().cells_count;
+            let offset = start_idx - item_idx;
+
+            cells_count - offset
         } else {
             1
         }
@@ -244,7 +243,11 @@ pub struct StyledLine {
 }
 
 impl StyledLine {
-    pub fn from(line: &Line, color_model: &color::ColorModel, font_features: &render::FontFeatures) -> Self {
+    pub fn from(
+        line: &Line,
+        color_model: &color::ColorModel,
+        font_features: &render::FontFeatures,
+    ) -> Self {
         let average_capacity = line.line.len() * 4 * 2; // code bytes * grapheme cluster
 
         let mut line_str = String::with_capacity(average_capacity);
@@ -395,8 +398,10 @@ impl<'c> StyleAttr<'c> {
 
 impl<'c> PartialEq for StyleAttr<'c> {
     fn eq(&self, other: &Self) -> bool {
-        self.italic == other.italic && self.bold == other.bold
-            && self.foreground == other.foreground && self.empty == other.empty
+        self.italic == other.italic
+            && self.bold == other.bold
+            && self.foreground == other.foreground
+            && self.empty == other.empty
             && self.background == other.background
     }
 }
@@ -412,7 +417,11 @@ mod tests {
         line[1].ch = "b".to_owned();
         line[2].ch = "c".to_owned();
 
-        let styled_line = StyledLine::from(&line, &color::ColorModel::new(), &render::FontFeatures::new());
+        let styled_line = StyledLine::from(
+            &line,
+            &color::ColorModel::new(),
+            &render::FontFeatures::new(),
+        );
         assert_eq!("abc", styled_line.line_str);
         assert_eq!(3, styled_line.cell_to_byte.len());
         assert_eq!(0, styled_line.cell_to_byte[0]);

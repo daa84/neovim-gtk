@@ -61,7 +61,7 @@ impl ModelLayout {
             let (cur_row, cur_col) = self.model.get_cursor();
 
             let mut model = UiModel::new(model_rows as u64, model_cols as u64);
-            self.model.copy_rows(&mut model, self.rows_filled - 1);
+            self.model.swap_rows(&mut model, self.rows_filled - 1);
             model.set_cursor(cur_row, cur_col);
             self.model = model;
         }
