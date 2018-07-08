@@ -310,12 +310,9 @@ impl Ui {
 
                 let screen = window.get_screen().unwrap();
                 if screen.is_composited() {
-                    if shell.set_transparency(background_alpha, filled_alpha) {
-                        let visual = screen.get_rgba_visual();
-                        if let Some(visual) = visual {
-                            window.set_visual(&visual);
-                        }
-                    }
+                    shell.set_transparency(background_alpha, filled_alpha);
+                } else {
+                    warn!("Screen is not composited");
                 }
             }
         }
