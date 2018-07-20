@@ -36,6 +36,9 @@ impl Line {
 
         // this is because copy can change Item layout
         target.dirty_line = true;
+        for cell in target.line[left..right + 1].iter_mut() {
+            cell.dirty = true;
+        }
     }
 
     pub fn clear(&mut self, left: usize, right: usize) {
