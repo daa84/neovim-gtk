@@ -36,7 +36,7 @@ impl Line {
 
         // this is because copy can change Item layout
         target.dirty_line = true;
-        for cell in target.line[left..right + 1].iter_mut() {
+        for cell in &mut target.line[left..right + 1] {
             cell.dirty = true;
         }
     }
