@@ -290,8 +290,6 @@ impl State {
 
     /// return true if transparency enabled
     pub fn set_transparency(&mut self, background_alpha: f64, filled_alpha: f64) -> bool {
-        let old_enabled = self.transparency_settings.enabled;
-
         if background_alpha < 1.0 || filled_alpha < 1.0 {
             self.transparency_settings.background_alpha = background_alpha;
             self.transparency_settings.filled_alpha = filled_alpha;
