@@ -288,7 +288,7 @@ impl State {
         self.on_redraw(&RepaintMode::All);
     }
 
-    /// return true if transparency changed to enabled
+    /// return true if transparency enabled
     pub fn set_transparency(&mut self, background_alpha: f64, filled_alpha: f64) -> bool {
         let old_enabled = self.transparency_settings.enabled;
 
@@ -304,7 +304,7 @@ impl State {
 
         self.on_redraw(&RepaintMode::All);
 
-        self.transparency_settings.enabled && old_enabled == false
+        self.transparency_settings.enabled
     }
 
     pub fn open_file(&self, path: &str) {

@@ -123,7 +123,6 @@ impl Ui {
         settings.init();
 
         let window = ApplicationWindow::new(app);
-        window.set_app_paintable(true);
 
         let main = Paned::new(Orientation::Horizontal);
 
@@ -310,7 +309,8 @@ impl Ui {
 
                 let screen = window.get_screen().unwrap();
                 if screen.is_composited() {
-                    shell.set_transparency(background_alpha, filled_alpha);
+                    let enabled = shell.set_transparency(background_alpha, filled_alpha);
+                    window.set_app_paintable(enabled);
                 } else {
                     warn!("Screen is not composited");
                 }
