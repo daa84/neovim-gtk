@@ -84,9 +84,18 @@ impl ModelClipIteratorFactory for ui_model::UiModel {
         let model_clip_top = if model_clip.top == 0 {
             0
         } else {
-            model_clip.top - 1
+            // looks like in some cases repaint can come from old model
+            min(model.len() - 1, model_clip.top - 1)
         };
         let model_clip_bot = min(model.len() - 1, model_clip.bot + 1);
+
+        debug_assert!(
+            model_clip_top <= model_clip_bot,
+            "model line index starts at {} but ends at {}. model.len = {}",
+            model_clip_top,
+            model_clip_bot,
+            model.len()
+        );
 
         ModelClipIterator {
             model_idx: model_clip_top,
