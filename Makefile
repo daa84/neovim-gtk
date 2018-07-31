@@ -9,6 +9,9 @@ run:
 install: install-resources
 	cargo install --force --root $(PREFIX)
 
+install-debug: install-resources
+	cargo install --debug --force --root $(PREFIX)
+
 install-resources:
 	mkdir -p $(PREFIX)/share/nvim-gtk/
 	cp -r runtime $(PREFIX)/share/nvim-gtk/ 
