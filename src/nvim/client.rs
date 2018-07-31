@@ -23,6 +23,16 @@ impl<'a> NeovimRef<'a> {
         NeovimRef::SingleThreaded(nvim)
     }
 
+    fn try_nvim_async(nvim_async: &'a NeovimClientAsync) -> Option<NeovimRef<'a>> {
+        let guard = nvim_async.nvim.try_lock();
+
+        if let Ok(guard) = guard {
+            Some(NeovimRef::MultiThreaded(guard))
+        } else {
+            None
+        }
+    }
+
     fn from_nvim_async(nvim_async: &'a NeovimClientAsync) -> Option<NeovimRef<'a>> {
         let guard = nvim_async.nvim.lock().unwrap();
 
@@ -76,6 +86,10 @@ impl NeovimClientAsync {
 
     pub fn borrow(&self) -> Option<NeovimRef> {
         NeovimRef::from_nvim_async(self)
+    }
+
+    pub fn try_borrow(&self) -> Option<NeovimRef> {
+        NeovimRef::try_nvim_async(self)
     }
 }
 
@@ -144,6 +158,19 @@ impl NeovimClient {
 
     pub fn is_initializing(&self) -> bool {
         self.state.get() == NeovimClientState::InitInProgress
+    }
+
+    /// In case neovimref locked in another thread
+    /// this method can return None
+    pub fn try_nvim(&self) -> Option<NeovimRef> {
+        let nvim = self.nvim.borrow_mut();
+        if nvim.is_some() {
+            Some(NeovimRef::from_nvim(RefMut::map(nvim, |n| {
+                n.as_mut().unwrap()
+            })))
+        } else {
+            self.nvim_async.try_borrow()
+        }
     }
 
     pub fn nvim(&self) -> Option<NeovimRef> {

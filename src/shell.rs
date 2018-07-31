@@ -435,15 +435,18 @@ impl State {
         let resize_timer = self.resize_timer.clone();
 
         let resize_id = gtk::timeout_add(200, move || {
-            resize_timer.set(None);
-
-            if let Some(mut nvim) = nvim.nvim() {
+            if let Some(mut nvim) = nvim.try_nvim() {
                 debug!("ui_try_resize {}/{}", columns, rows);
+                resize_timer.set(None);
+
                 nvim.ui_try_resize_async(columns as u64, rows as u64)
                     .cb(|r| r.report_err())
                     .call();
+
+                return Continue(false);
             }
-            Continue(false)
+
+            Continue(true)
         });
 
         self.resize_timer.set(Some(resize_id));
