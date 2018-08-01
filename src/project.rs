@@ -270,7 +270,7 @@ impl Projects {
         let shell_borrow = self.shell.borrow();
         let shell_state = shell_borrow.state.borrow_mut();
 
-        let nvim = shell_state.nvim();
+        let nvim = shell_state.try_nvim();
         if let Some(mut nvim) = nvim {
             let store = EntryStore::load(&mut nvim);
             store.populate(&self.get_list_store(), None);

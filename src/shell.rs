@@ -22,8 +22,10 @@ use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 
 use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
 use misc::{decode_uri, escape_filename};
-use nvim::{self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef,
-           NvimHandler, RepaintMode};
+use nvim::{
+    self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef, NvimHandler,
+    RepaintMode,
+};
 use settings::{FontSource, Settings};
 use ui_model::{Attrs, ModelRect, UiModel};
 
@@ -286,7 +288,10 @@ impl State {
             }
         };
 
-        self.render_state.borrow_mut().font_ctx.update_line_space(line_space);
+        self.render_state
+            .borrow_mut()
+            .font_ctx
+            .update_line_space(line_space);
         self.model.clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintMode::All);
@@ -661,16 +666,15 @@ impl Shell {
 
         state
             .drawing_area
-            .add_events(
-                (gdk::EventMask::BUTTON_RELEASE_MASK | gdk::EventMask::BUTTON_PRESS_MASK
-                    | gdk::EventMask::BUTTON_MOTION_MASK
-                    | gdk::EventMask::SCROLL_MASK
-                    | gdk::EventMask::SMOOTH_SCROLL_MASK
-                    | gdk::EventMask::ENTER_NOTIFY_MASK
-                    | gdk::EventMask::LEAVE_NOTIFY_MASK
-                    | gdk::EventMask::POINTER_MOTION_MASK)
-                    .bits() as i32,
-            );
+            .add_events((gdk::EventMask::BUTTON_RELEASE_MASK
+                | gdk::EventMask::BUTTON_PRESS_MASK
+                | gdk::EventMask::BUTTON_MOTION_MASK
+                | gdk::EventMask::SCROLL_MASK
+                | gdk::EventMask::SMOOTH_SCROLL_MASK
+                | gdk::EventMask::ENTER_NOTIFY_MASK
+                | gdk::EventMask::LEAVE_NOTIFY_MASK
+                | gdk::EventMask::POINTER_MOTION_MASK)
+                .bits() as i32);
 
         let menu = self.create_context_menu();
         let ref_state = self.state.clone();
@@ -722,7 +726,7 @@ impl Shell {
                 Inhibit(true)
             } else {
                 let state = ref_state.borrow();
-                let nvim = state.nvim();
+                let nvim = state.try_nvim();
                 if let Some(mut nvim) = nvim {
                     input::gtk_key_press(&mut nvim, ev)
                 } else {
@@ -962,7 +966,7 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
 }
 
 fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll) -> Inhibit {
-    if !state.mouse_enabled {
+    if !state.mouse_enabled && !state.nvim.is_initializing() {
         return Inhibit(false);
     }
 
@@ -1035,18 +1039,17 @@ fn gtk_button_press(
 }
 
 fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f64, f64)) {
-    let &CellMetrics {
-        line_height,
-        char_width,
-        ..
-    } = shell.render_state.borrow().font_ctx.cell_metrics();
-    let (x, y) = position;
-    let col = (x / char_width).trunc() as u64;
-    let row = (y / line_height).trunc() as u64;
-    let input_str = format!("{}<{},{}>", keyval_to_input_string(input, state), col, row);
+    if let Some(mut nvim) = shell.try_nvim() {
+        let &CellMetrics {
+            line_height,
+            char_width,
+            ..
+        } = shell.render_state.borrow().font_ctx.cell_metrics();
+        let (x, y) = position;
+        let col = (x / char_width).trunc() as u64;
+        let row = (y / line_height).trunc() as u64;
+        let input_str = format!("{}<{},{}>", keyval_to_input_string(input, state), col, row);
 
-    let nvim = shell.nvim();
-    if let Some(mut nvim) = nvim {
         nvim.input(&input_str)
             .expect("Can't send mouse input event");
     }
@@ -1055,7 +1058,7 @@ fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f
 fn gtk_button_release(shell: &mut State, ui_state: &mut UiState, ev: &EventButton) -> Inhibit {
     ui_state.mouse_pressed = false;
 
-    if shell.mouse_enabled {
+    if shell.mouse_enabled && !shell.nvim.is_initializing() {
         match ev.get_button() {
             1 => mouse_input(shell, "LeftRelease", ev.get_state(), ev.get_position()),
             2 => mouse_input(shell, "MiddleRelease", ev.get_state(), ev.get_position()),
