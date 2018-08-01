@@ -1,5 +1,5 @@
-use std::ops::{Deref, DerefMut};
 use std::cell::{Cell, RefCell, RefMut};
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use super::ErrorReport;
@@ -27,10 +27,12 @@ impl<'a> NeovimRef<'a> {
         let guard = nvim_async.nvim.try_lock();
 
         if let Ok(guard) = guard {
-            Some(NeovimRef::MultiThreaded(guard))
-        } else {
-            None
+            if guard.is_some() {
+                return Some(NeovimRef::MultiThreaded(guard));
+            }
         }
+
+        None
     }
 
     fn from_nvim_async(nvim_async: &'a NeovimClientAsync) -> Option<NeovimRef<'a>> {
