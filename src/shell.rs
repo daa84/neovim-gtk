@@ -196,6 +196,10 @@ impl State {
         self.nvim.nvim()
     }
 
+    pub fn try_nvim(&self) -> Option<NeovimRef> {
+        self.nvim.try_nvim()
+    }
+
     pub fn nvim_clone(&self) -> Rc<NeovimClient> {
         self.nvim.clone()
     }
@@ -929,7 +933,7 @@ impl Deref for Shell {
 }
 
 fn gtk_focus_in(state: &mut State) -> Inhibit {
-    if let Some(mut nvim) = state.nvim() {
+    if let Some(mut nvim) = state.try_nvim() {
         nvim.command_async("if exists('#FocusGained') | doautocmd FocusGained | endif")
             .cb(|r| r.report_err())
             .call();
@@ -943,7 +947,7 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 }
 
 fn gtk_focus_out(state: &mut State) -> Inhibit {
-    if let Some(mut nvim) = state.nvim() {
+    if let Some(mut nvim) = state.try_nvim() {
         nvim.command_async("if exists('#FocusLost') | doautocmd FocusLost | endif")
             .cb(|r| r.report_err())
             .call();
