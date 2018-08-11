@@ -21,7 +21,7 @@ use project::Projects;
 use settings::{Settings, SettingsLoader};
 use shell::{self, Shell, ShellOptions};
 use shell_dlg;
-use subscriptions::SubscriptionHandle;
+use subscriptions::{SubscriptionHandle, SubscriptionKey};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -229,26 +229,23 @@ impl Ui {
 
         let comps_ref = self.comps.clone();
         let update_title = shell.state.borrow().subscribe(
-            "BufEnter,DirChanged",
-            &["expand('%:p')", "getcwd()"],
-            move |args| {
-                let comps = comps_ref.borrow();
-                let window = comps.window.as_ref().unwrap();
-                let file_path = &args[0];
-                let dir = Path::new(&args[1]);
-                let filename = if file_path.is_empty() {
-                    "[No Name]"
-                } else if let Some(rel_path) = Path::new(&file_path)
-                    .strip_prefix(&dir)
-                    .ok()
-                    .and_then(|p| p.to_str())
-                {
-                    rel_path
-                } else {
-                    &file_path
-                };
-                window.set_title(filename);
-            },
+            SubscriptionKey::from("BufEnter,DirChanged"),
+            &["&title", "&titlestring", "expand('%:p')", "getcwd()"],
+            move |args| update_window_title(&comps_ref, args),
+        );
+
+        let comps_ref = self.comps.clone();
+        shell.state.borrow().subscribe(
+            SubscriptionKey::with_pattern("OptionSet", "titlestring"),
+            &["&title", "&titlestring", "expand('%:p')", "getcwd()"],
+            move |args| update_window_title(&comps_ref, args),
+        );
+
+        let comps_ref = self.comps.clone();
+        shell.state.borrow().subscribe(
+            SubscriptionKey::with_pattern("OptionSet", "title"),
+            &["&title", "&titlestring", "expand('%:p')", "getcwd()"],
+            move |args| update_window_title(&comps_ref, args),
         );
 
         let comps_ref = self.comps.clone();
@@ -357,7 +354,7 @@ impl Ui {
 
         let shell = self.shell.borrow();
         let update_subtitle = shell.state.borrow().subscribe(
-            "DirChanged",
+            SubscriptionKey::from("DirChanged"),
             &["getcwd()"],
             move |args| {
                 header_bar.set_subtitle(&*args[0]);
@@ -455,6 +452,35 @@ fn gtk_window_state_event(event: &gdk::EventWindowState, comps: &mut Components)
     comps.window_state.is_maximized = event
         .get_new_window_state()
         .contains(gdk::WindowState::MAXIMIZED);
+}
+
+fn update_window_title(comps: &Arc<UiMutex<Components>>, args: Vec<String>) {
+    let titles_enabled = &args[0];
+    let new_title_prefix = &args[1];
+    let comps_ref = comps.clone();
+    let comps = comps_ref.borrow();
+    let window = comps.window.as_ref().unwrap();
+
+    let file_path = &args[2];
+    let dir = Path::new(&args[3]);
+    let filename = if file_path.is_empty() {
+        "[No Name]"
+    } else if let Some(rel_path) = Path::new(&file_path)
+        .strip_prefix(&dir)
+        .ok()
+        .and_then(|p| p.to_str())
+    {
+        rel_path
+    } else {
+        &file_path
+    };
+
+    if (titles_enabled == "0") || new_title_prefix.is_empty() {
+        window.set_title(filename);
+    } else {
+        let title = format!("{} - {}", new_title_prefix, filename);
+        window.set_title(&title);
+    }
 }
 
 #[derive(Serialize, Deserialize)]

@@ -18,6 +18,7 @@ use neovim_lib::{NeovimApi, NeovimApiAsync};
 use misc::escape_filename;
 use nvim::{ErrorReport, NeovimClient, NeovimRef};
 use shell;
+use subscriptions::SubscriptionKey;
 
 const ICON_FOLDER_CLOSED: &str = "folder-symbolic";
 const ICON_FOLDER_OPEN: &str = "folder-open-symbolic";
@@ -199,7 +200,7 @@ impl FileBrowserWidget {
         let dir_list_model = &self.comps.dir_list_model;
         let dir_list = &self.comps.dir_list;
         shell_state.subscribe(
-            "DirChanged",
+            SubscriptionKey::from("DirChanged"),
             &["getcwd()"],
             clone!(store, state_ref, dir_list_model, dir_list => move |args| {
                 let dir = args.into_iter().next().unwrap();
@@ -214,7 +215,7 @@ impl FileBrowserWidget {
         // Reveal the file of an entered buffer in the file browser and select the entry.
         let tree = &self.tree;
         let subscription = shell_state.subscribe(
-            "BufEnter",
+            SubscriptionKey::from("BufEnter"),
             &["getcwd()", "expand('%:p')"],
             clone!(tree, store => move |args| {
                 let mut args_iter = args.into_iter();

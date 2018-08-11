@@ -38,7 +38,7 @@ use mode;
 use popup_menu::{self, PopupMenu};
 use render;
 use render::CellMetrics;
-use subscriptions::{SubscriptionHandle, Subscriptions};
+use subscriptions::{SubscriptionHandle, SubscriptionKey, Subscriptions};
 use tabline::Tabline;
 use ui::UiMutex;
 
@@ -493,13 +493,13 @@ impl State {
         self.drawing_area.get_allocated_width() - 20
     }
 
-    pub fn subscribe<F>(&self, event_name: &str, args: &[&str], cb: F) -> SubscriptionHandle
+    pub fn subscribe<F>(&self, key: SubscriptionKey, args: &[&str], cb: F) -> SubscriptionHandle
     where
         F: Fn(Vec<String>) + 'static,
     {
         self.subscriptions
             .borrow_mut()
-            .subscribe(event_name, args, cb)
+            .subscribe(key, args, cb)
     }
 
     pub fn set_autocmds(&self) {
