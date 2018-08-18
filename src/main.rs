@@ -61,6 +61,8 @@ mod project;
 mod render;
 mod settings;
 mod shell;
+mod highlight;
+mod grid;
 mod shell_dlg;
 mod subscriptions;
 mod tabline;

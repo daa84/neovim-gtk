@@ -2,13 +2,14 @@ use std::cmp::max;
 
 use unicode_width::UnicodeWidthStr;
 
-use ui_model::{Attrs, UiModel};
+use highlight::Highlight;
+use ui_model::UiModel;
 
 pub struct ModelLayout {
     pub model: UiModel,
     rows_filled: usize,
     cols_filled: usize,
-    lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>,
+    lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>,
 }
 
 impl ModelLayout {
@@ -23,7 +24,7 @@ impl ModelLayout {
         }
     }
 
-    pub fn layout_append(&mut self, mut lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>) {
+    pub fn layout_append(&mut self, mut lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>) {
         let rows_filled = self.rows_filled;
         let take_from = self.lines.len();
 
@@ -32,7 +33,7 @@ impl ModelLayout {
         self.layout_replace(rows_filled, take_from);
     }
 
-    pub fn layout(&mut self, lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>) {
+    pub fn layout(&mut self, lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>) {
         self.lines = lines;
         self.layout_replace(0, 0);
     }
@@ -125,10 +126,10 @@ impl ModelLayout {
                         row_idx += 1;
                     }
 
-                    self.model.set_cursor(row_idx, col_idx as usize);
-                    self.model.put(ch, false, attr.as_ref());
+                    //self.model.set_cursor(row_idx, col_idx as usize);
+                    self.model.put(row_idx, col_idx, ch, false, 1, attr.as_ref());
                     if ch_width > 1 {
-                        self.model.put("", true, attr.as_ref());
+                        self.model.put(row_idx, col_idx, "", true, 1, attr.as_ref());
                     }
 
                     if max_col_idx < col_idx {
@@ -152,7 +153,7 @@ impl ModelLayout {
         }
     }
 
-    fn count_lines(lines: &[Vec<(Option<Attrs>, Vec<String>)>], max_columns: usize) -> usize {
+    fn count_lines(lines: &[Vec<(Option<Highlight>, Vec<String>)>], max_columns: usize) -> usize {
         let mut row_count = 0;
 
         for line in lines {

@@ -260,7 +260,7 @@ impl StyledLine {
         let mut style_attr = StyleAttr::new();
 
         for (cell_idx, cell) in line.line.iter().enumerate() {
-            if cell.attrs.double_width {
+            if cell.double_width {
                 continue;
             }
 
@@ -327,8 +327,8 @@ impl<'c> StyleAttr<'c> {
         color_model: &'c color::ColorModel,
     ) -> Self {
         StyleAttr {
-            italic: cell.attrs.italic,
-            bold: cell.attrs.bold,
+            italic: cell.hl.italic,
+            bold: cell.hl.bold,
             foreground: color_model.cell_fg(cell),
             background: color_model.cell_bg(cell),
             empty: false,

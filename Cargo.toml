@@ -25,7 +25,7 @@ gobject-sys = "0.6"
 #pango-sys = { git = 'https://github.com/gtk-rs/sys' }
 #gio = { git = 'https://github.com/gtk-rs/gio' }
 #pangocairo = { git = 'https://github.com/RazrFalcon/pangocairo-rs' }
-neovim-lib = "0.5"
+#neovim-lib = "0.5"
 phf = "0.7"
 log = "0.4"
 env_logger = "0.5"
@@ -47,8 +47,8 @@ atty = "0.2"
 [target.'cfg(unix)'.dependencies]
 unix-daemonize = "0.1"
 
-#[dependencies.neovim-lib]
-#git = "https://github.com/daa84/neovim-lib"
+[dependencies.neovim-lib]
+git = "https://github.com/daa84/neovim-lib"
 
 [build-dependencies]
 phf_codegen = "0.7"

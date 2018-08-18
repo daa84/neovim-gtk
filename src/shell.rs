@@ -20,6 +20,8 @@ use pangocairo;
 use neovim_lib::neovim_api::Tabpage;
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 
+use highlight::HighlightMap;
+use grid::GridMap;
 use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
 use misc::{decode_uri, escape_filename};
 use nvim::{
@@ -27,7 +29,7 @@ use nvim::{
     RepaintMode,
 };
 use settings::{FontSource, Settings};
-use ui_model::{Attrs, ModelRect, UiModel};
+use ui_model::{ModelRect, UiModel};
 
 use cmd_line::{CmdLine, CmdLineContext};
 use cursor::{BlinkCursor, Cursor, CursorRedrawCb};
@@ -106,8 +108,9 @@ impl TransparencySettigns {
 }
 
 pub struct State {
-    pub model: UiModel,
-    cur_attrs: Option<Attrs>,
+    pub grids: GridMap,
+    highlights: HighlightMap,
+
     mouse_enabled: bool,
     nvim: Rc<NeovimClient>,
     cursor: Option<BlinkCursor<State>>,
@@ -151,9 +154,9 @@ impl State {
         let cmd_line = CmdLine::new(&drawing_area, render_state.clone());
 
         State {
-            model: UiModel::empty(),
+            grids: GridMap::new(),
+            highlights: HighlightMap::new(),
             nvim: Rc::new(NeovimClient::new()),
-            cur_attrs: None,
             mouse_enabled: true,
             cursor: None,
             popup_menu,
@@ -263,7 +266,7 @@ impl State {
             .borrow_mut()
             .font_ctx
             .update(pango_context);
-        self.model.clear_glyphs();
+        self.grids.clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintMode::All);
     }
@@ -275,7 +278,7 @@ impl State {
             .borrow_mut()
             .font_ctx
             .update_font_features(font_features);
-        self.model.clear_glyphs();
+        self.grids.clear_glyphs();
         self.on_redraw(&RepaintMode::All);
     }
 
@@ -292,7 +295,7 @@ impl State {
             .borrow_mut()
             .font_ctx
             .update_line_space(line_space);
-        self.model.clear_glyphs();
+        self.grids.clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintMode::All);
     }
@@ -1277,7 +1280,8 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
 
         debug!("Init nvim {}/{}", cols, rows);
 
-        state.model = UiModel::new(rows as u64, cols as u64);
+        // [TODO]: is it need here?
+        // state.model = UiModel::new(rows as u64, cols as u64);
 
         let state_arc = state_ref.clone();
         let nvim_handler = NvimHandler::new(state_ref.clone());
@@ -1288,6 +1292,10 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
 
 // Neovim redraw events
 impl State {
+    pub fn grid_line(&mut self, grid: u64, row: u64, col_start: u64, cells: Vec<Vec<Value>>) {
+        self.grids[grid].grid_line(row as usize, col_start as usize, cells, &self.highlights);
+    }
+
     pub fn redraw_handler_finish(&mut self) {
         if self.update_im_location {
             self.set_im_location();
@@ -1301,10 +1309,10 @@ impl State {
         RepaintMode::AreaList(repaint_area)
     }
 
-    pub fn on_put(&mut self, text: String) -> RepaintMode {
-        let double_width = text.is_empty();
-        RepaintMode::Area(self.model.put(&text, double_width, self.cur_attrs.as_ref()))
-    }
+    //pub fn on_put(&mut self, text: String) -> RepaintMode {
+    //    let double_width = text.is_empty();
+    //    RepaintMode::Area(self.model.put(&text, double_width, self.cur_attrs.as_ref()))
+    //}
 
     pub fn on_clear(&mut self) -> RepaintMode {
         debug!("clear model");

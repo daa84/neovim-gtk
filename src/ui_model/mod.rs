@@ -1,10 +1,13 @@
+use highlight::Highlight;
+use std::rc::Rc;
+
 mod cell;
 mod item;
 mod line;
 mod model_layout;
 mod model_rect;
 
-pub use self::cell::{Attrs, Cell};
+pub use self::cell::Cell;
 pub use self::item::Item;
 pub use self::line::{Line, StyledLine};
 pub use self::model_layout::ModelLayout;
@@ -91,28 +94,51 @@ impl UiModel {
         (self.cur_row, self.cur_col)
     }
 
-    pub fn put(&mut self, ch: &str, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {
-        let mut changed_region = self.cur_point();
-        let line = &mut self.model[self.cur_row];
+    pub fn put(
+        &mut self,
+        row: usize,
+        col: usize,
+        ch: &str,
+        double_width: bool,
+        repeat: usize,
+        hl: Rc<Highlight>,
+    ) -> ModelRect {
+        let line = &mut self.model[row];
         line.dirty_line = true;
 
-        let cell = &mut line[self.cur_col];
-
-        cell.ch.clear();
-        cell.ch.push_str(ch);
-
-        cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);
-        cell.attrs.double_width = double_width;
-        cell.dirty = true;
-        self.cur_col += 1;
-        if self.cur_col >= self.columns {
-            self.cur_col -= 1;
+        for offset in 0..repeat {
+            let cell = &mut line[col + offset];
+            cell.ch.clear();
+            cell.ch.push_str(ch);
+            cell.hl = hl.clone();
+            cell.double_width = double_width;
         }
 
-        changed_region.join(&ModelRect::point(self.cur_col, self.cur_row));
-
-        changed_region
+        ModelRect::new(row, row, col, col + repeat - 1)
     }
+
+    //    pub fn put(&mut self, ch: &str, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {
+    //        let mut changed_region = self.cur_point();
+    //        let line = &mut self.model[self.cur_row];
+    //        line.dirty_line = true;
+    //
+    //        let cell = &mut line[self.cur_col];
+    //
+    //        cell.ch.clear();
+    //        cell.ch.push_str(ch);
+    //
+    //        cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);
+    //        cell.attrs.double_width = double_width;
+    //        cell.dirty = true;
+    //        self.cur_col += 1;
+    //        if self.cur_col >= self.columns {
+    //            self.cur_col -= 1;
+    //        }
+    //
+    //        changed_region.join(&ModelRect::point(self.cur_col, self.cur_row));
+    //
+    //        changed_region
+    //    }
 
     pub fn set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) {
         self.top = top as usize;

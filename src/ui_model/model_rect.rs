@@ -116,7 +116,7 @@ impl ModelRect {
 
             // extend also double_width chars
             let cell = &line.line[self.left];
-            if self.left > 0 && cell.attrs.double_width {
+            if self.left > 0 && cell.double_width {
                 let dw_char_idx = self.left - 1;
                 if dw_char_idx < left {
                     left = dw_char_idx;
@@ -125,7 +125,7 @@ impl ModelRect {
 
             let dw_char_idx = self.right + 1;
             if let Some(cell) = line.line.get(dw_char_idx) {
-                if cell.attrs.double_width {
+                if cell.double_width {
                     if right < dw_char_idx {
                         right = dw_char_idx;
                     }

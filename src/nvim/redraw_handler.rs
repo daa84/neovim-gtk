@@ -212,23 +212,24 @@ pub fn call(
     args: Vec<Value>,
 ) -> result::Result<RepaintMode, String> {
     let repaint_mode = match method {
-        "cursor_goto" => call!(ui->on_cursor_goto(args: uint, uint)),
-        "put" => call!(ui->on_put(args: str)),
-        "clear" => ui.on_clear(),
-        "resize" => call!(ui->on_resize(args: uint, uint)),
-        "highlight_set" => {
-            call!(ui->on_highlight_set(args: ext));
-            RepaintMode::Nothing
-        }
-        "eol_clear" => ui.on_eol_clear(),
-        "set_scroll_region" => {
-            call!(ui->on_set_scroll_region(args: uint, uint, uint, uint));
-            RepaintMode::Nothing
-        }
-        "scroll" => call!(ui->on_scroll(args: int)),
-        "update_bg" => call!(ui->on_update_bg(args: int)),
-        "update_fg" => call!(ui->on_update_fg(args: int)),
-        "update_sp" => call!(ui->on_update_sp(args: int)),
+        "grid_line" => call!(ui->grid_line(args: uint, uint, uint, ext)),
+        //"cursor_goto" => call!(ui->on_cursor_goto(args: uint, uint)),
+        //"put" => call!(ui->on_put(args: str)),
+        //"clear" => ui.on_clear(),
+        //"resize" => call!(ui->on_resize(args: uint, uint)),
+        //"highlight_set" => {
+        //    call!(ui->on_highlight_set(args: ext));
+        //    RepaintMode::Nothing
+        //}
+        //"eol_clear" => ui.on_eol_clear(),
+        //"set_scroll_region" => {
+        //    call!(ui->on_set_scroll_region(args: uint, uint, uint, uint));
+        //    RepaintMode::Nothing
+        //}
+        //"scroll" => call!(ui->on_scroll(args: int)),
+        //"update_bg" => call!(ui->on_update_bg(args: int)),
+        //"update_fg" => call!(ui->on_update_fg(args: int)),
+        //"update_sp" => call!(ui->on_update_sp(args: int)),
         "mode_change" => call!(ui->on_mode_change(args: str, uint)),
         "mouse_on" => ui.on_mouse(true),
         "mouse_off" => ui.on_mouse(false),
