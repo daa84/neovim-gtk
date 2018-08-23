@@ -129,7 +129,6 @@ pub struct State {
     pub drawing_area: gtk::DrawingArea,
     tabs: Tabline,
     im_context: gtk::IMMulticontext,
-    update_im_location: bool,
     error_area: error::ErrorArea,
 
     options: ShellOptions,
@@ -175,7 +174,6 @@ impl State {
             drawing_area,
             tabs: Tabline::new(),
             im_context: gtk::IMMulticontext::new(),
-            update_im_location: false,
             error_area: error::ErrorArea::new(),
 
             options,
@@ -1292,37 +1290,25 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
 
 // Neovim redraw events
 impl State {
-    pub fn grid_line(&mut self, grid: u64, row: u64, col_start: u64, cells: Vec<Vec<Value>>) {
-        self.grids[grid].grid_line(row as usize, col_start as usize, cells, &self.highlights);
+    pub fn grid_line(&mut self, grid: u64, row: u64, col_start: u64, cells: Vec<Vec<Value>>) -> RepaintMode {
+        let repaint_area = self.grids[grid].line(row as usize, col_start as usize, cells, &self.highlights);
+        RepaintMode::Area(repaint_area)
     }
 
-    pub fn redraw_handler_finish(&mut self) {
-        if self.update_im_location {
-            self.set_im_location();
-            self.update_im_location = false;
-        }
-    }
-
-    pub fn on_cursor_goto(&mut self, row: u64, col: u64) -> RepaintMode {
-        let repaint_area = self.model.set_cursor(row as usize, col as usize);
-        self.update_im_location = true;
-        RepaintMode::AreaList(repaint_area)
-    }
-
-    //pub fn on_put(&mut self, text: String) -> RepaintMode {
-    //    let double_width = text.is_empty();
-    //    RepaintMode::Area(self.model.put(&text, double_width, self.cur_attrs.as_ref()))
-    //}
-
-    pub fn on_clear(&mut self) -> RepaintMode {
-        debug!("clear model");
-
-        self.model.clear();
+    pub fn grid_clear(&mut self, grid: u64) -> RepaintMode {
+        self.grids[grid].clear();
         RepaintMode::All
     }
 
-    pub fn on_eol_clear(&mut self) -> RepaintMode {
-        RepaintMode::Area(self.model.eol_clear())
+    pub fn grid_destroy(&mut self, grid: u64) -> RepaintMode {
+        self.grids.destroy(grid);
+        RepaintMode::All
+    }
+
+    pub fn grid_cursor_goto(&mut self, grid: u64, row: u64, column: u64) -> RepaintMode {
+        let repaint_area = self.grids[grid].cursor_goto(row as usize, column as usize);
+        self.set_im_location();
+        RepaintMode::AreaList(repaint_area)
     }
 
     pub fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {

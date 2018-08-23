@@ -102,7 +102,7 @@ impl UiModel {
         double_width: bool,
         repeat: usize,
         hl: Rc<Highlight>,
-    ) -> ModelRect {
+    ) {
         let line = &mut self.model[row];
         line.dirty_line = true;
 
@@ -113,8 +113,6 @@ impl UiModel {
             cell.hl = hl.clone();
             cell.double_width = double_width;
         }
-
-        ModelRect::new(row, row, col, col + repeat - 1)
     }
 
     //    pub fn put(&mut self, ch: &str, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {

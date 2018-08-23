@@ -213,6 +213,9 @@ pub fn call(
 ) -> result::Result<RepaintMode, String> {
     let repaint_mode = match method {
         "grid_line" => call!(ui->grid_line(args: uint, uint, uint, ext)),
+        "grid_clear" => call!(ui->grid_clear(args: uint)),
+        "grid_destroy" => call!(ui->grid_destroy(args: uint)),
+        "grid_cursor_goto" => call!(ui->grid_cursor_goto(args: uint, uint, uint)),
         //"cursor_goto" => call!(ui->on_cursor_goto(args: uint, uint)),
         //"put" => call!(ui->on_put(args: str)),
         //"clear" => ui.on_clear(),

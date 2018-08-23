@@ -127,7 +127,8 @@ impl ModelLayout {
                     }
 
                     //self.model.set_cursor(row_idx, col_idx as usize);
-                    self.model.put(row_idx, col_idx, ch, false, 1, attr.as_ref());
+                    self.model
+                        .put(row_idx, col_idx, ch, false, 1, attr.as_ref());
                     if ch_width > 1 {
                         self.model.put(row_idx, col_idx, "", true, 1, attr.as_ref());
                     }
