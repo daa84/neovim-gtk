@@ -1,20 +1,32 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use color::Color;
+use color::*;
 use neovim_lib::Value;
 
 const DEFAULT_HL: u64 = 0;
 
 pub struct HighlightMap {
     highlights: HashMap<u64, Rc<Highlight>>,
+    bg_color: Color,
+    fg_color: Color,
+    sp_color: Color,
 }
 
 impl HighlightMap {
     pub fn new() -> Self {
         HighlightMap {
             highlights: HashMap::new(),
+            bg_color: COLOR_BLACK,
+            fg_color: COLOR_WHITE,
+            sp_color: COLOR_RED,
         }
+    }
+
+    pub fn set_defaults(&mut self, fg: Color, bg: Color, sp: Color) {
+        self.fg_color = fg;
+        self.bg_color = bg;
+        self.sp_color = sp;
     }
 
     pub fn get(&self, idx: u64) -> Rc<Highlight> {

@@ -20,16 +20,16 @@ use pangocairo;
 use neovim_lib::neovim_api::Tabpage;
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 
-use highlight::HighlightMap;
+use color::{Color, ColorModel};
 use grid::GridMap;
-use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
+use highlight::HighlightMap;
 use misc::{decode_uri, escape_filename};
 use nvim::{
     self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef, NvimHandler,
     RepaintMode,
 };
 use settings::{FontSource, Settings};
-use ui_model::{ModelRect, UiModel};
+use ui_model::ModelRect;
 
 use cmd_line::{CmdLine, CmdLineContext};
 use cursor::{BlinkCursor, Cursor, CursorRedrawCb};
@@ -354,7 +354,7 @@ impl State {
             .iter()
             .map(|rect| rect.as_ref().clone())
             .map(|mut rect| {
-                rect.extend_by_items(&self.model);
+                rect.extend_by_items(self.grids.current_model());
                 rect
             })
             .collect();
@@ -365,9 +365,9 @@ impl State {
         let cell_metrics = render_state.font_ctx.cell_metrics();
 
         for mut rect in rects {
-            rect.extend_by_items(&self.model);
+            rect.extend_by_items(self.grids.current_model());
 
-            let (x, y, width, height) = rect.to_area_extend_ink(&self.model, cell_metrics);
+            let (x, y, width, height) = rect.to_area_extend_ink(self.grids.current_model(), cell_metrics);
             self.drawing_area.queue_draw_area(x, y, width, height);
         }
     }
@@ -377,7 +377,7 @@ impl State {
         let render_state = self.render_state.borrow();
         render::shape_dirty(
             &render_state.font_ctx,
-            &mut self.model,
+            self.grids.current_model_mut(),
             &render_state.color_model,
         );
     }
@@ -410,7 +410,7 @@ impl State {
     }
 
     fn set_im_location(&self) {
-        let (row, col) = self.model.get_cursor();
+        let (row, col) = self.grids.current().get_cursor();
 
         let (x, y, width, height) =
             ModelRect::point(col, row).to_area(self.render_state.borrow().font_ctx.cell_metrics());
@@ -946,7 +946,7 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 
     state.im_context.focus_in();
     state.cursor.as_mut().unwrap().enter_focus();
-    let point = state.model.cur_point();
+    let point = state.grids.current().cur_point();
     state.on_redraw(&RepaintMode::Area(point));
     Inhibit(false)
 }
@@ -960,7 +960,7 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
 
     state.im_context.focus_out();
     state.cursor.as_mut().unwrap().leave_focus();
-    let point = state.model.cur_point();
+    let point = state.grids.current().cur_point();
     state.on_redraw(&RepaintMode::Area(point));
 
     Inhibit(false)
@@ -1088,7 +1088,7 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
         ctx,
         state.cursor.as_ref().unwrap(),
         &render_state.font_ctx,
-        &state.model,
+        state.grids.current_model(),
         &render_state.color_model,
         state.transparency_settings.filled_alpha(),
     );
@@ -1290,8 +1290,15 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
 
 // Neovim redraw events
 impl State {
-    pub fn grid_line(&mut self, grid: u64, row: u64, col_start: u64, cells: Vec<Vec<Value>>) -> RepaintMode {
-        let repaint_area = self.grids[grid].line(row as usize, col_start as usize, cells, &self.highlights);
+    pub fn grid_line(
+        &mut self,
+        grid: u64,
+        row: u64,
+        col_start: u64,
+        cells: Vec<Vec<Value>>,
+    ) -> RepaintMode {
+        let repaint_area =
+            self.grids[grid].line(row as usize, col_start as usize, cells, &self.highlights);
         RepaintMode::Area(repaint_area)
     }
 
@@ -1312,17 +1319,12 @@ impl State {
     }
 
     pub fn grid_resize(&mut self, grid: u64, columns: u64, rows: u64) -> RepaintMode {
-        //TODO: implement
-        RepaintMode::Nothing
-    }
-
-    pub fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         debug!("on_resize {}/{}", columns, rows);
 
-        if self.model.columns != columns as usize || self.model.rows != rows as usize {
-            self.model = UiModel::new(rows, columns);
-        }
+        self.grids.get_or_create(grid).resize(columns, rows);
 
+        // TODO: does it work here?
+        // rewrite using new hl api
         if let Some(mut nvim) = self.nvim.nvim() {
             let mut render_state = self.render_state.borrow_mut();
             render_state.color_model.theme.queue_update(&mut *nvim);
@@ -1342,8 +1344,17 @@ impl State {
         }
     }
 
-    pub fn grid_scroll(&mut self, grid: u64, top: u64, bot: u64, left: u64, right: u64, rows: i64, cols: i64) -> RepaintMode {
-       RepaintMode::Area(self.grids[grid].scroll(top, bot, left, right, rows, cols))
+    pub fn grid_scroll(
+        &mut self,
+        grid: u64,
+        top: u64,
+        bot: u64,
+        left: u64,
+        right: u64,
+        rows: i64,
+        cols: i64,
+    ) -> RepaintMode {
+        RepaintMode::Area(self.grids[grid].scroll(top, bot, left, right, rows, cols))
     }
 
     pub fn on_highlight_set(&mut self, attrs: HashMap<String, Value>) -> RepaintMode {
@@ -1353,34 +1364,13 @@ impl State {
         RepaintMode::Nothing
     }
 
-    pub fn on_update_bg(&mut self, bg: i64) -> RepaintMode {
-        let mut render_state = self.render_state.borrow_mut();
-        if bg >= 0 {
-            render_state.color_model.bg_color = Color::from_indexed_color(bg as u64);
-        } else {
-            render_state.color_model.bg_color = COLOR_BLACK;
-        }
-        RepaintMode::Nothing
-    }
-
-    pub fn on_update_fg(&mut self, fg: i64) -> RepaintMode {
-        let mut render_state = self.render_state.borrow_mut();
-        if fg >= 0 {
-            render_state.color_model.fg_color = Color::from_indexed_color(fg as u64);
-        } else {
-            render_state.color_model.fg_color = COLOR_WHITE;
-        }
-        RepaintMode::Nothing
-    }
-
-    pub fn on_update_sp(&mut self, sp: i64) -> RepaintMode {
-        let mut render_state = self.render_state.borrow_mut();
-        if sp >= 0 {
-            render_state.color_model.sp_color = Color::from_indexed_color(sp as u64);
-        } else {
-            render_state.color_model.sp_color = COLOR_RED;
-        }
-        RepaintMode::Nothing
+    pub fn default_colors_set(&mut self, fg: u64, bg: u64, sp: u64) -> RepaintMode {
+        self.highlights.set_defaults(
+            Color::from_indexed_color(fg),
+            Color::from_indexed_color(bg),
+            Color::from_indexed_color(sp),
+        );
+        RepaintMode::All
     }
 
     pub fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode {
@@ -1392,7 +1382,7 @@ impl State {
             .set_mode_info(render_state.mode.mode_info().cloned());
         self.cmd_line
             .set_mode_info(render_state.mode.mode_info().cloned());
-        RepaintMode::Area(self.model.cur_point())
+        RepaintMode::Area(self.grids.current().cur_point())
     }
 
     pub fn on_mouse(&mut self, on: bool) -> RepaintMode {
@@ -1406,7 +1396,7 @@ impl State {
         } else {
             self.cursor.as_mut().unwrap().busy_off();
         }
-        RepaintMode::Area(self.model.cur_point())
+        RepaintMode::Area(self.grids.current().cur_point())
     }
 
     pub fn popupmenu_show(
@@ -1493,7 +1483,7 @@ impl State {
         level: u64,
     ) -> RepaintMode {
         {
-            let cursor = self.model.cur_point();
+            let cursor = self.grids.current().cur_point();
             let render_state = self.render_state.borrow();
             let (x, y, width, height) = cursor.to_area(render_state.font_ctx.cell_metrics());
             let ctx = CmdLineContext {
@@ -1575,7 +1565,7 @@ impl State {
 
 impl CursorRedrawCb for State {
     fn queue_redraw_cursor(&mut self) {
-        let cur_point = self.model.cur_point();
+        let cur_point = self.grids.current().cur_point();
         self.on_redraw(&RepaintMode::Area(cur_point));
     }
 }

@@ -218,6 +218,7 @@ pub fn call(
         "grid_cursor_goto" => call!(ui->grid_cursor_goto(args: uint, uint, uint)),
         "grid_scroll" => call!(ui->grid_scroll(args: uint, uint, uint, uint, uint, int, int)),
         "grid_resize" => call!(ui->grid_resize(args: uint, uint, uint)),
+        "default_colors_set" => call!(ui->default_colors_set(args: uint, uint, uint)),
         //"cursor_goto" => call!(ui->on_cursor_goto(args: uint, uint)),
         //"put" => call!(ui->on_put(args: str)),
         //"clear" => ui.on_clear(),

@@ -25,6 +25,31 @@ impl GridMap {
         }
     }
 
+    pub fn current(&self) -> &Grid {
+        &self.grids[&1]
+    }
+
+    pub fn current_mut(&mut self) -> &mut Grid {
+        &mut self.grids[&1]
+    }
+
+    pub fn current_model_mut(&mut self) -> &mut UiModel {
+        &mut self.grids[&1].model
+    }
+
+    pub fn current_model(&self) -> &UiModel {
+        &self.grids[&1].model
+    }
+
+    pub fn get_or_create(&mut self, idx: u64) -> &mut Grid {
+        if let Some(grid) = self.grids.get_mut(&idx) {
+            grid
+        } else {
+            self.grids.insert(idx, Grid::new());
+            &mut self.grids[&idx]
+        }
+    }
+
     pub fn destroy(&mut self, idx: u64) {
         self.grids.remove(&idx);
     }
@@ -44,6 +69,20 @@ impl Grid {
     pub fn new() -> Self {
         Grid {
             model: UiModel::empty(),
+        }
+    }
+
+    pub fn get_cursor(&self) -> (usize, usize) {
+        self.model.get_cursor()
+    }
+
+    pub fn cur_point(&self) -> ModelRect {
+        self.model.cur_point()
+    }
+
+    pub fn resize(&mut self, columns: u64, rows: u64) {
+        if self.model.columns != columns as usize || self.model.rows != rows as usize {
+            self.model = UiModel::new(rows, columns);
         }
     }
 
