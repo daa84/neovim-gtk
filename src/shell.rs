@@ -1311,6 +1311,11 @@ impl State {
         RepaintMode::AreaList(repaint_area)
     }
 
+    pub fn grid_resize(&mut self, grid: u64, columns: u64, rows: u64) -> RepaintMode {
+        //TODO: implement
+        RepaintMode::Nothing
+    }
+
     pub fn on_resize(&mut self, columns: u64, rows: u64) -> RepaintMode {
         debug!("on_resize {}/{}", columns, rows);
 
@@ -1337,19 +1342,8 @@ impl State {
         }
     }
 
-    pub fn on_set_scroll_region(
-        &mut self,
-        top: u64,
-        bot: u64,
-        left: u64,
-        right: u64,
-    ) -> RepaintMode {
-        self.model.set_scroll_region(top, bot, left, right);
-        RepaintMode::Nothing
-    }
-
-    pub fn on_scroll(&mut self, count: i64) -> RepaintMode {
-        RepaintMode::Area(self.model.scroll(count))
+    pub fn grid_scroll(&mut self, grid: u64, top: u64, bot: u64, left: u64, right: u64, rows: i64, cols: i64) -> RepaintMode {
+       RepaintMode::Area(self.grids[grid].scroll(top, bot, left, right, rows, cols))
     }
 
     pub fn on_highlight_set(&mut self, attrs: HashMap<String, Value>) -> RepaintMode {

@@ -194,7 +194,6 @@ fn call_redraw_handler(
     }
 
     ui.on_redraw(&repaint_mode);
-    ui.redraw_handler_finish();
     Ok(())
 }
 

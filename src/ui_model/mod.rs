@@ -19,10 +19,6 @@ pub struct UiModel {
     cur_row: usize,
     cur_col: usize,
     model: Box<[Line]>,
-    top: usize,
-    bot: usize,
-    left: usize,
-    right: usize,
 }
 
 impl UiModel {
@@ -38,10 +34,6 @@ impl UiModel {
             cur_row: 0,
             cur_col: 0,
             model: model.into_boxed_slice(),
-            top: 0,
-            bot: (rows - 1) as usize,
-            left: 0,
-            right: (columns - 1) as usize,
         }
     }
 
@@ -52,10 +44,6 @@ impl UiModel {
             cur_row: 0,
             cur_col: 0,
             model: Box::new([]),
-            top: 0,
-            bot: 0,
-            left: 0,
-            right: 0,
         }
     }
 
@@ -138,13 +126,6 @@ impl UiModel {
     //        changed_region
     //    }
 
-    pub fn set_scroll_region(&mut self, top: u64, bot: u64, left: u64, right: u64) {
-        self.top = top as usize;
-        self.bot = bot as usize;
-        self.left = left as usize;
-        self.right = right as usize;
-    }
-
     /// Copy rows from 0 to to_row, col from 0 self.columns
     ///
     /// Don't do any validation!
@@ -176,15 +157,13 @@ impl UiModel {
         source_row.swap_with(target_row, left_col, right_col);
     }
 
-    pub fn scroll(&mut self, count: i64) -> ModelRect {
-        let (top, bot, left, right) = (self.top as i64, self.bot as i64, self.left, self.right);
-
+    pub fn scroll(&mut self, top: i64, bot: i64, left: usize, right: usize, count: i64) -> ModelRect {
         if count > 0 {
-            for row in top..(bot - count + 1) {
+            for row in top..(bot - count) {
                 self.swap_row(row, count, left, right);
             }
         } else {
-            for row in ((top - count)..(bot + 1)).rev() {
+            for row in ((top - count)..(bot)).rev() {
                 self.swap_row(row, count, left, right);
             }
         }
@@ -211,7 +190,7 @@ impl UiModel {
     }
 
     fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize) {
-        for row in &mut self.model[top..bot + 1] {
+        for row in &mut self.model[top..bot] {
             row.clear(left, right);
         }
     }
