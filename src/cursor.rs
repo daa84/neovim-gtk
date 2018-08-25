@@ -1,10 +1,10 @@
 use cairo;
-use color;
 use ui::UiMutex;
 use mode;
 use std::sync::{Arc, Weak};
 use render;
 use render::CellMetrics;
+use highlight::HighlightMap;
 
 use glib;
 
@@ -75,7 +75,7 @@ pub trait Cursor {
         font_ctx: &render::Context,
         line_y: f64,
         double_width: bool,
-        color: &color::ColorModel,
+        hl: &HighlightMap,
     );
 }
 
@@ -94,7 +94,7 @@ impl Cursor for EmptyCursor {
         _font_ctx: &render::Context,
         _line_y: f64,
         _double_width: bool,
-        _color: &color::ColorModel,
+        _color: &HighlightMap,
     ) {
     }
 }
@@ -165,7 +165,7 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         font_ctx: &render::Context,
         line_y: f64,
         double_width: bool,
-        color: &color::ColorModel,
+        hl: &HighlightMap,
     ) {
         let state = self.state.borrow();
 
@@ -175,7 +175,7 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
 
         let current_point = ctx.get_current_point();
 
-        let bg = color.cursor_bg();
+        let bg = hl.cursor_bg();
         ctx.set_source_rgba(bg.0, bg.1, bg.2, state.alpha.0);
 
         let (y, width, height) = cursor_rect(

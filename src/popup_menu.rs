@@ -11,7 +11,7 @@ use pango::{self, LayoutExt};
 
 use neovim_lib::{Neovim, NeovimApi};
 
-use color::ColorModel;
+use highlight::HighlightMap;
 use nvim::{self, ErrorReport, NeovimClient};
 use input;
 use render;
@@ -146,11 +146,11 @@ impl State {
         self.renderer
             .set_property_font(Some(&ctx.font_ctx.font_description().to_string()));
 
-        let color_model = &ctx.color_model;
+        let hl = &ctx.hl;
         self.renderer
-            .set_property_foreground_rgba(Some(&color_model.pmenu_fg().into()));
+            .set_property_foreground_rgba(Some(&hl.pmenu_fg().into()));
 
-        update_css(&self.css_provider, color_model);
+        update_css(&self.css_provider, hl);
 
         let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 4]);
         let all_column_ids: Vec<u32> = (0..4).map(|i| i as u32).collect();
@@ -291,7 +291,7 @@ impl PopupMenu {
 
 pub struct PopupMenuContext<'a> {
     pub nvim: &'a Rc<NeovimClient>,
-    pub color_model: &'a ColorModel,
+    pub hl: &'a HighlightMap,
     pub font_ctx: &'a render::Context,
     pub menu_items: &'a [nvim::CompleteItem<'a>],
     pub selected: i64,
@@ -370,9 +370,9 @@ fn on_treeview_allocate(
     }));
 }
 
-pub fn update_css(css_provider: &gtk::CssProvider, color_model: &ColorModel) {
-    let bg = color_model.pmenu_bg_sel();
-    let fg = color_model.pmenu_fg_sel();
+pub fn update_css(css_provider: &gtk::CssProvider, hl: &HighlightMap) {
+    let bg = hl.pmenu_bg_sel();
+    let fg = hl.pmenu_fg_sel();
 
     match gtk::CssProviderExt::load_from_data(
         css_provider,
@@ -381,7 +381,7 @@ pub fn update_css(css_provider: &gtk::CssProvider, color_model: &ColorModel) {
                 .view {{ background-color: {}; }}",
             fg.to_hex(),
             bg.to_hex(),
-            color_model.pmenu_bg().to_hex(),
+            hl.pmenu_bg().to_hex(),
         ).as_bytes(),
     ) {
         Err(e) => error!("Can't update css {}", e),

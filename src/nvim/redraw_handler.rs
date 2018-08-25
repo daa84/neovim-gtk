@@ -64,6 +64,9 @@ macro_rules! map_array {
 }
 
 macro_rules! try_arg {
+    ($value:expr,val_ref) => {
+        &$value
+    };
     ($value:expr,bool) => {
         try_bool!($value)
     };
@@ -219,6 +222,7 @@ pub fn call(
         "grid_scroll" => call!(ui->grid_scroll(args: uint, uint, uint, uint, uint, int, int)),
         "grid_resize" => call!(ui->grid_resize(args: uint, uint, uint)),
         "default_colors_set" => call!(ui->default_colors_set(args: uint, uint, uint)),
+        "hl_attr_define" => call!(ui->hl_attr_define(args: uint, ext, val_ref)),
         //"cursor_goto" => call!(ui->on_cursor_goto(args: uint, uint)),
         //"put" => call!(ui->on_put(args: str)),
         //"clear" => ui.on_clear(),

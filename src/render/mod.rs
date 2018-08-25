@@ -13,6 +13,7 @@ use pangocairo;
 use sys::pango::*;
 use sys::pangocairo::*;
 
+use highlight::HighlightMap;
 use cursor::Cursor;
 use ui_model;
 
@@ -30,10 +31,10 @@ impl ContextAlpha for cairo::Context {
     }
 }
 
-pub fn fill_background(ctx: &cairo::Context, color_model: &color::ColorModel, alpha: Option<f64>) {
+pub fn fill_background(ctx: &cairo::Context, hl: &color::ColorModel, alpha: Option<f64>) {
     // must be dest over here
     //ctx.set_operator(cairo::Operator::DestOver);
-    ctx.set_source_rgbo(&color_model.bg_color, alpha);
+    ctx.set_source_rgbo(&hl.bg_color, alpha);
     ctx.paint();
 }
 
@@ -42,7 +43,7 @@ pub fn render<C: Cursor>(
     cursor: &C,
     font_ctx: &context::Context,
     ui_model: &ui_model::UiModel,
-    color_model: &color::ColorModel,
+    hl: &HighlightMap,
     bg_alpha: Option<f64>,
 ) {
     let cell_metrics = font_ctx.cell_metrics();
@@ -56,8 +57,8 @@ pub fn render<C: Cursor>(
         let mut line_x = 0.0;
 
         for (col, cell) in cell_view.line.line.iter().enumerate() {
-            draw_cell(&cell_view, color_model, cell, col, line_x);
-            draw_underline(&cell_view, color_model, cell, line_x);
+            draw_cell(&cell_view, hl, cell, col, line_x);
+            draw_underline(&cell_view, hl, cell, line_x);
 
             line_x += char_width;
         }
@@ -74,9 +75,9 @@ pub fn render<C: Cursor>(
             let double_width = cursor_line
                 .line
                 .get(cursor_col + 1)
-                .map_or(false, |c| c.attrs.double_width);
+                .map_or(false, |c| c.double_width);
             ctx.move_to(line_x, line_y);
-            cursor.draw(ctx, font_ctx, line_y, double_width, &color_model);
+            cursor.draw(ctx, font_ctx, line_y, double_width, &hl);
         }
     }
 
@@ -86,7 +87,7 @@ pub fn render<C: Cursor>(
         let mut line_x = 0.0;
 
         for (col, cell) in cell_view.line.line.iter().enumerate() {
-            draw_cell_bg(&cell_view, color_model, cell, col, line_x, bg_alpha);
+            draw_cell_bg(&cell_view, hl, cell, col, line_x, bg_alpha);
             line_x += char_width;
         }
     }
@@ -94,11 +95,11 @@ pub fn render<C: Cursor>(
 
 fn draw_underline(
     cell_view: &RowView,
-    color_model: &color::ColorModel,
+    hl: &HighlightMap,
     cell: &ui_model::Cell,
     line_x: f64,
 ) {
-    if cell.attrs.underline || cell.attrs.undercurl {
+    if cell.hl.underline || cell.hl.undercurl {
         let &RowView {
             ctx,
             line_y,
@@ -113,8 +114,8 @@ fn draw_underline(
             ..
         } = cell_view;
 
-        if cell.attrs.undercurl {
-            let sp = color_model.actual_cell_sp(cell);
+        if cell.hl.undercurl {
+            let sp = hl.actual_cell_sp(cell);
             ctx.set_source_rgba(sp.0, sp.1, sp.2, 0.7);
 
             let max_undercurl_height = (line_height - underline_position) * 2.0;
@@ -128,8 +129,8 @@ fn draw_underline(
                 char_width,
                 undercurl_height,
             );
-        } else if cell.attrs.underline {
-            let fg = color_model.actual_cell_fg(cell);
+        } else if cell.hl.underline {
+            let fg = hl.actual_cell_fg(cell);
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
             ctx.set_line_width(underline_thickness);
             ctx.move_to(line_x, line_y + underline_position);
@@ -141,7 +142,7 @@ fn draw_underline(
 
 fn draw_cell_bg(
     cell_view: &RowView,
-    color_model: &color::ColorModel,
+    hl: &HighlightMap,
     cell: &ui_model::Cell,
     col: usize,
     line_x: f64,
@@ -160,11 +161,11 @@ fn draw_cell_bg(
         ..
     } = cell_view;
 
-    let bg = color_model.cell_bg(cell);
+    let bg = hl.cell_bg(cell);
 
     if let Some(bg) = bg {
         if !line.is_binded_to_item(col) {
-            if bg != &color_model.bg_color {
+            if bg != &hl.bg_color {
                 ctx.set_source_rgbo(bg, bg_alpha);
                 ctx.rectangle(line_x, line_y, char_width, line_height);
                 ctx.fill();
@@ -184,7 +185,7 @@ fn draw_cell_bg(
 
 fn draw_cell(
     cell_view: &RowView,
-    color_model: &color::ColorModel,
+    hl: &HighlightMap,
     cell: &ui_model::Cell,
     col: usize,
     line_x: f64,
@@ -199,7 +200,7 @@ fn draw_cell(
 
     if let Some(item) = line.item_line[col].as_ref() {
         if let Some(ref glyphs) = item.glyphs {
-            let fg = color_model.actual_cell_fg(cell);
+            let fg = hl.actual_cell_fg(cell);
 
             ctx.move_to(line_x, line_y + ascent);
             ctx.set_source_rgb(fg.0, fg.1, fg.2);
@@ -212,11 +213,11 @@ fn draw_cell(
 pub fn shape_dirty(
     ctx: &context::Context,
     ui_model: &mut ui_model::UiModel,
-    color_model: &color::ColorModel,
+    hl: &HighlightMap,
 ) {
     for line in ui_model.model_mut() {
         if line.dirty_line {
-            let styled_line = ui_model::StyledLine::from(line, color_model, ctx.font_features());
+            let styled_line = ui_model::StyledLine::from(line, hl, ctx.font_features());
             let items = ctx.itemize(&styled_line);
             line.merge(&styled_line, &items);
 

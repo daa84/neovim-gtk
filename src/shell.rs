@@ -20,7 +20,7 @@ use pangocairo;
 use neovim_lib::neovim_api::Tabpage;
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 
-use color::{Color, ColorModel};
+use color::Color;
 use grid::GridMap;
 use highlight::HighlightMap;
 use misc::{decode_uri, escape_filename};
@@ -61,7 +61,7 @@ macro_rules! idle_cb_call {
 
 pub struct RenderState {
     pub font_ctx: render::Context,
-    pub color_model: ColorModel,
+    pub hl: HighlightMap,
     pub mode: mode::Mode,
 }
 
@@ -69,7 +69,7 @@ impl RenderState {
     pub fn new(pango_context: pango::Context) -> Self {
         RenderState {
             font_ctx: render::Context::new(pango_context),
-            color_model: ColorModel::new(),
+            hl: HighlightMap::new(),
             mode: mode::Mode::new(),
         }
     }
@@ -109,7 +109,6 @@ impl TransparencySettigns {
 
 pub struct State {
     pub grids: GridMap,
-    highlights: HighlightMap,
 
     mouse_enabled: bool,
     nvim: Rc<NeovimClient>,
@@ -154,7 +153,6 @@ impl State {
 
         State {
             grids: GridMap::new(),
-            highlights: HighlightMap::new(),
             nvim: Rc::new(NeovimClient::new()),
             mouse_enabled: true,
             cursor: None,
@@ -378,7 +376,7 @@ impl State {
         render::shape_dirty(
             &render_state.font_ctx,
             self.grids.current_model_mut(),
-            &render_state.color_model,
+            &render_state.hl,
         );
     }
 
@@ -1089,12 +1087,12 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
         state.cursor.as_ref().unwrap(),
         &render_state.font_ctx,
         state.grids.current_model(),
-        &render_state.color_model,
+        &render_state.hl,
         state.transparency_settings.filled_alpha(),
     );
     render::fill_background(
         ctx,
-        &render_state.color_model,
+        &render_state.hl,
         state.transparency_settings.background_alpha(),
     );
 
@@ -1237,14 +1235,14 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
 
 fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let render_state = state.render_state.borrow();
-    let color_model = &render_state.color_model;
+    let hl = &render_state.hl;
     let layout = pangocairo::functions::create_layout(ctx).unwrap();
     let alloc = state.drawing_area.get_allocation();
 
     ctx.set_source_rgb(
-        color_model.bg_color.0,
-        color_model.bg_color.1,
-        color_model.bg_color.2,
+        hl.bg_color.0,
+        hl.bg_color.1,
+        hl.bg_color.2,
     );
     ctx.paint();
 
@@ -1256,9 +1254,9 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
 
     ctx.move_to(x, y);
     ctx.set_source_rgb(
-        color_model.fg_color.0,
-        color_model.fg_color.1,
-        color_model.fg_color.2,
+        hl.fg_color.0,
+        hl.fg_color.1,
+        hl.fg_color.2,
     );
     pangocairo::functions::update_layout(ctx, &layout);
     pangocairo::functions::show_layout(ctx, &layout);
@@ -1268,7 +1266,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
         .cursor
         .as_ref()
         .unwrap()
-        .draw(ctx, &render_state.font_ctx, y, false, &color_model);
+        .draw(ctx, &render_state.font_ctx, y, false, &hl);
 }
 
 fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
@@ -1297,8 +1295,9 @@ impl State {
         col_start: u64,
         cells: Vec<Vec<Value>>,
     ) -> RepaintMode {
+        let hl = self.render_state.borrow().hl;
         let repaint_area =
-            self.grids[grid].line(row as usize, col_start as usize, cells, &self.highlights);
+            self.grids[grid].line(row as usize, col_start as usize, cells, &hl);
         RepaintMode::Area(repaint_area)
     }
 
@@ -1327,7 +1326,7 @@ impl State {
         // rewrite using new hl api
         if let Some(mut nvim) = self.nvim.nvim() {
             let mut render_state = self.render_state.borrow_mut();
-            render_state.color_model.theme.queue_update(&mut *nvim);
+            render_state.hl.theme.queue_update(&mut *nvim);
         }
         RepaintMode::Nothing
     }
@@ -1357,15 +1356,13 @@ impl State {
         RepaintMode::Area(self.grids[grid].scroll(top, bot, left, right, rows, cols))
     }
 
-    pub fn on_highlight_set(&mut self, attrs: HashMap<String, Value>) -> RepaintMode {
-        let model_attrs = Attrs::from_value_map(&attrs);
-
-        self.cur_attrs = Some(model_attrs);
+    pub fn hl_attr_define(&mut self, id: u64, rgb_attr: HashMap<String, Value>, _: &Value) -> RepaintMode {
+        self.render_state.borrow_mut().hl.set(id, &rgb_attr);
         RepaintMode::Nothing
     }
 
     pub fn default_colors_set(&mut self, fg: u64, bg: u64, sp: u64) -> RepaintMode {
-        self.highlights.set_defaults(
+        self.render_state.borrow_mut().hl.set_defaults(
             Color::from_indexed_color(fg),
             Color::from_indexed_color(bg),
             Color::from_indexed_color(sp),
@@ -1412,7 +1409,7 @@ impl State {
 
         let context = popup_menu::PopupMenuContext {
             nvim: &self.nvim,
-            color_model: &render_state.color_model,
+            hl: &render_state.hl,
             font_ctx: &render_state.font_ctx,
             menu_items: &menu,
             selected,

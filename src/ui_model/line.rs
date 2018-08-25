@@ -7,6 +7,7 @@ use super::cell::Cell;
 use super::item::Item;
 use color;
 use render;
+use highlight::HighlightMap;
 
 pub struct Line {
     pub line: Box<[Cell]>,
@@ -248,7 +249,7 @@ pub struct StyledLine {
 impl StyledLine {
     pub fn from(
         line: &Line,
-        color_model: &color::ColorModel,
+        hl: &HighlightMap,
         font_features: &render::FontFeatures,
     ) -> Self {
         let average_capacity = line.line.len() * 4 * 2; // code bytes * grapheme cluster
@@ -275,7 +276,7 @@ impl StyledLine {
                 cell_to_byte.push(cell_idx);
             }
 
-            let next = style_attr.next(byte_offset, byte_offset + len, cell, color_model);
+            let next = style_attr.next(byte_offset, byte_offset + len, cell, hl);
             if let Some(next) = next {
                 style_attr.insert(&attr_list);
                 style_attr = next;
@@ -324,13 +325,13 @@ impl<'c> StyleAttr<'c> {
         start_idx: usize,
         end_idx: usize,
         cell: &'c Cell,
-        color_model: &'c color::ColorModel,
+        hl: &'c HighlightMap,
     ) -> Self {
         StyleAttr {
             italic: cell.hl.italic,
             bold: cell.hl.bold,
-            foreground: color_model.cell_fg(cell),
-            background: color_model.cell_bg(cell),
+            foreground: hl.cell_fg(cell),
+            background: hl.cell_bg(cell),
             empty: false,
 
             start_idx,
@@ -343,9 +344,9 @@ impl<'c> StyleAttr<'c> {
         start_idx: usize,
         end_idx: usize,
         cell: &'c Cell,
-        color_model: &'c color::ColorModel,
+        hl: &'c HighlightMap,
     ) -> Option<StyleAttr<'c>> {
-        let style_attr = Self::from(start_idx, end_idx, cell, color_model);
+        let style_attr = Self::from(start_idx, end_idx, cell, hl);
 
         if self != &style_attr {
             Some(style_attr)

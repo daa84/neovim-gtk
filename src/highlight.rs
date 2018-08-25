@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use ui_model::Cell;
+use theme::Theme;
 use color::*;
 use neovim_lib::Value;
 
@@ -8,9 +10,10 @@ const DEFAULT_HL: u64 = 0;
 
 pub struct HighlightMap {
     highlights: HashMap<u64, Rc<Highlight>>,
-    bg_color: Color,
-    fg_color: Color,
+    pub bg_color: Color,
+    pub fg_color: Color,
     sp_color: Color,
+    pub theme: Theme,
 }
 
 impl HighlightMap {
@@ -20,6 +23,7 @@ impl HighlightMap {
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
             sp_color: COLOR_RED,
+            theme: Theme::new(),
         }
     }
 
@@ -36,6 +40,84 @@ impl HighlightMap {
                 .map(Rc::clone)
                 .unwrap_or_else(|| Rc::new(Highlight::new()))
         })
+    }
+
+    fn remove(&mut self, idx: u64) {
+        self.highlights.remove(&idx);
+    }
+
+    pub fn set(&mut self, idx: u64, hl: &HashMap<String, Value>) {
+        self.remove(idx);
+        self.highlights.insert(idx, Rc::new(Highlight::from_value_map(&hl)));
+    }
+
+    pub fn cell_fg<'a>(&'a self, cell: &'a Cell) -> Option<&'a Color> {
+        if !cell.hl.reverse {
+            cell.hl.foreground.as_ref()
+        } else {
+            cell.hl.background.as_ref().or(Some(&self.bg_color))
+        }
+    }
+
+    pub fn actual_cell_fg<'a>(&'a self, cell: &'a Cell) -> &'a Color {
+        if !cell.hl.reverse {
+            cell.hl.foreground.as_ref().unwrap_or(&self.fg_color)
+        } else {
+            cell.hl.background.as_ref().unwrap_or(&self.bg_color)
+        }
+    }
+
+    pub fn cell_bg<'a>(&'a self, cell: &'a Cell) -> Option<&'a Color> {
+        if !cell.hl.reverse {
+            cell.hl.background.as_ref()
+        } else {
+            cell.hl.foreground.as_ref().or(Some(&self.fg_color))
+        }
+    }
+
+    #[inline]
+    pub fn actual_cell_sp<'a>(&'a self, cell: &'a Cell) -> &'a Color {
+        cell.hl.special.as_ref().unwrap_or(&self.sp_color)
+    }
+
+    pub fn pmenu_bg<'a>(&'a self) -> Color {
+        self.theme
+            .pmenu()
+            .bg
+            .clone()
+            .unwrap_or_else(|| self.bg_color.clone())
+    }
+
+    pub fn pmenu_fg(&self) -> Color {
+        self.theme
+            .pmenu()
+            .fg
+            .clone()
+            .unwrap_or_else(|| self.fg_color.clone())
+    }
+
+    pub fn pmenu_bg_sel(&self) -> Color {
+        self.theme
+            .pmenu()
+            .bg_sel
+            .clone()
+            .unwrap_or_else(|| self.bg_color.clone())
+    }
+
+    pub fn pmenu_fg_sel(&self) -> Color {
+        self.theme
+            .pmenu()
+            .fg_sel
+            .clone()
+            .unwrap_or_else(|| self.fg_color.clone())
+    }
+
+    pub fn cursor_bg(&self) -> Color {
+        self.theme
+            .cursor()
+            .bg
+            .clone()
+            .unwrap_or_else(|| self.fg_color.clone())
     }
 }
 
