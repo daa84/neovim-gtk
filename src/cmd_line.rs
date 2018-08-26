@@ -21,7 +21,8 @@ use popup_menu;
 use render::{self, CellMetrics};
 use shell;
 use ui::UiMutex;
-use ui_model::{Attrs, ModelLayout};
+use ui_model::ModelLayout;
+use highlight::Highlight;
 
 pub struct Level {
     model_layout: ModelLayout,
@@ -58,7 +59,7 @@ impl Level {
         level
     }
 
-    fn replace_line(&mut self, lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>, append: bool) {
+    fn replace_line(&mut self, lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>, append: bool) {
         if append {
             self.model_layout.layout_append(lines);
         } else {
@@ -89,7 +90,7 @@ impl Level {
     }
 
     pub fn from_lines(
-        lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>,
+        lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>,
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
@@ -115,7 +116,7 @@ impl Level {
         render::shape_dirty(
             &render_state.font_ctx,
             &mut self.model_layout.model,
-            &render_state.color_model,
+            &render_state.hl,
         );
     }
 
@@ -129,8 +130,8 @@ fn prompt_lines(
     firstc: &str,
     prompt: &str,
     indent: u64,
-) -> (usize, Vec<(Option<Attrs>, Vec<String>)>) {
-    let prompt: Vec<(Option<Attrs>, Vec<String>)> = if !firstc.is_empty() {
+) -> (usize, Vec<(Option<Highlight>, Vec<String>)>) {
+    let prompt: Vec<(Option<Highlight>, Vec<String>)> = if !firstc.is_empty() {
         if firstc.len() >= indent as usize {
             vec![(None, vec![firstc.to_owned()])]
         } else {
@@ -468,9 +469,9 @@ impl CmdLine {
             .set_property_font(Some(&render_state.font_ctx.font_description().to_string()));
 
         self.wild_renderer
-            .set_property_foreground_rgba(Some(&render_state.color_model.pmenu_fg().into()));
+            .set_property_foreground_rgba(Some(&render_state.hl.pmenu_fg().into()));
 
-        popup_menu::update_css(&self.wild_css_provider, &render_state.color_model);
+        popup_menu::update_css(&self.wild_css_provider, &render_state.hl);
 
         // set width
         // this calculation produce width more then needed, but this is looks ok :)
@@ -538,7 +539,7 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
             &cursor::EmptyCursor::new(),
             &render_state.font_ctx,
             &block.model_layout.model,
-            &render_state.color_model,
+            &render_state.hl,
             None,
         );
 
@@ -551,12 +552,12 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
             state.cursor.as_ref().unwrap(),
             &render_state.font_ctx,
             &level.model_layout.model,
-            &render_state.color_model,
+            &render_state.hl,
             None,
         );
     }
 
-    render::fill_background(ctx, &render_state.color_model, None);
+    render::fill_background(ctx, &render_state.hl, None);
 
     ctx.pop_group_to_source();
     ctx.paint();
@@ -602,23 +603,23 @@ impl<'a> CmdLineContext<'a> {
 }
 
 struct LineContent {
-    lines: Vec<Vec<(Option<Attrs>, Vec<String>)>>,
+    lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>,
     prompt_offset: usize,
 }
 
 trait ToAttributedModelContent {
-    fn to_attributed_content(&self) -> Vec<Vec<(Option<Attrs>, Vec<String>)>>;
+    fn to_attributed_content(&self) -> Vec<Vec<(Option<Highlight>, Vec<String>)>>;
 }
 
 impl ToAttributedModelContent for Vec<Vec<(HashMap<String, Value>, String)>> {
-    fn to_attributed_content(&self) -> Vec<Vec<(Option<Attrs>, Vec<String>)>> {
+    fn to_attributed_content(&self) -> Vec<Vec<(Option<Highlight>, Vec<String>)>> {
         self.iter()
             .map(|line_chars| {
                 line_chars
                     .iter()
                     .map(|c| {
                         (
-                            Some(Attrs::from_value_map(&c.0)),
+                            Some(Highlight::from_value_map(&c.0)),
                             c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                         )
                     })
@@ -629,12 +630,12 @@ impl ToAttributedModelContent for Vec<Vec<(HashMap<String, Value>, String)>> {
 }
 
 impl ToAttributedModelContent for Vec<(HashMap<String, Value>, String)> {
-    fn to_attributed_content(&self) -> Vec<Vec<(Option<Attrs>, Vec<String>)>> {
+    fn to_attributed_content(&self) -> Vec<Vec<(Option<Highlight>, Vec<String>)>> {
         vec![
             self.iter()
                 .map(|c| {
                     (
-                        Some(Attrs::from_value_map(&c.0)),
+                        Some(Highlight::from_value_map(&c.0)),
                         c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                     )
                 })

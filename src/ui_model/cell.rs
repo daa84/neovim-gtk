@@ -93,9 +93,9 @@ impl Cell {
         }
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, hl: Rc<Highlight>) {
         self.ch.clear();
-        self.hl = Rc::new(Highlight::new());
+        self.hl = hl;
         self.dirty = true;
         self.double_width = false;
     }

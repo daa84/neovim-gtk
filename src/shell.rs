@@ -365,7 +365,8 @@ impl State {
         for mut rect in rects {
             rect.extend_by_items(self.grids.current_model());
 
-            let (x, y, width, height) = rect.to_area_extend_ink(self.grids.current_model(), cell_metrics);
+            let (x, y, width, height) =
+                rect.to_area_extend_ink(self.grids.current_model(), cell_metrics);
             self.drawing_area.queue_draw_area(x, y, width, height);
         }
     }
@@ -1239,11 +1240,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let layout = pangocairo::functions::create_layout(ctx).unwrap();
     let alloc = state.drawing_area.get_allocation();
 
-    ctx.set_source_rgb(
-        hl.bg_color.0,
-        hl.bg_color.1,
-        hl.bg_color.2,
-    );
+    ctx.set_source_rgb(hl.bg_color.0, hl.bg_color.1, hl.bg_color.2);
     ctx.paint();
 
     layout.set_text("Loading->");
@@ -1253,11 +1250,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let y = alloc.height as f64 / 2.0 - height as f64 / 2.0;
 
     ctx.move_to(x, y);
-    ctx.set_source_rgb(
-        hl.fg_color.0,
-        hl.fg_color.1,
-        hl.fg_color.2,
-    );
+    ctx.set_source_rgb(hl.fg_color.0, hl.fg_color.1, hl.fg_color.2);
     pangocairo::functions::update_layout(ctx, &layout);
     pangocairo::functions::show_layout(ctx, &layout);
 
@@ -1295,14 +1288,14 @@ impl State {
         col_start: u64,
         cells: Vec<Vec<Value>>,
     ) -> RepaintMode {
-        let hl = self.render_state.borrow().hl;
-        let repaint_area =
-            self.grids[grid].line(row as usize, col_start as usize, cells, &hl);
+        let hl = &self.render_state.borrow().hl;
+        let repaint_area = self.grids[grid].line(row as usize, col_start as usize, cells, hl);
         RepaintMode::Area(repaint_area)
     }
 
     pub fn grid_clear(&mut self, grid: u64) -> RepaintMode {
-        self.grids[grid].clear();
+        let hl = &self.render_state.borrow().hl;
+        self.grids[grid].clear(&hl.default_hl());
         RepaintMode::All
     }
 
@@ -1353,10 +1346,24 @@ impl State {
         rows: i64,
         cols: i64,
     ) -> RepaintMode {
-        RepaintMode::Area(self.grids[grid].scroll(top, bot, left, right, rows, cols))
+        let hl = &self.render_state.borrow().hl;
+        RepaintMode::Area(self.grids[grid].scroll(
+            top,
+            bot,
+            left,
+            right,
+            rows,
+            cols,
+            &hl.default_hl(),
+        ))
     }
 
-    pub fn hl_attr_define(&mut self, id: u64, rgb_attr: HashMap<String, Value>, _: &Value) -> RepaintMode {
+    pub fn hl_attr_define(
+        &mut self,
+        id: u64,
+        rgb_attr: HashMap<String, Value>,
+        _: &Value,
+    ) -> RepaintMode {
         self.render_state.borrow_mut().hl.set(id, &rgb_attr);
         RepaintMode::Nothing
     }

@@ -1,4 +1,5 @@
 use std::ops::{Index, IndexMut};
+use std::rc::Rc;
 
 use pango;
 use sys::pango as sys_pango;
@@ -7,7 +8,7 @@ use super::cell::Cell;
 use super::item::Item;
 use color;
 use render;
-use highlight::HighlightMap;
+use highlight::{HighlightMap, Highlight};
 
 pub struct Line {
     pub line: Box<[Cell]>,
@@ -42,9 +43,9 @@ impl Line {
         }
     }
 
-    pub fn clear(&mut self, left: usize, right: usize) {
+    pub fn clear(&mut self, left: usize, right: usize, default_hl: &Rc<Highlight>) {
         for cell in &mut self.line[left..right + 1] {
-            cell.clear();
+            cell.clear(default_hl.clone());
         }
         self.dirty_line = true;
     }

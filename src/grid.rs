@@ -1,10 +1,13 @@
 use std::collections::HashMap;
-use std::ops::Index;
+use std::rc::Rc;
+use std::ops::{Index, IndexMut};
 
 use neovim_lib::Value;
 
-use highlight::HighlightMap;
-use ui_model::{UiModel, ModelRect, ModelRectVec};
+use highlight::{HighlightMap, Highlight};
+use ui_model::{ModelRect, ModelRectVec, UiModel};
+
+const DEFAULT_GRID: u64 = 1;
 
 pub struct GridMap {
     grids: HashMap<u64, Grid>,
@@ -18,6 +21,12 @@ impl Index<u64> for GridMap {
     }
 }
 
+impl IndexMut<u64> for GridMap {
+    fn index_mut(&mut self, idx: u64) -> &mut Grid {
+        self.grids.get_mut(&idx).unwrap()
+    }
+}
+
 impl GridMap {
     pub fn new() -> Self {
         GridMap {
@@ -25,29 +34,25 @@ impl GridMap {
         }
     }
 
-    pub fn current(&self) -> &Grid {
-        &self.grids[&1]
+    pub fn current(&self) -> Option<&Grid> {
+        self.grids.get(&DEFAULT_GRID)
     }
 
-    pub fn current_mut(&mut self) -> &mut Grid {
-        &mut self.grids[&1]
+    pub fn current_model_mut(&mut self) -> Option<&mut UiModel> {
+        self.grids.get_mut(&DEFAULT_GRID).map(|g| &mut g.model)
     }
 
-    pub fn current_model_mut(&mut self) -> &mut UiModel {
-        &mut self.grids[&1].model
-    }
-
-    pub fn current_model(&self) -> &UiModel {
-        &self.grids[&1].model
+    pub fn current_model(&self) -> Option<&UiModel> {
+        self.grids.get(&DEFAULT_GRID).map(|g| &g.model)
     }
 
     pub fn get_or_create(&mut self, idx: u64) -> &mut Grid {
-        if let Some(grid) = self.grids.get_mut(&idx) {
-            grid
-        } else {
-            self.grids.insert(idx, Grid::new());
-            &mut self.grids[&idx]
+        if self.grids.contains_key(&idx) {
+            return self.grids.get_mut(&idx).unwrap();
         }
+
+        self.grids.insert(idx, Grid::new());
+        self.grids.get_mut(&idx).unwrap()
     }
 
     pub fn destroy(&mut self, idx: u64) {
@@ -90,13 +95,19 @@ impl Grid {
         self.model.set_cursor(row, col)
     }
 
-    pub fn clear(&mut self) {
-        self.model.clear();
+    pub fn clear(&mut self, default_hl: &Rc<Highlight>) {
+        self.model.clear(default_hl);
     }
 
-    pub fn line(&mut self, row: usize, col_start: usize, cells: Vec<Vec<Value>>, highlights: &HighlightMap) -> ModelRect {
-        let starting_hl = None;
-        let col_end = col_start;
+    pub fn line(
+        &mut self,
+        row: usize,
+        col_start: usize,
+        cells: Vec<Vec<Value>>,
+        highlights: &HighlightMap,
+    ) -> ModelRect {
+        let mut starting_hl = None;
+        let mut col_end = col_start;
 
         for cell in cells {
             let ch = cell.get(0).unwrap().as_str().unwrap_or("");
@@ -107,15 +118,31 @@ impl Grid {
                 starting_hl = hl_id;
             }
 
-            let put_rect = self.model.put(row, col_end, ch, ch.is_empty(), repeat, highlights.get(hl_id.unwrap()));
+            self.model.put(
+                row,
+                col_end,
+                ch,
+                ch.is_empty(),
+                repeat,
+                highlights.get(hl_id.unwrap()),
+            );
             col_end += repeat;
         }
-
 
         ModelRect::new(row, row, col_start, col_end - 1)
     }
 
-    pub fn scroll(&mut self, top: u64, bot: u64, left: u64, right: u64, rows: i64, _: i64) -> ModelRect {
-        self.model.scroll(top as i64, bot as i64, left as usize, right as usize, rows)
+    pub fn scroll(
+        &mut self,
+        top: u64,
+        bot: u64,
+        left: u64,
+        right: u64,
+        rows: i64,
+        _: i64,
+        default_hl: &Rc<Highlight>,
+    ) -> ModelRect {
+        self.model
+            .scroll(top as i64, bot as i64, left as usize, right as usize, rows, default_hl)
     }
 }

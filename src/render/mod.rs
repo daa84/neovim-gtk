@@ -31,7 +31,7 @@ impl ContextAlpha for cairo::Context {
     }
 }
 
-pub fn fill_background(ctx: &cairo::Context, hl: &color::ColorModel, alpha: Option<f64>) {
+pub fn fill_background(ctx: &cairo::Context, hl: &HighlightMap, alpha: Option<f64>) {
     // must be dest over here
     //ctx.set_operator(cairo::Operator::DestOver);
     ctx.set_source_rgbo(&hl.bg_color, alpha);

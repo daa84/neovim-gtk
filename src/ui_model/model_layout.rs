@@ -1,4 +1,5 @@
 use std::cmp::max;
+use std::rc::Rc;
 
 use unicode_width::UnicodeWidthStr;
 
@@ -79,10 +80,8 @@ impl ModelLayout {
             self.insert_into_lines(ch);
             self.layout_replace(0, 0);
         } else {
-            self.model.put(&ch, false, None);
+            self.model.put_one(row, col, &ch, false, None);
         }
-
-        self.model.set_cursor(row, col);
     }
 
     fn insert_into_lines(&mut self, ch: String) {
@@ -117,7 +116,7 @@ impl ModelLayout {
         let mut col_idx = 0;
         let mut row_idx = row_offset;
         for content in lines {
-            for &(ref attr, ref ch_list) in content {
+            for &(ref hl, ref ch_list) in content {
                 for ch in ch_list {
                     let ch_width = max(1, ch.width());
 
@@ -126,11 +125,9 @@ impl ModelLayout {
                         row_idx += 1;
                     }
 
-                    //self.model.set_cursor(row_idx, col_idx as usize);
-                    self.model
-                        .put(row_idx, col_idx, ch, false, 1, attr.as_ref());
+                    self.model.put_one(row_idx, col_idx, ch, false, hl.as_ref());
                     if ch_width > 1 {
-                        self.model.put(row_idx, col_idx, "", true, 1, attr.as_ref());
+                        self.model.put_one(row_idx, col_idx, "", true, hl.as_ref());
                     }
 
                     if max_col_idx < col_idx {
@@ -141,7 +138,11 @@ impl ModelLayout {
                 }
 
                 if col_idx < self.model.columns {
-                    self.model.model[row_idx].clear(col_idx, self.model.columns - 1);
+                    self.model.model[row_idx].clear(
+                        col_idx,
+                        self.model.columns - 1,
+                        &Rc::new(Highlight::new()),
+                    );
                 }
             }
             row_idx += 1;

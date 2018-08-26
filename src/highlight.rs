@@ -6,8 +6,6 @@ use theme::Theme;
 use color::*;
 use neovim_lib::Value;
 
-const DEFAULT_HL: u64 = 0;
-
 pub struct HighlightMap {
     highlights: HashMap<u64, Rc<Highlight>>,
     pub bg_color: Color,
@@ -25,6 +23,10 @@ impl HighlightMap {
             sp_color: COLOR_RED,
             theme: Theme::new(),
         }
+    }
+
+    pub fn default_hl(&self) -> Rc<Highlight> {
+        self.highlights[&0].clone()
     }
 
     pub fn set_defaults(&mut self, fg: Color, bg: Color, sp: Color) {
@@ -121,6 +123,7 @@ impl HighlightMap {
     }
 }
 
+#[derive(Clone)]
 pub struct Highlight {
     pub italic: bool,
     pub bold: bool,
@@ -176,16 +179,5 @@ impl Highlight {
         }
 
         model_attrs
-    }
-
-    fn clear(&mut self) {
-        self.italic = false;
-        self.bold = false;
-        self.underline = false;
-        self.undercurl = false;
-        self.reverse = false;
-        self.foreground = None;
-        self.background = None;
-        self.special = None;
     }
 }

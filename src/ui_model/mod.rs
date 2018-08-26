@@ -82,6 +82,11 @@ impl UiModel {
         (self.cur_row, self.cur_col)
     }
 
+    pub fn put_one(&mut self, row: usize, col: usize, ch: &str, double_width: bool, hl: Option<&Highlight>) {
+        let hl = hl.map(|hl| Rc::new(hl.clone())).unwrap_or_else(|| Rc::new(Highlight::new()));
+        self.put(row, col, ch, double_width, 1, hl);
+    }
+
     pub fn put(
         &mut self,
         row: usize,
@@ -157,7 +162,7 @@ impl UiModel {
         source_row.swap_with(target_row, left_col, right_col);
     }
 
-    pub fn scroll(&mut self, top: i64, bot: i64, left: usize, right: usize, count: i64) -> ModelRect {
+    pub fn scroll(&mut self, top: i64, bot: i64, left: usize, right: usize, count: i64, default_hl: &Rc<Highlight>) -> ModelRect {
         if count > 0 {
             for row in top..(bot - count) {
                 self.swap_row(row, count, left, right);
@@ -169,29 +174,22 @@ impl UiModel {
         }
 
         if count > 0 {
-            self.clear_region((bot - count + 1) as usize, bot as usize, left, right);
+            self.clear_region((bot - count + 1) as usize, bot as usize, left, right, default_hl);
         } else {
-            self.clear_region(top as usize, (top - count - 1) as usize, left, right);
+            self.clear_region(top as usize, (top - count - 1) as usize, left, right, default_hl);
         }
 
         ModelRect::new(top as usize, bot as usize, left, right)
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, default_hl: &Rc<Highlight>) {
         let (rows, columns) = (self.rows, self.columns);
-        self.clear_region(0, rows - 1, 0, columns - 1);
+        self.clear_region(0, rows - 1, 0, columns - 1, default_hl);
     }
 
-    pub fn eol_clear(&mut self) -> ModelRect {
-        let (cur_row, cur_col, columns) = (self.cur_row, self.cur_col, self.columns);
-        self.clear_region(cur_row, cur_row, cur_col, columns - 1);
-
-        ModelRect::new(cur_row, cur_row, cur_col, columns - 1)
-    }
-
-    fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize) {
+    fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize, default_hl: &Rc<Highlight>) {
         for row in &mut self.model[top..bot] {
-            row.clear(left, right);
+            row.clear(left, right, default_hl);
         }
     }
 
