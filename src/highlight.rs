@@ -26,7 +26,11 @@ impl HighlightMap {
     }
 
     pub fn default_hl(&self) -> Rc<Highlight> {
-        self.highlights[&0].clone()
+        if self.highlights.contains_key(&0) {
+            self.highlights[&0].clone()
+        } else {
+            Rc::new(Highlight::new())
+        }
     }
 
     pub fn set_defaults(&mut self, fg: Color, bg: Color, sp: Color) {

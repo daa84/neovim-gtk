@@ -221,25 +221,8 @@ pub fn call(
         "grid_cursor_goto" => call!(ui->grid_cursor_goto(args: uint, uint, uint)),
         "grid_scroll" => call!(ui->grid_scroll(args: uint, uint, uint, uint, uint, int, int)),
         "grid_resize" => call!(ui->grid_resize(args: uint, uint, uint)),
-        "default_colors_set" => call!(ui->default_colors_set(args: uint, uint, uint)),
+        "default_colors_set" => call!(ui->default_colors_set(args: int, int, int)),
         "hl_attr_define" => call!(ui->hl_attr_define(args: uint, ext, val_ref)),
-        //"cursor_goto" => call!(ui->on_cursor_goto(args: uint, uint)),
-        //"put" => call!(ui->on_put(args: str)),
-        //"clear" => ui.on_clear(),
-        //"resize" => call!(ui->on_resize(args: uint, uint)),
-        //"highlight_set" => {
-        //    call!(ui->on_highlight_set(args: ext));
-        //    RepaintMode::Nothing
-        //}
-        //"eol_clear" => ui.on_eol_clear(),
-        //"set_scroll_region" => {
-        //    call!(ui->on_set_scroll_region(args: uint, uint, uint, uint));
-        //    RepaintMode::Nothing
-        //}
-        //"scroll" => call!(ui->on_scroll(args: int)),
-        //"update_bg" => call!(ui->on_update_bg(args: int)),
-        //"update_fg" => call!(ui->on_update_fg(args: int)),
-        //"update_sp" => call!(ui->on_update_sp(args: int)),
         "mode_change" => call!(ui->on_mode_change(args: str, uint)),
         "mouse_on" => ui.on_mouse(true),
         "mouse_off" => ui.on_mouse(false),

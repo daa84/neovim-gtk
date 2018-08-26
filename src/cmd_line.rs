@@ -224,12 +224,12 @@ impl State {
             let model = &level.model_layout.model;
 
             let mut cur_point = model.cur_point();
-            cur_point.extend_by_items(model);
+            cur_point.extend_by_items(Some(model));
 
             let render_state = self.render_state.borrow();
             let cell_metrics = render_state.font_ctx.cell_metrics();
 
-            let (x, y, width, height) = cur_point.to_area_extend_ink(model, cell_metrics);
+            let (x, y, width, height) = cur_point.to_area_extend_ink(Some(model), cell_metrics);
 
             if gap > 0 {
                 self.drawing_area

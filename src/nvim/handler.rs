@@ -179,7 +179,10 @@ fn call_redraw_handler(
                             Value::Array(ar) => ar,
                             _ => vec![],
                         };
-                        let call_reapint_mode = redraw_handler::call(ui, &ev_name, args)?;
+                        let call_reapint_mode = match redraw_handler::call(ui, &ev_name, args) {
+                            Ok(mode) => mode,
+                            Err(desc) => return Err(format!("Event {}\n{}", ev_name, desc)),
+                        };
                         repaint_mode = repaint_mode.join(call_reapint_mode);
                     }
                 } else {

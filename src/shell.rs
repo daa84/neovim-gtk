@@ -371,14 +371,11 @@ impl State {
         }
     }
 
-    #[inline]
     fn update_dirty_glyphs(&mut self) {
         let render_state = self.render_state.borrow();
-        render::shape_dirty(
-            &render_state.font_ctx,
-            self.grids.current_model_mut(),
-            &render_state.hl,
-        );
+        if let Some(model) = self.grids.current_model_mut() {
+            render::shape_dirty(&render_state.font_ctx, model, &render_state.hl);
+        }
     }
 
     fn im_commit(&self, ch: &str) {
@@ -409,19 +406,20 @@ impl State {
     }
 
     fn set_im_location(&self) {
-        let (row, col) = self.grids.current().get_cursor();
+        if let Some((row, col)) = self.grids.current().map(|g| g.get_cursor()) {
 
-        let (x, y, width, height) =
-            ModelRect::point(col, row).to_area(self.render_state.borrow().font_ctx.cell_metrics());
+            let (x, y, width, height) = ModelRect::point(col, row)
+                .to_area(self.render_state.borrow().font_ctx.cell_metrics());
 
-        self.im_context.set_cursor_location(&gdk::Rectangle {
-            x,
-            y,
-            width,
-            height,
-        });
+            self.im_context.set_cursor_location(&gdk::Rectangle {
+                x,
+                y,
+                width,
+                height,
+            });
 
-        self.im_context.reset();
+            self.im_context.reset();
+        }
     }
 
     fn try_nvim_resize(&mut self) {
@@ -945,8 +943,8 @@ fn gtk_focus_in(state: &mut State) -> Inhibit {
 
     state.im_context.focus_in();
     state.cursor.as_mut().unwrap().enter_focus();
-    let point = state.grids.current().cur_point();
-    state.on_redraw(&RepaintMode::Area(point));
+    state.queue_redraw_cursor();
+
     Inhibit(false)
 }
 
@@ -959,8 +957,7 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
 
     state.im_context.focus_out();
     state.cursor.as_mut().unwrap().leave_focus();
-    let point = state.grids.current().cur_point();
-    state.on_redraw(&RepaintMode::Area(point));
+    state.queue_redraw_cursor();
 
     Inhibit(false)
 }
@@ -1087,7 +1084,7 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
         ctx,
         state.cursor.as_ref().unwrap(),
         &render_state.font_ctx,
-        state.grids.current_model(),
+        state.grids.current_model().unwrap(),
         &render_state.hl,
         state.transparency_settings.filled_alpha(),
     );
@@ -1368,13 +1365,21 @@ impl State {
         RepaintMode::Nothing
     }
 
-    pub fn default_colors_set(&mut self, fg: u64, bg: u64, sp: u64) -> RepaintMode {
+    pub fn default_colors_set(&mut self, fg: i64, bg: i64, sp: i64) -> RepaintMode {
         self.render_state.borrow_mut().hl.set_defaults(
-            Color::from_indexed_color(fg),
-            Color::from_indexed_color(bg),
-            Color::from_indexed_color(sp),
+            Color::from_indexed_color(fg as u64),
+            Color::from_indexed_color(bg as u64),
+            Color::from_indexed_color(sp as u64),
         );
         RepaintMode::All
+    }
+
+    fn cur_point_area(&self) -> RepaintMode {
+        if let Some(cur_point) = self.grids.current().map(|g| g.cur_point()) {
+            RepaintMode::Area(cur_point)
+        } else {
+            RepaintMode::Nothing
+        }
     }
 
     pub fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode {
@@ -1386,7 +1391,8 @@ impl State {
             .set_mode_info(render_state.mode.mode_info().cloned());
         self.cmd_line
             .set_mode_info(render_state.mode.mode_info().cloned());
-        RepaintMode::Area(self.grids.current().cur_point())
+
+        self.cur_point_area()
     }
 
     pub fn on_mouse(&mut self, on: bool) -> RepaintMode {
@@ -1400,7 +1406,8 @@ impl State {
         } else {
             self.cursor.as_mut().unwrap().busy_off();
         }
-        RepaintMode::Area(self.grids.current().cur_point())
+
+        self.cur_point_area()
     }
 
     pub fn popupmenu_show(
@@ -1487,7 +1494,7 @@ impl State {
         level: u64,
     ) -> RepaintMode {
         {
-            let cursor = self.grids.current().cur_point();
+            let cursor = self.grids.current().unwrap().cur_point();
             let render_state = self.render_state.borrow();
             let (x, y, width, height) = cursor.to_area(render_state.font_ctx.cell_metrics());
             let ctx = CmdLineContext {
@@ -1569,7 +1576,8 @@ impl State {
 
 impl CursorRedrawCb for State {
     fn queue_redraw_cursor(&mut self) {
-        let cur_point = self.grids.current().cur_point();
-        self.on_redraw(&RepaintMode::Area(cur_point));
+        if let Some(cur_point) = self.grids.current().map(|g| g.cur_point()) {
+            self.on_redraw(&RepaintMode::Area(cur_point));
+        }
     }
 }

@@ -95,7 +95,12 @@ impl ModelRect {
     }
 
     /// Extend rect to left and right to make changed Item rerendered
-    pub fn extend_by_items(&mut self, model: &UiModel) {
+    pub fn extend_by_items(&mut self, model: Option<&UiModel>) {
+        if model.is_none() {
+            return;
+        }
+        let model = model.unwrap();
+
         let mut left = self.left;
         let mut right = self.right;
 
@@ -139,7 +144,7 @@ impl ModelRect {
 
     pub fn to_area_extend_ink(
         &self,
-        model: &UiModel,
+        model: Option<&UiModel>,
         cell_metrics: &CellMetrics,
     ) -> (i32, i32, i32, i32) {
         let (x, x2) = self.extend_left_right_area(model, cell_metrics);
@@ -148,9 +153,15 @@ impl ModelRect {
         (x, y, x2 - x, y2 - y)
     }
 
-    fn extend_left_right_area(&self, model: &UiModel, cell_metrics: &CellMetrics) -> (i32, i32) {
+    fn extend_left_right_area(&self, model: Option<&UiModel>, cell_metrics: &CellMetrics) -> (i32, i32) {
         let x = self.left as i32 * cell_metrics.char_width as i32;
         let x2 = (self.right + 1) as i32 * cell_metrics.char_width as i32;
+
+        if model.is_none() {
+            return (x, x2);
+        }
+        let model = model.unwrap();
+
         let mut min_x_offset = 0.0;
         let mut max_x_offset = 0.0;
 
@@ -191,9 +202,15 @@ impl ModelRect {
         )
     }
 
-    fn extend_top_bottom_area(&self, model: &UiModel, cell_metrics: &CellMetrics) -> (i32, i32) {
+    fn extend_top_bottom_area(&self, model: Option<&UiModel>, cell_metrics: &CellMetrics) -> (i32, i32) {
         let y = self.top as i32 * cell_metrics.line_height as i32;
         let y2 = (self.bot + 1) as i32 * cell_metrics.line_height as i32;
+
+        if model.is_none() {
+            return (y, y2);
+        }
+        let model = model.unwrap();
+
         let mut min_y_offset = 0.0;
         let mut max_y_offset = 0.0;
 
