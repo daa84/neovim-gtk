@@ -424,7 +424,7 @@ mod tests {
 
         let styled_line = StyledLine::from(
             &line,
-            &color::ColorModel::new(),
+            &HighlightMap::new(),
             &render::FontFeatures::new(),
         );
         assert_eq!("abc", styled_line.line_str);

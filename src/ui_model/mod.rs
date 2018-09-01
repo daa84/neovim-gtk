@@ -108,29 +108,6 @@ impl UiModel {
         }
     }
 
-    //    pub fn put(&mut self, ch: &str, double_width: bool, attrs: Option<&Attrs>) -> ModelRect {
-    //        let mut changed_region = self.cur_point();
-    //        let line = &mut self.model[self.cur_row];
-    //        line.dirty_line = true;
-    //
-    //        let cell = &mut line[self.cur_col];
-    //
-    //        cell.ch.clear();
-    //        cell.ch.push_str(ch);
-    //
-    //        cell.attrs = attrs.map(Attrs::clone).unwrap_or_else(Attrs::new);
-    //        cell.attrs.double_width = double_width;
-    //        cell.dirty = true;
-    //        self.cur_col += 1;
-    //        if self.cur_col >= self.columns {
-    //            self.cur_col -= 1;
-    //        }
-    //
-    //        changed_region.join(&ModelRect::point(self.cur_col, self.cur_row));
-    //
-    //        changed_region
-    //    }
-
     /// Copy rows from 0 to to_row, col from 0 self.columns
     ///
     /// Don't do any validation!
@@ -286,40 +263,10 @@ mod tests {
     }
 
     #[test]
-    fn test_eol_clear_area() {
-        let mut model = UiModel::new(10, 20);
-
-        model.set_cursor(1, 2);
-
-        let rect = model.eol_clear();
-
-        assert_eq!(1, rect.top);
-        assert_eq!(2, rect.left);
-        assert_eq!(1, rect.bot);
-        assert_eq!(19, rect.right);
-    }
-
-    #[test]
-    fn test_put_area() {
-        let mut model = UiModel::new(10, 20);
-
-        model.set_cursor(1, 1);
-
-        let rect = model.put(" ", false, None);
-
-        assert_eq!(1, rect.top);
-        assert_eq!(1, rect.left);
-        assert_eq!(1, rect.bot);
-        assert_eq!(2, rect.right);
-    }
-
-    #[test]
     fn test_scroll_area() {
         let mut model = UiModel::new(10, 20);
 
-        model.set_scroll_region(1, 5, 1, 5);
-
-        let rect = model.scroll(3);
+        let rect = model.scroll(1, 5, 1, 5, 3, &Rc::new(Highlight::new()));
 
         assert_eq!(1, rect.top);
         assert_eq!(1, rect.left);
