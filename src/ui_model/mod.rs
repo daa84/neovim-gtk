@@ -164,11 +164,11 @@ impl UiModel {
 
     pub fn scroll(&mut self, top: i64, bot: i64, left: usize, right: usize, count: i64, default_hl: &Rc<Highlight>) -> ModelRect {
         if count > 0 {
-            for row in top..(bot - count) {
+            for row in top..(bot - count + 1) {
                 self.swap_row(row, count, left, right);
             }
         } else {
-            for row in ((top - count)..(bot)).rev() {
+            for row in ((top - count)..(bot + 1)).rev() {
                 self.swap_row(row, count, left, right);
             }
         }
@@ -188,7 +188,7 @@ impl UiModel {
     }
 
     fn clear_region(&mut self, top: usize, bot: usize, left: usize, right: usize, default_hl: &Rc<Highlight>) {
-        for row in &mut self.model[top..bot] {
+        for row in &mut self.model[top..bot + 1] {
             row.clear(left, right, default_hl);
         }
     }

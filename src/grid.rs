@@ -143,6 +143,6 @@ impl Grid {
         default_hl: &Rc<Highlight>,
     ) -> ModelRect {
         self.model
-            .scroll(top as i64, bot as i64, left as usize, right as usize, rows, default_hl)
+            .scroll(top as i64, bot as i64 - 1, left as usize, right as usize - 1 , rows, default_hl)
     }
 }
