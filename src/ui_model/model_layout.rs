@@ -145,6 +145,7 @@ impl ModelLayout {
                     );
                 }
             }
+            col_idx = 0;
             row_idx += 1;
         }
 
