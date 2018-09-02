@@ -1361,7 +1361,6 @@ impl State {
         rgb_attr: HashMap<String, Value>,
         _: &Value,
     ) -> RepaintMode {
-        println!("hl_define: {}", id);
         self.render_state.borrow_mut().hl.set(id, &rgb_attr);
         RepaintMode::Nothing
     }
