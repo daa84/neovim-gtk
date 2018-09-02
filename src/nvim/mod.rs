@@ -157,6 +157,7 @@ pub fn post_start_init(
                 .set_popupmenu_external(true)
                 .set_tabline_external(true)
                 .set_newgrid_external(true)
+                .set_hlstate_external(true)
         )
         .map_err(NvimInitError::new_post_init)?;
 

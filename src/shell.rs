@@ -1311,13 +1311,6 @@ impl State {
         debug!("on_resize {}/{}", columns, rows);
 
         self.grids.get_or_create(grid).resize(columns, rows);
-
-        // TODO: does it work here?
-        // rewrite using new hl api
-        if let Some(mut nvim) = self.nvim.nvim() {
-            let mut render_state = self.render_state.borrow_mut();
-            render_state.hl.theme.queue_update(&mut *nvim);
-        }
         RepaintMode::Nothing
     }
 
@@ -1360,8 +1353,9 @@ impl State {
         id: u64,
         rgb_attr: HashMap<String, Value>,
         _: &Value,
+        info: Vec<HashMap<String, Value>>,
     ) -> RepaintMode {
-        self.render_state.borrow_mut().hl.set(id, &rgb_attr);
+        self.render_state.borrow_mut().hl.set(id, &rgb_attr, &info);
         RepaintMode::Nothing
     }
 

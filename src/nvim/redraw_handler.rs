@@ -222,7 +222,7 @@ pub fn call(
         "grid_scroll" => call!(ui->grid_scroll(args: uint, uint, uint, uint, uint, int, int)),
         "grid_resize" => call!(ui->grid_resize(args: uint, uint, uint)),
         "default_colors_set" => call!(ui->default_colors_set(args: int, int, int)),
-        "hl_attr_define" => call!(ui->hl_attr_define(args: uint, ext, val_ref)),
+        "hl_attr_define" => call!(ui->hl_attr_define(args: uint, ext, val_ref, ext)),
         "mode_change" => call!(ui->on_mode_change(args: str, uint)),
         "mouse_on" => ui.on_mouse(true),
         "mouse_off" => ui.on_mouse(false),

@@ -44,7 +44,6 @@ mod color;
 mod dirs;
 mod mode;
 mod nvim_config;
-mod theme;
 mod ui_model;
 mod value;
 #[macro_use]

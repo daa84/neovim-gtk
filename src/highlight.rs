@@ -4,7 +4,6 @@ use std::rc::Rc;
 use fnv::FnvHashMap;
 
 use ui_model::Cell;
-use theme::Theme;
 use color::*;
 use neovim_lib::Value;
 
@@ -14,18 +13,26 @@ pub struct HighlightMap {
     pub bg_color: Color,
     pub fg_color: Color,
     sp_color: Color,
-    pub theme: Theme,
+
+    pmenu: Rc<Highlight>,
+    pmenu_sel: Rc<Highlight>,
+    cursor: Rc<Highlight>,
 }
 
 impl HighlightMap {
     pub fn new() -> Self {
+        let default_hl = Rc::new(Highlight::new());
         HighlightMap {
-            default_hl: Rc::new(Highlight::new()),
             highlights: FnvHashMap::default(),
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
             sp_color: COLOR_RED,
-            theme: Theme::new(),
+
+            pmenu: default_hl.clone(),
+            pmenu_sel: default_hl.clone(),
+            cursor: default_hl.clone(),
+
+            default_hl,
         }
     }
 
@@ -52,9 +59,20 @@ impl HighlightMap {
         self.highlights.remove(&idx);
     }
 
-    pub fn set(&mut self, idx: u64, hl: &HashMap<String, Value>) {
+    pub fn set(&mut self, idx: u64, hl: &HashMap<String, Value>, info: &Vec<HashMap<String, Value>>) {
+        let hl = Rc::new(Highlight::from_value_map(&hl));
+
+        for item in info {
+            match item.get("hi_name").and_then(Value::as_str) {
+                Some("Pmenu") => self.pmenu = hl.clone(),
+                Some("PmenuSel") => self.pmenu_sel = hl.clone(),
+                Some("Cursor") => self.cursor = hl.clone(),
+                _ => (),
+            }
+        }
+
         self.remove(idx);
-        self.highlights.insert(idx, Rc::new(Highlight::from_value_map(&hl)));
+        self.highlights.insert(idx, hl);
     }
 
     pub fn cell_fg<'a>(&'a self, cell: &'a Cell) -> Option<&'a Color> {
@@ -86,44 +104,44 @@ impl HighlightMap {
         cell.hl.special.as_ref().unwrap_or(&self.sp_color)
     }
 
-    pub fn pmenu_bg<'a>(&'a self) -> Color {
-        self.theme
-            .pmenu()
-            .bg
-            .clone()
-            .unwrap_or_else(|| self.bg_color.clone())
+    pub fn pmenu_bg(&self) -> &Color {
+        if !self.pmenu.reverse {
+            self.pmenu.background.as_ref().unwrap_or(&self.bg_color)
+        } else {
+            self.pmenu.foreground.as_ref().unwrap_or(&self.fg_color)
+        }
     }
 
-    pub fn pmenu_fg(&self) -> Color {
-        self.theme
-            .pmenu()
-            .fg
-            .clone()
-            .unwrap_or_else(|| self.fg_color.clone())
+    pub fn pmenu_fg(&self) -> &Color {
+        if !self.pmenu.reverse {
+            self.pmenu.foreground.as_ref().unwrap_or(&self.fg_color)
+        } else {
+            self.pmenu.background.as_ref().unwrap_or(&self.bg_color)
+        }
     }
 
-    pub fn pmenu_bg_sel(&self) -> Color {
-        self.theme
-            .pmenu()
-            .bg_sel
-            .clone()
-            .unwrap_or_else(|| self.bg_color.clone())
+    pub fn pmenu_bg_sel(&self) -> &Color {
+        if !self.pmenu_sel.reverse {
+            self.pmenu_sel.background.as_ref().unwrap_or(&self.bg_color)
+        } else {
+            self.pmenu_sel.foreground.as_ref().unwrap_or(&self.fg_color)
+        }
     }
 
-    pub fn pmenu_fg_sel(&self) -> Color {
-        self.theme
-            .pmenu()
-            .fg_sel
-            .clone()
-            .unwrap_or_else(|| self.fg_color.clone())
+    pub fn pmenu_fg_sel(&self) -> &Color {
+        if !self.pmenu_sel.reverse {
+            self.pmenu_sel.foreground.as_ref().unwrap_or(&self.fg_color)
+        } else {
+            self.pmenu_sel.background.as_ref().unwrap_or(&self.bg_color)
+        }
     }
 
-    pub fn cursor_bg(&self) -> Color {
-        self.theme
-            .cursor()
-            .bg
-            .clone()
-            .unwrap_or_else(|| self.fg_color.clone())
+    pub fn cursor_bg(&self) -> &Color {
+        if !self.cursor.reverse {
+            self.cursor.background.as_ref().unwrap_or(&self.bg_color)
+        } else {
+            self.cursor.foreground.as_ref().unwrap_or(&self.fg_color)
+        }
     }
 }
 

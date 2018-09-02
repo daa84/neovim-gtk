@@ -9,8 +9,8 @@ pub const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);
 pub const COLOR_WHITE: Color = Color(1.0, 1.0, 1.0);
 pub const COLOR_RED: Color = Color(1.0, 0.0, 0.0);
 
-impl From<Color> for gdk::RGBA {
-    fn from(color: Color) -> Self {
+impl <'a> From<&'a Color> for gdk::RGBA {
+    fn from(color: &Color) -> Self {
         gdk::RGBA {
             red: color.0,
             green: color.1,
