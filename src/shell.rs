@@ -45,7 +45,7 @@ use tabline::Tabline;
 use ui::UiMutex;
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
-pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.2.2";
+pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.3.2";
 
 macro_rules! idle_cb_call {
     ($state:ident.$cb:ident($( $x:expr ),*)) => (
