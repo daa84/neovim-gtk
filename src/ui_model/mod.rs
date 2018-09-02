@@ -104,6 +104,7 @@ impl UiModel {
             cell.ch.push_str(ch);
             cell.hl = hl.clone();
             cell.double_width = double_width;
+            cell.dirty = true;
         }
     }
 
