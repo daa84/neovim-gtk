@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use fnv::FnvHashMap;
+
 use ui_model::Cell;
 use theme::Theme;
 use color::*;
 use neovim_lib::Value;
 
 pub struct HighlightMap {
-    highlights: HashMap<u64, Rc<Highlight>>,
+    highlights: FnvHashMap<u64, Rc<Highlight>>,
     default_hl: Rc<Highlight>,
     pub bg_color: Color,
     pub fg_color: Color,
@@ -19,7 +21,7 @@ impl HighlightMap {
     pub fn new() -> Self {
         HighlightMap {
             default_hl: Rc::new(Highlight::new()),
-            highlights: HashMap::new(),
+            highlights: FnvHashMap::default(),
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
             sp_color: COLOR_RED,

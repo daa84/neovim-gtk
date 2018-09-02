@@ -1,5 +1,6 @@
 #![windows_subsystem = "windows"]
 
+extern crate fnv;
 extern crate cairo;
 extern crate env_logger;
 extern crate gdk;

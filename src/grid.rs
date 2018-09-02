@@ -1,6 +1,7 @@
-use std::collections::HashMap;
 use std::ops::{Index, IndexMut};
 use std::rc::Rc;
+
+use fnv::FnvHashMap;
 
 use neovim_lib::Value;
 
@@ -10,7 +11,7 @@ use ui_model::{ModelRect, ModelRectVec, UiModel};
 const DEFAULT_GRID: u64 = 1;
 
 pub struct GridMap {
-    grids: HashMap<u64, Grid>,
+    grids: FnvHashMap<u64, Grid>,
 }
 
 impl Index<u64> for GridMap {
@@ -30,7 +31,7 @@ impl IndexMut<u64> for GridMap {
 impl GridMap {
     pub fn new() -> Self {
         GridMap {
-            grids: HashMap::new(),
+            grids: FnvHashMap::default(),
         }
     }
 
