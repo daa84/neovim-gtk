@@ -202,12 +202,16 @@ mod tests {
         let mut model = ModelLayout::new(5);
 
         model.layout(lines);
+        // cursor is not moved by newgrid api
+        // so set it manual
+        model.set_cursor(3);
         let (cols, _) = model.size();
         assert_eq!(4, cols); // size is 3 and 4 - is with cursor position
 
         let lines = vec![vec![(None, vec!["a".to_owned(); 2])]; 1];
 
         model.layout_append(lines);
+        model.set_cursor(2);
         let (cols, _) = model.size();
         assert_eq!(3, cols);
     }

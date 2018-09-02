@@ -1486,7 +1486,7 @@ impl State {
 
     pub fn cmdline_show(
         &mut self,
-        content: Vec<(HashMap<String, Value>, String)>,
+        content: Vec<(u64, String)>,
         pos: u64,
         firstc: String,
         prompt: String,
@@ -1525,7 +1525,7 @@ impl State {
 
     pub fn cmdline_block_show(
         &mut self,
-        content: Vec<Vec<(HashMap<String, Value>, String)>>,
+        content: Vec<Vec<(u64, String)>>,
     ) -> RepaintMode {
         let max_width = self.max_popup_width();
         self.cmd_line.show_block(&content, max_width);
@@ -1534,7 +1534,7 @@ impl State {
 
     pub fn cmdline_block_append(
         &mut self,
-        content: Vec<(HashMap<String, Value>, String)>,
+        content: Vec<(u64, String)>,
     ) -> RepaintMode {
         self.cmd_line.block_append(&content);
         RepaintMode::Nothing

@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::cmp::{max, min};
-use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -11,8 +10,6 @@ use gtk::prelude::*;
 use pango;
 
 use unicode_segmentation::UnicodeSegmentation;
-
-use neovim_lib::Value;
 
 use cursor;
 use mode;
@@ -82,7 +79,7 @@ impl Level {
     }
 
     pub fn from_multiline_content(
-        content: &Vec<Vec<(HashMap<String, Value>, String)>>,
+        content: &Vec<Vec<(u64, String)>>,
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
@@ -414,7 +411,7 @@ impl CmdLine {
 
     pub fn show_block(
         &mut self,
-        content: &Vec<Vec<(HashMap<String, Value>, String)>>,
+        content: &Vec<Vec<(u64, String)>>,
         max_width: i32,
     ) {
         let mut state = self.state.borrow_mut();
@@ -425,7 +422,7 @@ impl CmdLine {
         state.request_area_size();
     }
 
-    pub fn block_append(&mut self, content: &Vec<(HashMap<String, Value>, String)>) {
+    pub fn block_append(&mut self, content: &Vec<(u64, String)>) {
         let mut state = self.state.borrow_mut();
         let render_state = state.render_state.clone();
         {
@@ -567,7 +564,7 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
 
 pub struct CmdLineContext<'a> {
     pub nvim: &'a Rc<NeovimClient>,
-    pub content: Vec<(HashMap<String, Value>, String)>,
+    pub content: Vec<(u64, String)>,
     pub pos: u64,
     pub firstc: String,
     pub prompt: String,
@@ -611,7 +608,7 @@ trait ToAttributedModelContent {
     fn to_attributed_content(&self) -> Vec<Vec<(Option<Highlight>, Vec<String>)>>;
 }
 
-impl ToAttributedModelContent for Vec<Vec<(HashMap<String, Value>, String)>> {
+impl ToAttributedModelContent for Vec<Vec<(u64, String)>> {
     fn to_attributed_content(&self) -> Vec<Vec<(Option<Highlight>, Vec<String>)>> {
         self.iter()
             .map(|line_chars| {
@@ -619,7 +616,9 @@ impl ToAttributedModelContent for Vec<Vec<(HashMap<String, Value>, String)>> {
                     .iter()
                     .map(|c| {
                         (
-                            Some(Highlight::from_value_map(&c.0)),
+                            //TODO: use map here
+                            Some(Highlight::new()),
+                            //Some(Highlight::from_value_map(&c.0)),
                             c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                         )
                     })
@@ -629,13 +628,14 @@ impl ToAttributedModelContent for Vec<Vec<(HashMap<String, Value>, String)>> {
     }
 }
 
-impl ToAttributedModelContent for Vec<(HashMap<String, Value>, String)> {
+impl ToAttributedModelContent for Vec<(u64, String)> {
     fn to_attributed_content(&self) -> Vec<Vec<(Option<Highlight>, Vec<String>)>> {
         vec![
             self.iter()
                 .map(|c| {
                     (
-                        Some(Highlight::from_value_map(&c.0)),
+                        Some(Highlight::new()),
+                        //Some(Highlight::from_value_map(&c.0)),
                         c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                     )
                 })
