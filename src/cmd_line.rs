@@ -12,6 +12,7 @@ use pango;
 use unicode_segmentation::UnicodeSegmentation;
 
 use cursor;
+use highlight::{Highlight, HighlightMap};
 use mode;
 use nvim::{self, NeovimClient};
 use popup_menu;
@@ -19,7 +20,6 @@ use render::{self, CellMetrics};
 use shell;
 use ui::UiMutex;
 use ui_model::ModelLayout;
-use highlight::Highlight;
 
 pub struct Level {
     model_layout: ModelLayout,
@@ -30,12 +30,12 @@ pub struct Level {
 
 impl Level {
     pub fn insert(&mut self, c: String, shift: bool, render_state: &shell::RenderState) {
-        self.model_layout.insert_char(c, shift);
+        self.model_layout.insert_char(c, shift, render_state.hl.default_hl());
         self.update_preferred_size(render_state);
     }
 
     pub fn replace_from_ctx(&mut self, ctx: &CmdLineContext, render_state: &shell::RenderState) {
-        let content = ctx.get_lines();
+        let content = ctx.get_lines(&render_state.hl);
         self.replace_line(content.lines, false);
         self.prompt_offset = content.prompt_offset;
         self.model_layout
@@ -44,7 +44,7 @@ impl Level {
     }
 
     pub fn from_ctx(ctx: &CmdLineContext, render_state: &shell::RenderState) -> Self {
-        let content = ctx.get_lines();
+        let content = ctx.get_lines(&render_state.hl);
         let mut level = Level::from_lines(content.lines, ctx.max_width, render_state);
 
         level.prompt_offset = content.prompt_offset;
@@ -56,7 +56,7 @@ impl Level {
         level
     }
 
-    fn replace_line(&mut self, lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>, append: bool) {
+    fn replace_line(&mut self, lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>, append: bool) {
         if append {
             self.model_layout.layout_append(lines);
         } else {
@@ -83,11 +83,12 @@ impl Level {
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
-        Level::from_lines(content.to_attributed_content(), max_width, render_state)
+        let lines = content.to_attributed_content(&render_state.hl);
+        Level::from_lines(lines, max_width, render_state)
     }
 
     pub fn from_lines(
-        lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>,
+        lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>,
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
@@ -127,13 +128,14 @@ fn prompt_lines(
     firstc: &str,
     prompt: &str,
     indent: u64,
-) -> (usize, Vec<(Option<Highlight>, Vec<String>)>) {
-    let prompt: Vec<(Option<Highlight>, Vec<String>)> = if !firstc.is_empty() {
+    hl: &HighlightMap,
+) -> (usize, Vec<(Rc<Highlight>, Vec<String>)>) {
+    let prompt: Vec<(Rc<Highlight>, Vec<String>)> = if !firstc.is_empty() {
         if firstc.len() >= indent as usize {
-            vec![(None, vec![firstc.to_owned()])]
+            vec![(hl.default_hl(), vec![firstc.to_owned()])]
         } else {
             vec![(
-                None,
+                hl.default_hl(),
                 iter::once(firstc.to_owned())
                     .chain((firstc.len()..indent as usize).map(|_| " ".to_owned()))
                     .collect(),
@@ -142,7 +144,12 @@ fn prompt_lines(
     } else if !prompt.is_empty() {
         prompt
             .lines()
-            .map(|l| (None, l.graphemes(true).map(|g| g.to_owned()).collect()))
+            .map(|l| {
+                (
+                    hl.default_hl(),
+                    l.graphemes(true).map(|g| g.to_owned()).collect(),
+                )
+            })
             .collect()
     } else {
         vec![]
@@ -215,7 +222,8 @@ impl State {
             let block_preferred_height =
                 self.block.as_ref().map(|b| b.preferred_height).unwrap_or(0);
 
-            let gap = self.drawing_area.get_allocated_height() - level_preferred_height
+            let gap = self.drawing_area.get_allocated_height()
+                - level_preferred_height
                 - block_preferred_height;
 
             let model = &level.model_layout.model;
@@ -409,11 +417,7 @@ impl CmdLine {
         }
     }
 
-    pub fn show_block(
-        &mut self,
-        content: &Vec<Vec<(u64, String)>>,
-        max_width: i32,
-    ) {
+    pub fn show_block(&mut self, content: &Vec<Vec<(u64, String)>>, max_width: i32) {
         let mut state = self.state.borrow_mut();
         let mut block =
             Level::from_multiline_content(content, max_width, &*state.render_state.borrow());
@@ -426,7 +430,7 @@ impl CmdLine {
         let mut state = self.state.borrow_mut();
         let render_state = state.render_state.clone();
         {
-            let attr_content = content.to_attributed_content();
+            let attr_content = content.to_attributed_content(&render_state.borrow().hl);
 
             let block = state.block.as_mut().unwrap();
             block.replace_line(attr_content, true);
@@ -578,9 +582,10 @@ pub struct CmdLineContext<'a> {
 }
 
 impl<'a> CmdLineContext<'a> {
-    fn get_lines(&self) -> LineContent {
-        let mut content_line = self.content.to_attributed_content();
-        let (prompt_offset, prompt_lines) = prompt_lines(&self.firstc, &self.prompt, self.indent);
+    fn get_lines(&self, hl: &HighlightMap) -> LineContent {
+        let mut content_line = self.content.to_attributed_content(hl);
+        let (prompt_offset, prompt_lines) =
+            prompt_lines(&self.firstc, &self.prompt, self.indent, hl);
 
         let mut content: Vec<_> = prompt_lines.into_iter().map(|line| vec![line]).collect();
 
@@ -600,25 +605,23 @@ impl<'a> CmdLineContext<'a> {
 }
 
 struct LineContent {
-    lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>,
+    lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>,
     prompt_offset: usize,
 }
 
 trait ToAttributedModelContent {
-    fn to_attributed_content(&self) -> Vec<Vec<(Option<Highlight>, Vec<String>)>>;
+    fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<Vec<(Rc<Highlight>, Vec<String>)>>;
 }
 
 impl ToAttributedModelContent for Vec<Vec<(u64, String)>> {
-    fn to_attributed_content(&self) -> Vec<Vec<(Option<Highlight>, Vec<String>)>> {
+    fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<Vec<(Rc<Highlight>, Vec<String>)>> {
         self.iter()
             .map(|line_chars| {
                 line_chars
                     .iter()
                     .map(|c| {
                         (
-                            //TODO: use map here
-                            Some(Highlight::new()),
-                            //Some(Highlight::from_value_map(&c.0)),
+                            hl.get(c.0),
                             c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                         )
                     })
@@ -629,13 +632,12 @@ impl ToAttributedModelContent for Vec<Vec<(u64, String)>> {
 }
 
 impl ToAttributedModelContent for Vec<(u64, String)> {
-    fn to_attributed_content(&self) -> Vec<Vec<(Option<Highlight>, Vec<String>)>> {
+    fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<Vec<(Rc<Highlight>, Vec<String>)>> {
         vec![
             self.iter()
                 .map(|c| {
                     (
-                        Some(Highlight::new()),
-                        //Some(Highlight::from_value_map(&c.0)),
+                        hl.get(c.0),
                         c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                     )
                 })

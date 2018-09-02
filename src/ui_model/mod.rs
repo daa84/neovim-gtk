@@ -82,8 +82,7 @@ impl UiModel {
         (self.cur_row, self.cur_col)
     }
 
-    pub fn put_one(&mut self, row: usize, col: usize, ch: &str, double_width: bool, hl: Option<&Highlight>) {
-        let hl = hl.map(|hl| Rc::new(hl.clone())).unwrap_or_else(|| Rc::new(Highlight::new()));
+    pub fn put_one(&mut self, row: usize, col: usize, ch: &str, double_width: bool, hl: Rc<Highlight>) {
         self.put(row, col, ch, double_width, 1, hl);
     }
 

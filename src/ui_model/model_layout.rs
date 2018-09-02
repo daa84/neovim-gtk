@@ -10,7 +10,7 @@ pub struct ModelLayout {
     pub model: UiModel,
     rows_filled: usize,
     cols_filled: usize,
-    lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>,
+    lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>,
 }
 
 impl ModelLayout {
@@ -25,7 +25,7 @@ impl ModelLayout {
         }
     }
 
-    pub fn layout_append(&mut self, mut lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>) {
+    pub fn layout_append(&mut self, mut lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>) {
         let rows_filled = self.rows_filled;
         let take_from = self.lines.len();
 
@@ -34,7 +34,7 @@ impl ModelLayout {
         self.layout_replace(rows_filled, take_from);
     }
 
-    pub fn layout(&mut self, lines: Vec<Vec<(Option<Highlight>, Vec<String>)>>) {
+    pub fn layout(&mut self, lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>) {
         self.lines = lines;
         self.layout_replace(0, 0);
     }
@@ -69,7 +69,7 @@ impl ModelLayout {
         }
     }
 
-    pub fn insert_char(&mut self, ch: String, shift: bool) {
+    pub fn insert_char(&mut self, ch: String, shift: bool, hl: Rc<Highlight>) {
         if ch.is_empty() {
             return;
         }
@@ -80,7 +80,7 @@ impl ModelLayout {
             self.insert_into_lines(ch);
             self.layout_replace(0, 0);
         } else {
-            self.model.put_one(row, col, &ch, false, None);
+            self.model.put_one(row, col, &ch, false, hl);
         }
     }
 
@@ -125,9 +125,9 @@ impl ModelLayout {
                         row_idx += 1;
                     }
 
-                    self.model.put_one(row_idx, col_idx, ch, false, hl.as_ref());
+                    self.model.put_one(row_idx, col_idx, ch, false, hl.clone());
                     if ch_width > 1 {
-                        self.model.put_one(row_idx, col_idx, "", true, hl.as_ref());
+                        self.model.put_one(row_idx, col_idx, "", true, hl.clone());
                     }
 
                     if max_col_idx < col_idx {
@@ -155,7 +155,7 @@ impl ModelLayout {
         }
     }
 
-    fn count_lines(lines: &[Vec<(Option<Highlight>, Vec<String>)>], max_columns: usize) -> usize {
+    fn count_lines(lines: &[Vec<(Rc<Highlight>, Vec<String>)>], max_columns: usize) -> usize {
         let mut row_count = 0;
 
         for line in lines {
@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_count_lines() {
-        let lines = vec![vec![(None, vec!["a".to_owned(); 5])]];
+        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 5])]];
 
         let rows = ModelLayout::count_lines(&lines, 4);
         assert_eq!(2, rows);
@@ -181,7 +181,10 @@ mod tests {
 
     #[test]
     fn test_resize() {
-        let lines = vec![vec![(None, vec!["a".to_owned(); 5])]; ModelLayout::ROWS_STEP];
+        let lines = vec![
+            vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 5])];
+            ModelLayout::ROWS_STEP
+        ];
         let mut model = ModelLayout::new(5);
 
         model.layout(lines.clone());
@@ -198,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_cols_filled() {
-        let lines = vec![vec![(None, vec!["a".to_owned(); 3])]; 1];
+        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 3])]; 1];
         let mut model = ModelLayout::new(5);
 
         model.layout(lines);
@@ -208,7 +211,7 @@ mod tests {
         let (cols, _) = model.size();
         assert_eq!(4, cols); // size is 3 and 4 - is with cursor position
 
-        let lines = vec![vec![(None, vec!["a".to_owned(); 2])]; 1];
+        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 2])]; 1];
 
         model.layout_append(lines);
         model.set_cursor(2);
@@ -218,12 +221,12 @@ mod tests {
 
     #[test]
     fn test_insert_shift() {
-        let lines = vec![vec![(None, vec!["a".to_owned(); 3])]; 1];
+        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 3])]; 1];
         let mut model = ModelLayout::new(5);
         model.layout(lines);
         model.set_cursor(1);
 
-        model.insert_char("b".to_owned(), true);
+        model.insert_char("b".to_owned(), true, Rc::new(Highlight::new()));
 
         let (cols, _) = model.size();
         assert_eq!(4, cols);
@@ -232,12 +235,12 @@ mod tests {
 
     #[test]
     fn test_insert_no_shift() {
-        let lines = vec![vec![(None, vec!["a".to_owned(); 3])]; 1];
+        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 3])]; 1];
         let mut model = ModelLayout::new(5);
         model.layout(lines);
         model.set_cursor(1);
 
-        model.insert_char("b".to_owned(), false);
+        model.insert_char("b".to_owned(), false, Rc::new(Highlight::new()));
 
         let (cols, _) = model.size();
         assert_eq!(3, cols);
@@ -246,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_double_width() {
-        let lines = vec![vec![(None, vec!["あ".to_owned(); 3])]; 1];
+        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["あ".to_owned(); 3])]; 1];
         let mut model = ModelLayout::new(7);
         model.layout(lines);
         model.set_cursor(1);
