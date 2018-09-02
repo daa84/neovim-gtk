@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::ops::{Index, IndexMut};
+use std::rc::Rc;
 
 use neovim_lib::Value;
 
-use highlight::{HighlightMap, Highlight};
+use highlight::{Highlight, HighlightMap};
 use ui_model::{ModelRect, ModelRectVec, UiModel};
 
 const DEFAULT_GRID: u64 = 1;
@@ -106,17 +106,13 @@ impl Grid {
         cells: Vec<Vec<Value>>,
         highlights: &HighlightMap,
     ) -> ModelRect {
-        let mut starting_hl = None;
+        let mut hl_id = None;
         let mut col_end = col_start;
 
         for cell in cells {
             let ch = cell.get(0).unwrap().as_str().unwrap_or("");
-            let hl_id = cell.get(1).and_then(|h| h.as_u64()).or(starting_hl);
+            hl_id = cell.get(1).and_then(|h| h.as_u64()).or(hl_id);
             let repeat = cell.get(2).and_then(|r| r.as_u64()).unwrap_or(1) as usize;
-
-            if starting_hl.is_none() {
-                starting_hl = hl_id;
-            }
 
             self.model.put(
                 row,
@@ -142,7 +138,13 @@ impl Grid {
         _: i64,
         default_hl: &Rc<Highlight>,
     ) -> ModelRect {
-        self.model
-            .scroll(top as i64, bot as i64 - 1, left as usize, right as usize - 1 , rows, default_hl)
+        self.model.scroll(
+            top as i64,
+            bot as i64 - 1,
+            left as usize,
+            right as usize - 1,
+            rows,
+            default_hl,
+        )
     }
 }

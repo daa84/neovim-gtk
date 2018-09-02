@@ -8,6 +8,7 @@ use neovim_lib::Value;
 
 pub struct HighlightMap {
     highlights: HashMap<u64, Rc<Highlight>>,
+    default_hl: Rc<Highlight>,
     pub bg_color: Color,
     pub fg_color: Color,
     sp_color: Color,
@@ -17,6 +18,7 @@ pub struct HighlightMap {
 impl HighlightMap {
     pub fn new() -> Self {
         HighlightMap {
+            default_hl: Rc::new(Highlight::new()),
             highlights: HashMap::new(),
             bg_color: COLOR_BLACK,
             fg_color: COLOR_WHITE,
@@ -44,7 +46,7 @@ impl HighlightMap {
             self.highlights
                 .get(&0)
                 .map(Rc::clone)
-                .unwrap_or_else(|| Rc::new(Highlight::new()))
+                .unwrap_or_else(|| self.default_hl.clone())
         })
     }
 
