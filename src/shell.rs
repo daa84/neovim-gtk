@@ -1266,9 +1266,6 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
 
         debug!("Init nvim {}/{}", cols, rows);
 
-        // [TODO]: is it need here?
-        // state.model = UiModel::new(rows as u64, cols as u64);
-
         let state_arc = state_ref.clone();
         let nvim_handler = NvimHandler::new(state_ref.clone());
         let options = state.options.take();
