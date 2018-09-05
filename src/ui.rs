@@ -167,6 +167,10 @@ impl Ui {
             .map(|opt| opt.trim() != "1")
             .unwrap_or(true);
 
+        if !use_header_bar {
+            window.set_decorated(false);
+        }
+
         if app.prefers_app_menu() || use_header_bar {
             self.create_main_menu(app, &window);
         }
