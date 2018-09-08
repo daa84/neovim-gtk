@@ -319,6 +319,14 @@ impl Ui {
                     warn!("Screen is not composited");
                 }
             }
+            NvimCommand::PreferDarkTheme(prefer_dark_theme) => {
+                let comps = comps.borrow();
+                let window = comps.window.as_ref().unwrap();
+
+                if let Some(settings) = window.get_settings() {
+                    settings.set_property_gtk_application_prefer_dark_theme(prefer_dark_theme);
+                }
+            }
         }
     }
 
