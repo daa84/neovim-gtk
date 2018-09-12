@@ -167,7 +167,11 @@ impl Ui {
             .map(|opt| opt.trim() != "1")
             .unwrap_or(true);
 
-        if !use_header_bar {
+        let disable_window_decoration = env::var("NVIM_GTK_NO_WINDOW_DECORATION")
+            .map(|opt| opt.trim() == "1")
+            .unwrap_or(false);
+
+        if disable_window_decoration {
             window.set_decorated(false);
         }
 
