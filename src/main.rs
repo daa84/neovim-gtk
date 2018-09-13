@@ -7,7 +7,6 @@ extern crate gdk_sys;
 extern crate gio;
 #[cfg(unix)]
 extern crate unix_daemonize;
-#[macro_use]
 extern crate glib;
 extern crate glib_sys as glib_ffi;
 extern crate gobject_sys as gobject_ffi;

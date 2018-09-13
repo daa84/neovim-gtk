@@ -226,12 +226,13 @@ pub fn shape_dirty(
                         let mut glyphs = pango::GlyphString::new();
                         {
                             let analysis = item.analysis();
-                            let (offset, length, _) = item.item.offset();
+                            let offset = item.item.offset() as usize;
+                            let length = item.item.length() as usize;
                             pango_shape(
                                 &styled_line.line_str,
                                 offset,
                                 length,
-                                &analysis,
+                                analysis,
                                 &mut glyphs,
                             );
                         }

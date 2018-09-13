@@ -2,7 +2,6 @@ use pango;
 use pango::prelude::*;
 
 use sys::pango as sys_pango;
-use sys::pango::AttrIteratorFactory;
 
 use super::itemize::ItemizeIterator;
 use ui_model::StyledLine;
@@ -36,18 +35,18 @@ impl Context {
         self.font_metrics = FontMetrix::new(pango_context, self.line_space);
     }
 
-    pub fn itemize(&self, line: &StyledLine) -> Vec<sys_pango::Item> {
-        let mut attr_iter = line.attr_list.get_iterator();
+    pub fn itemize(&self, line: &StyledLine) -> Vec<pango::Item> {
+        let attr_iter = line.attr_list.get_iterator();
 
         ItemizeIterator::new(&line.line_str)
             .flat_map(|(offset, len)| {
-                sys_pango::pango_itemize(
+                pango::itemize(
                     &self.font_metrics.pango_context,
                     &line.line_str,
-                    offset,
-                    len,
+                    offset as i32,
+                    len as i32,
                     &line.attr_list,
-                    Some(&mut attr_iter),
+                    attr_iter.as_ref(),
                 )
             })
             .collect()
