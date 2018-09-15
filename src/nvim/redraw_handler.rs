@@ -13,7 +13,7 @@ use rmpv;
 use value::ValueMapExt;
 
 use super::handler::NvimHandler;
-use super::repaint_mode::RepaintMode;
+use super::repaint_event::RepaintGridEvent;
 
 macro_rules! try_str {
     ($exp:expr) => {
@@ -222,7 +222,7 @@ pub fn call(
     ui: &mut shell::State,
     method: &str,
     args: Vec<Value>,
-) -> result::Result<RepaintMode, String> {
+) -> result::Result<RepaintGridEvent, String> {
     let repaint_mode = match method {
         "grid_line" => call!(ui->grid_line(args: uint, uint, uint, ext)),
         "grid_clear" => call!(ui->grid_clear(args: uint)),
@@ -287,7 +287,7 @@ pub fn call(
         "wildmenu_select" => call!(ui->wildmenu_select(args: int)),
         _ => {
             warn!("Event {}({:?})", method, args);
-            RepaintMode::Nothing
+            RepaintGridEvent::nothing()
         }
     };
 

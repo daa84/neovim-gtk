@@ -1,6 +1,8 @@
 use std::ops::{Index, IndexMut};
 use std::rc::Rc;
 
+use gtk::{self, prelude::*};
+
 use fnv::FnvHashMap;
 
 use neovim_lib::Value;
@@ -69,12 +71,14 @@ impl GridMap {
 
 pub struct Grid {
     model: UiModel,
+    drawing_area: gtk::DrawingArea,
 }
 
 impl Grid {
     pub fn new() -> Self {
         Grid {
             model: UiModel::empty(),
+            drawing_area: gtk::DrawingArea::new(),
         }
     }
 

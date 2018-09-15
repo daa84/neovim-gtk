@@ -26,7 +26,7 @@ use highlight::HighlightMap;
 use misc::{decode_uri, escape_filename};
 use nvim::{
     self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef, NvimHandler,
-    RepaintMode,
+    RepaintGridEvent, RepaintMode, RepaintEvent
 };
 use settings::{FontSource, Settings};
 use ui_model::ModelRect;
@@ -125,7 +125,6 @@ pub struct State {
     pub clipboard_primary: gtk::Clipboard,
 
     stack: gtk::Stack,
-    pub drawing_area: gtk::DrawingArea,
     tabs: Tabline,
     im_context: gtk::IMMulticontext,
     error_area: error::ErrorArea,
@@ -169,7 +168,6 @@ impl State {
 
             // UI
             stack: gtk::Stack::new(),
-            drawing_area,
             tabs: Tabline::new(),
             im_context: gtk::IMMulticontext::new(),
             error_area: error::ErrorArea::new(),
@@ -1281,37 +1279,41 @@ impl State {
         row: u64,
         col_start: u64,
         cells: Vec<Vec<Value>>,
-    ) -> RepaintMode {
+    ) -> RepaintGridEvent {
         let hl = &self.render_state.borrow().hl;
         let repaint_area = self.grids[grid].line(row as usize, col_start as usize, cells, hl);
-        RepaintMode::Area(repaint_area)
+
+        RepaintGridEvent::new(grid, RepaintMode::Area(repaint_area))
     }
 
-    pub fn grid_clear(&mut self, grid: u64) -> RepaintMode {
+    pub fn grid_clear(&mut self, grid: u64) -> RepaintGridEvent {
         let hl = &self.render_state.borrow().hl;
         self.grids[grid].clear(&hl.default_hl());
-        RepaintMode::All
+
+        RepaintGridEvent::new(grid, RepaintMode::All)
     }
 
-    pub fn grid_destroy(&mut self, grid: u64) -> RepaintMode {
+    pub fn grid_destroy(&mut self, grid: u64) -> RepaintGridEvent {
         self.grids.destroy(grid);
-        RepaintMode::All
+
+        RepaintGridEvent::new(grid, RepaintMode::All)
     }
 
-    pub fn grid_cursor_goto(&mut self, grid: u64, row: u64, column: u64) -> RepaintMode {
+    pub fn grid_cursor_goto(&mut self, grid: u64, row: u64, column: u64) -> RepaintGridEvent {
         let repaint_area = self.grids[grid].cursor_goto(row as usize, column as usize);
         self.set_im_location();
-        RepaintMode::AreaList(repaint_area)
+
+        RepaintGridEvent::new(grid, RepaintMode::AreaList(repaint_area))
     }
 
-    pub fn grid_resize(&mut self, grid: u64, columns: u64, rows: u64) -> RepaintMode {
+    pub fn grid_resize(&mut self, grid: u64, columns: u64, rows: u64) -> RepaintGridEvent {
         debug!("on_resize {}/{}", columns, rows);
 
         self.grids.get_or_create(grid).resize(columns, rows);
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
-    pub fn on_redraw(&mut self, mode: &RepaintMode) {
+    pub fn on_redraw(&mut self, event: &RepaintEvent) {
         match *mode {
             RepaintMode::All => {
                 self.update_dirty_glyphs();

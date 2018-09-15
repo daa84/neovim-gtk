@@ -1,4 +1,75 @@
+use fnv::FnvHashMap;
+
 use ui_model::{ModelRect, ModelRectVec};
+
+pub struct RepaintEvent {
+    events: FnvHashMap<u64, RepaintGridEvent>,
+    repaint_all: bool,
+}
+
+impl RepaintEvent {
+    pub fn new() -> Self {
+        RepaintEvent {
+            events: FnvHashMap::default(),
+            repaint_all: false,
+        }
+    }
+
+    pub fn join(&mut self, event: RepaintGridEvent) {
+        match event.mode {
+            RepaintMode::Nothing => return,
+            RepaintMode::All => {
+                if event.grid_id.is_none() {
+                    self.repaint_all = true;
+                    return;
+                }
+            }
+            _ => (),
+        }
+
+        if !self.repaint_all {
+            let grid_id = event.grid_id.unwrap();
+            if self.events.contains_key(&grid_id) {
+                let previsous_event = &mut self.events[&grid_id];
+                previsous_event.join(event);
+            } else {
+                self.events.insert(grid_id, event);
+            }
+        }
+    }
+}
+
+pub struct RepaintGridEvent {
+    grid_id: Option<u64>,
+    mode: RepaintMode,
+}
+
+impl RepaintGridEvent {
+    pub fn new(grid_id: u64, mode: RepaintMode) -> Self {
+        RepaintGridEvent {
+            grid_id: Some(grid_id),
+            mode,
+        }
+    }
+
+    pub fn all() -> Self {
+        RepaintGridEvent {
+            grid_id: None,
+            mode: RepaintMode::All,
+        }
+    }
+
+    pub fn nothing() -> Self {
+        RepaintGridEvent {
+            grid_id: None,
+            mode: RepaintMode::Nothing,
+        }
+    }
+
+    pub fn join(&mut self, event: RepaintGridEvent) {
+        self.mode.join(event.mode);
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum RepaintMode {
