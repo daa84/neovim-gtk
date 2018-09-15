@@ -167,6 +167,14 @@ impl Ui {
             .map(|opt| opt.trim() != "1")
             .unwrap_or(true);
 
+        let disable_window_decoration = env::var("NVIM_GTK_NO_WINDOW_DECORATION")
+            .map(|opt| opt.trim() == "1")
+            .unwrap_or(false);
+
+        if disable_window_decoration {
+            window.set_decorated(false);
+        }
+
         if app.prefers_app_menu() || use_header_bar {
             self.create_main_menu(app, &window);
         }
@@ -313,6 +321,14 @@ impl Ui {
                     window.set_app_paintable(enabled);
                 } else {
                     warn!("Screen is not composited");
+                }
+            }
+            NvimCommand::PreferDarkTheme(prefer_dark_theme) => {
+                let comps = comps.borrow();
+                let window = comps.window.as_ref().unwrap();
+
+                if let Some(settings) = window.get_settings() {
+                    settings.set_property_gtk_application_prefer_dark_theme(prefer_dark_theme);
                 }
             }
         }

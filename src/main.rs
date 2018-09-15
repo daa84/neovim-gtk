@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 extern crate fnv;
+extern crate dirs as env_dirs;
 extern crate cairo;
 extern crate env_logger;
 extern crate gdk;
@@ -8,7 +9,6 @@ extern crate gdk_sys;
 extern crate gio;
 #[cfg(unix)]
 extern crate unix_daemonize;
-#[macro_use]
 extern crate glib;
 extern crate glib_sys as glib_ffi;
 extern crate gobject_sys as gobject_ffi;

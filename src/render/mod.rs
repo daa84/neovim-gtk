@@ -10,7 +10,6 @@ use cairo;
 use color;
 use pango;
 use pangocairo;
-use sys::pango::*;
 use sys::pangocairo::*;
 
 use highlight::HighlightMap;
@@ -227,12 +226,11 @@ pub fn shape_dirty(
                         let mut glyphs = pango::GlyphString::new();
                         {
                             let analysis = item.analysis();
-                            let (offset, length, _) = item.item.offset();
-                            pango_shape(
-                                &styled_line.line_str,
-                                offset,
-                                length,
-                                &analysis,
+                            let offset = item.item.offset() as usize;
+                            let length = item.item.length() as usize;
+                            pango::shape(
+                                &styled_line.line_str[offset..offset + length],
+                                analysis,
                                 &mut glyphs,
                             );
                         }

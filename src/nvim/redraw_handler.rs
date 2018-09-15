@@ -113,6 +113,7 @@ macro_rules! call {
 pub enum NvimCommand {
     ToggleSidebar,
     Transparency(f64, f64),
+    PreferDarkTheme(bool),
 }
 
 pub fn call_gui_event(
@@ -165,6 +166,14 @@ pub fn call_gui_event(
                         .parse()
                         .map_err(|e: ParseFloatError| e.to_string())?,
                 )),
+                "PreferDarkTheme" => {
+                    let prefer_dark_theme = match try_str!(args.get(1).cloned().unwrap_or(Value::from("off"))) {
+                        "on" => true,
+                        _ => false,
+                    };
+
+                    ui.on_command(NvimCommand::PreferDarkTheme(prefer_dark_theme))
+                },
                 _ => error!("Unknown command"),
             };
         }
