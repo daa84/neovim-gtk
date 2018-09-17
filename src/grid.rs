@@ -7,6 +7,9 @@ use fnv::FnvHashMap;
 
 use neovim_lib::Value;
 
+use shell::RenderState;
+use render;
+use nvim::{RepaintGridEvent, RepaintMode};
 use highlight::{Highlight, HighlightMap};
 use ui_model::{ModelRect, ModelRectVec, UiModel};
 
@@ -37,6 +40,28 @@ impl GridMap {
         }
     }
 
+    pub fn queue_redraw_all(&mut self, render_state: &RenderState) {
+        for grid_id in self.grids.keys() {
+            self.queue_redraw(render_state, &RepaintGridEvent::new(*grid_id, RepaintMode::All));
+        }
+    }
+
+    pub fn queue_redraw(&mut self, render_state: &RenderState, ev: &RepaintGridEvent) {
+        if let Some(grid) = self.grids.get(&ev.grid_id.unwrap()) {
+            match ev.mode {
+                RepaintMode::All => {
+                    grid.update_dirty_glyphs(render_state);
+                    grid.drawing_area.queue_draw();
+                }
+                RepaintMode::Area(ref rect) => grid.queue_draw_area(render_state, &[rect]),
+                RepaintMode::AreaList(ref list) => grid.queue_draw_area(render_state, &list.list),
+                RepaintMode::Nothing => (),
+            }
+        } else {
+            warn!("Event from no known grid {:?}", ev.grid_id);
+        }
+    }
+
     pub fn current(&self) -> Option<&Grid> {
         self.grids.get(&DEFAULT_GRID)
     }
@@ -54,7 +79,7 @@ impl GridMap {
             return self.grids.get_mut(&idx).unwrap();
         }
 
-        self.grids.insert(idx, Grid::new());
+        self.grids.insert(idx, Grid::new(idx));
         self.grids.get_mut(&idx).unwrap()
     }
 
@@ -70,15 +95,55 @@ impl GridMap {
 }
 
 pub struct Grid {
+    grid: u64,
     model: UiModel,
     drawing_area: gtk::DrawingArea,
 }
 
 impl Grid {
-    pub fn new() -> Self {
+    pub fn queue_draw_area<M: AsRef<ModelRect>>(&mut self, render_state: &RenderState, rect_list: &[M]) {
+        // extends by items before, then after changes
+
+        let rects: Vec<_> = rect_list
+            .iter()
+            .map(|rect| rect.as_ref().clone())
+            .map(|mut rect| {
+                rect.extend_by_items(&self.model);
+                rect
+            })
+            .collect();
+
+        self.update_dirty_glyphs(&render_state);
+
+        let cell_metrics = render_state.font_ctx.cell_metrics();
+
+        for mut rect in rects {
+            rect.extend_by_items(&self.model);
+
+            let (x, y, width, height) =
+                rect.to_area_extend_ink(&self.model, cell_metrics);
+            self.drawing_area.queue_draw_area(x, y, width, height);
+        }
+    }
+
+    pub fn update_dirty_glyphs(&mut self, render_state: &RenderState) {
+        render::shape_dirty(&render_state.font_ctx, &mut self.model, &render_state.hl);
+    }
+
+}
+
+impl Grid {
+    pub fn new(grid: u64) -> Self {
+        let drawing_area = gtk::DrawingArea::new();
+
+        drawing_area.set_hexpand(true);
+        drawing_area.set_vexpand(true);
+        drawing_area.set_can_focus(true);
+
         Grid {
+            grid,
             model: UiModel::empty(),
-            drawing_area: gtk::DrawingArea::new(),
+            drawing_area,
         }
     }
 
@@ -88,6 +153,10 @@ impl Grid {
 
     pub fn cur_point(&self) -> ModelRect {
         self.model.cur_point()
+    }
+
+    pub fn id(&self) -> u64 {
+        self.grid
     }
 
     pub fn resize(&mut self, columns: u64, rows: u64) {

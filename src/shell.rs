@@ -262,7 +262,7 @@ impl State {
             .update(pango_context);
         self.grids.clear_glyphs();
         self.try_nvim_resize();
-        self.on_redraw(&RepaintMode::All);
+        self.on_redraw(&RepaintEvent::all());
     }
 
     pub fn set_font_features(&mut self, font_features: String) {
@@ -273,7 +273,7 @@ impl State {
             .font_ctx
             .update_font_features(font_features);
         self.grids.clear_glyphs();
-        self.on_redraw(&RepaintMode::All);
+        self.on_redraw(&RepaintEvent::all());
     }
 
     pub fn set_line_space(&mut self, line_space: String) {
@@ -291,7 +291,7 @@ impl State {
             .update_line_space(line_space);
         self.grids.clear_glyphs();
         self.try_nvim_resize();
-        self.on_redraw(&RepaintMode::All);
+        self.on_redraw(&RepaintEvent::all());
     }
 
     /// return true if transparency enabled
@@ -306,7 +306,7 @@ impl State {
             self.transparency_settings.enabled = false;
         }
 
-        self.on_redraw(&RepaintMode::All);
+        self.on_redraw(&RepaintEvent::all());
 
         self.transparency_settings.enabled
     }
@@ -340,39 +340,6 @@ impl State {
             if let Some(mut nvim) = self.nvim() {
                 nvim.input("<Esc>").report_err();
             }
-        }
-    }
-
-    fn queue_draw_area<M: AsRef<ModelRect>>(&mut self, rect_list: &[M]) {
-        // extends by items before, then after changes
-
-        let rects: Vec<_> = rect_list
-            .iter()
-            .map(|rect| rect.as_ref().clone())
-            .map(|mut rect| {
-                rect.extend_by_items(self.grids.current_model());
-                rect
-            })
-            .collect();
-
-        self.update_dirty_glyphs();
-
-        let render_state = self.render_state.borrow();
-        let cell_metrics = render_state.font_ctx.cell_metrics();
-
-        for mut rect in rects {
-            rect.extend_by_items(self.grids.current_model());
-
-            let (x, y, width, height) =
-                rect.to_area_extend_ink(self.grids.current_model(), cell_metrics);
-            self.drawing_area.queue_draw_area(x, y, width, height);
-        }
-    }
-
-    fn update_dirty_glyphs(&mut self) {
-        let render_state = self.render_state.borrow();
-        if let Some(model) = self.grids.current_model_mut() {
-            render::shape_dirty(&render_state.font_ctx, model, &render_state.hl);
         }
     }
 
@@ -643,10 +610,6 @@ impl Shell {
 
     pub fn init(&mut self) {
         let state = self.state.borrow();
-
-        state.drawing_area.set_hexpand(true);
-        state.drawing_area.set_vexpand(true);
-        state.drawing_area.set_can_focus(true);
 
         state.im_context.set_use_preedit(false);
 
@@ -1314,14 +1277,12 @@ impl State {
     }
 
     pub fn on_redraw(&mut self, event: &RepaintEvent) {
-        match *mode {
-            RepaintMode::All => {
-                self.update_dirty_glyphs();
-                self.drawing_area.queue_draw();
+        if event.repaint_all {
+            self.grids.queue_redraw_all(&*self.render_state.borrow());
+        } else {
+            for ev in event.events.values() {
+                self.grids.queue_redraw(&*self.render_state.borrow(), ev);
             }
-            RepaintMode::Area(ref rect) => self.queue_draw_area(&[rect]),
-            RepaintMode::AreaList(ref list) => self.queue_draw_area(&list.list),
-            RepaintMode::Nothing => (),
         }
     }
 
@@ -1334,9 +1295,9 @@ impl State {
         right: u64,
         rows: i64,
         cols: i64,
-    ) -> RepaintMode {
+    ) -> RepaintGridEvent {
         let hl = &self.render_state.borrow().hl;
-        RepaintMode::Area(self.grids[grid].scroll(
+        let area = RepaintMode::Area(self.grids[grid].scroll(
             top,
             bot,
             left,
@@ -1344,7 +1305,9 @@ impl State {
             rows,
             cols,
             &hl.default_hl(),
-        ))
+        ));
+
+        RepaintGridEvent::new(grid, area)
     }
 
     pub fn hl_attr_define(
@@ -1353,29 +1316,31 @@ impl State {
         rgb_attr: HashMap<String, Value>,
         _: &Value,
         info: Vec<HashMap<String, Value>>,
-    ) -> RepaintMode {
+    ) -> RepaintGridEvent {
         self.render_state.borrow_mut().hl.set(id, &rgb_attr, &info);
-        RepaintMode::Nothing
+        
+        RepaintGridEvent::nothing()
     }
 
-    pub fn default_colors_set(&mut self, fg: i64, bg: i64, sp: i64) -> RepaintMode {
+    pub fn default_colors_set(&mut self, fg: i64, bg: i64, sp: i64) -> RepaintGridEvent {
         self.render_state.borrow_mut().hl.set_defaults(
             Color::from_indexed_color(fg as u64),
             Color::from_indexed_color(bg as u64),
             Color::from_indexed_color(sp as u64),
         );
-        RepaintMode::All
+
+        RepaintGridEvent::all()
     }
 
-    fn cur_point_area(&self) -> RepaintMode {
-        if let Some(cur_point) = self.grids.current().map(|g| g.cur_point()) {
-            RepaintMode::Area(cur_point)
+    fn cur_point_area(&self) -> RepaintGridEvent {
+        if let Some((grid, cur_point)) = self.grids.current().map(|g| (g.id(), g.cur_point())) {
+            RepaintGridEvent::new(grid, RepaintMode::Area(cur_point))
         } else {
-            RepaintMode::Nothing
+            RepaintGridEvent::nothing()
         }
     }
 
-    pub fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode {
+    pub fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintGridEvent {
         let mut render_state = self.render_state.borrow_mut();
         render_state.mode.update(&mode, idx as usize);
         self.cursor
@@ -1388,12 +1353,12 @@ impl State {
         self.cur_point_area()
     }
 
-    pub fn on_mouse(&mut self, on: bool) -> RepaintMode {
+    pub fn on_mouse(&mut self, on: bool) -> RepaintGridEvent {
         self.mouse_enabled = on;
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
-    pub fn on_busy(&mut self, busy: bool) -> RepaintMode {
+    pub fn on_busy(&mut self, busy: bool) -> RepaintGridEvent {
         if busy {
             self.cursor.as_mut().unwrap().busy_on();
         } else {
@@ -1409,7 +1374,7 @@ impl State {
         selected: i64,
         row: u64,
         col: u64,
-    ) -> RepaintMode {
+    ) -> RepaintGridEvent {
         let point = ModelRect::point(col as usize, row as usize);
         let render_state = self.render_state.borrow();
         let (x, y, width, height) = point.to_area(render_state.font_ctx.cell_metrics());
@@ -1429,34 +1394,34 @@ impl State {
 
         self.popup_menu.show(context);
 
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
-    pub fn popupmenu_hide(&mut self) -> RepaintMode {
+    pub fn popupmenu_hide(&mut self) -> RepaintGridEvent {
         self.popup_menu.hide();
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
-    pub fn popupmenu_select(&mut self, selected: i64) -> RepaintMode {
+    pub fn popupmenu_select(&mut self, selected: i64) -> RepaintGridEvent {
         self.popup_menu.select(selected);
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
     pub fn tabline_update(
         &mut self,
         selected: Tabpage,
         tabs: Vec<(Tabpage, Option<String>)>,
-    ) -> RepaintMode {
+    ) -> RepaintGridEvent {
         self.tabs.update_tabs(&self.nvim, &selected, &tabs);
 
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
     pub fn mode_info_set(
         &mut self,
         cursor_style_enabled: bool,
         mode_infos: Vec<HashMap<String, Value>>,
-    ) -> RepaintMode {
+    ) -> RepaintGridEvent {
         let mode_info_arr = mode_infos
             .iter()
             .map(|mode_info_map| mode::ModeInfo::new(mode_info_map))
@@ -1474,7 +1439,7 @@ impl State {
             }
         }
 
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
     pub fn cmdline_show(
@@ -1485,7 +1450,7 @@ impl State {
         prompt: String,
         indent: u64,
         level: u64,
-    ) -> RepaintMode {
+    ) -> RepaintGridEvent {
         {
             let cursor = self.grids.current().unwrap().cur_point();
             let render_state = self.render_state.borrow();
@@ -1511,7 +1476,7 @@ impl State {
         self.on_busy(true)
     }
 
-    pub fn cmdline_hide(&mut self, level: u64) -> RepaintMode {
+    pub fn cmdline_hide(&mut self, level: u64) -> RepaintGridEvent {
         self.cmd_line.hide_level(level);
         self.on_busy(false)
     }
@@ -1519,7 +1484,7 @@ impl State {
     pub fn cmdline_block_show(
         &mut self,
         content: Vec<Vec<(u64, String)>>,
-    ) -> RepaintMode {
+    ) -> RepaintGridEvent {
         let max_width = self.max_popup_width();
         self.cmd_line.show_block(&content, max_width);
         self.on_busy(true)
@@ -1528,49 +1493,49 @@ impl State {
     pub fn cmdline_block_append(
         &mut self,
         content: Vec<(u64, String)>,
-    ) -> RepaintMode {
+    ) -> RepaintGridEvent {
         self.cmd_line.block_append(&content);
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
-    pub fn cmdline_block_hide(&mut self) -> RepaintMode {
+    pub fn cmdline_block_hide(&mut self) -> RepaintGridEvent {
         self.cmd_line.block_hide();
         self.on_busy(false)
     }
 
-    pub fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintMode {
+    pub fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintGridEvent {
         let render_state = self.render_state.borrow();
         self.cmd_line.pos(&*render_state, pos, level);
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
-    pub fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RepaintMode {
+    pub fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RepaintGridEvent {
         let render_state = self.render_state.borrow();
         self.cmd_line.special_char(&*render_state, c, shift, level);
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
-    pub fn wildmenu_show(&self, items: Vec<String>) -> RepaintMode {
+    pub fn wildmenu_show(&self, items: Vec<String>) -> RepaintGridEvent {
         self.cmd_line
             .show_wildmenu(items, &*self.render_state.borrow(), self.max_popup_width());
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
-    pub fn wildmenu_hide(&self) -> RepaintMode {
+    pub fn wildmenu_hide(&self) -> RepaintGridEvent {
         self.cmd_line.hide_wildmenu();
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 
-    pub fn wildmenu_select(&self, selected: i64) -> RepaintMode {
+    pub fn wildmenu_select(&self, selected: i64) -> RepaintGridEvent {
         self.cmd_line.wildmenu_select(selected);
-        RepaintMode::Nothing
+        RepaintGridEvent::nothing()
     }
 }
 
 impl CursorRedrawCb for State {
     fn queue_redraw_cursor(&mut self) {
-        if let Some(cur_point) = self.grids.current().map(|g| g.cur_point()) {
-            self.on_redraw(&RepaintMode::Area(cur_point));
+        if let Some((grid, cur_point)) = self.grids.current().map(|g| (g.id(), g.cur_point())) {
+            self.on_redraw(&RepaintEvent::from_grid_event(grid, RepaintMode::Area(cur_point)));
         }
     }
 }

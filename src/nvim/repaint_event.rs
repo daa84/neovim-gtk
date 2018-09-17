@@ -3,8 +3,8 @@ use fnv::FnvHashMap;
 use ui_model::{ModelRect, ModelRectVec};
 
 pub struct RepaintEvent {
-    events: FnvHashMap<u64, RepaintGridEvent>,
-    repaint_all: bool,
+    pub events: FnvHashMap<u64, RepaintGridEvent>,
+    pub repaint_all: bool,
 }
 
 impl RepaintEvent {
@@ -13,6 +13,19 @@ impl RepaintEvent {
             events: FnvHashMap::default(),
             repaint_all: false,
         }
+    }
+
+    pub fn all() -> Self {
+        RepaintEvent {
+            events: FnvHashMap::default(),
+            repaint_all: true,
+        }
+    }
+
+    pub fn from_grid_event(grid_id: u64, mode: RepaintMode) -> Self {
+        let ev = RepaintEvent::new();
+        ev.join(RepaintGridEvent::new(grid_id, mode));
+        ev
     }
 
     pub fn join(&mut self, event: RepaintGridEvent) {
@@ -40,8 +53,8 @@ impl RepaintEvent {
 }
 
 pub struct RepaintGridEvent {
-    grid_id: Option<u64>,
-    mode: RepaintMode,
+    pub grid_id: Option<u64>,
+    pub mode: RepaintMode,
 }
 
 impl RepaintGridEvent {
