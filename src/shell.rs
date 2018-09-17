@@ -453,7 +453,7 @@ impl State {
     }
 
     fn max_popup_width(&self) -> i32 {
-        self.drawing_area.get_allocated_width() - 20
+        self.stack.get_allocated_width() - 20
     }
 
     pub fn subscribe<F>(&self, event_name: &str, args: &[&str], cb: F) -> SubscriptionHandle
@@ -1318,7 +1318,7 @@ impl State {
         info: Vec<HashMap<String, Value>>,
     ) -> RepaintGridEvent {
         self.render_state.borrow_mut().hl.set(id, &rgb_attr, &info);
-        
+
         RepaintGridEvent::nothing()
     }
 
