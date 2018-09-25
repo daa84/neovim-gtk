@@ -51,6 +51,9 @@ unix-daemonize = "0.1"
 #[dependencies.neovim-lib]
 #git = "https://github.com/daa84/neovim-lib"
 
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
 [build-dependencies]
 phf_codegen = "0.7"
 

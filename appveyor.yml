@@ -16,6 +16,9 @@ install:
   - rustc -V
   - cargo -V
   - pacman --noconfirm -S mingw-w64-x86_64-gtk3
+# for icon
+  - pacman --noconfirm -S mingw-w64-x86_64-binutils
+  - pacman --noconfirm -S mingw-w64-x86_64-gcc
 
 build_script:
   - cargo test

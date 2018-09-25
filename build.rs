@@ -1,5 +1,8 @@
 extern crate phf_codegen;
 
+#[cfg(windows)]
+extern crate winres;
+
 use std::env;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -8,6 +11,8 @@ use std::path::Path;
 fn main() {
     if cfg!(target_os = "windows") {
         println!("cargo:rustc-link-search=native=C:\\msys64\\mingw64\\lib");
+
+        set_win_icon();
     }
 
     let path = Path::new(&env::var("OUT_DIR").unwrap()).join("key_map_table.rs");
@@ -47,3 +52,18 @@ fn main() {
         .unwrap();
     write!(&mut file, ";\n").unwrap();
 }
+
+#[cfg(windows)]
+fn set_win_icon() {
+    let mut res = winres::WindowsResource::new();
+    res.set_icon("resources/neovim.ico");
+    if let Err(err) = res.compile() {
+        eprintln!("Error set icon: {}", err);
+    }
+}
+
+#[cfg(unix)]
+fn set_win_icon() {
+    
+}
+
