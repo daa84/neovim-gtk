@@ -93,7 +93,6 @@ pub fn start(
     };
 
     cmd.arg("--embed")
-        .arg("--headless")
         // Swap files are disabled because it shows message window on start up but frontend can't detect it.
         .arg("-n")
         .arg("--cmd")
