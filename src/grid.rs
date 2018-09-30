@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::ops::{Deref, Index, IndexMut};
 use std::rc::Rc;
 
@@ -17,11 +16,16 @@ use ui_model::{ModelRect, ModelRectVec, UiModel};
 
 const DEFAULT_GRID: u64 = 1;
 
-type ButtonEventCb = FnMut(u64, &gdk::EventButton) + 'static;
+type ButtonEventCb = Fn(u64, &gdk::EventButton) + 'static;
+type KeyEventCb = Fn(u64, &gdk::EventKey) -> Inhibit + 'static;
+type ScrollEventCb = Fn(u64, &gdk::EventScroll) + 'static;
 
 struct Callbacks {
     button_press_cb: Option<Box<ButtonEventCb>>,
     button_release_cb: Option<Box<ButtonEventCb>>,
+    key_press_cb: Option<Box<KeyEventCb>>,
+    key_release_cb: Option<Box<KeyEventCb>>,
+    scroll_cb: Option<Box<ScrollEventCb>>,
 }
 
 impl Callbacks {
@@ -29,6 +33,9 @@ impl Callbacks {
         Callbacks {
             button_press_cb: None,
             button_release_cb: None,
+            key_press_cb: None,
+            key_release_cb: None,
+            scroll_cb: None,
         }
     }
 }
@@ -37,7 +44,7 @@ pub struct GridMap {
     grids: FnvHashMap<u64, Grid>,
     fixed: gtk::Fixed,
 
-    callbacks: Rc<RefCell<Callbacks>>,
+    callbacks: Rc<Callbacks>,
 }
 
 impl Index<u64> for GridMap {
@@ -64,7 +71,7 @@ impl GridMap {
             grids: FnvHashMap::default(),
             fixed,
 
-            callbacks: Rc::new(RefCell::new(Callbacks::new())),
+            callbacks: Rc::new(Callbacks::new()),
         }
     }
 
@@ -115,13 +122,33 @@ impl GridMap {
 
         let cbs = self.callbacks.clone();
         grid.connect_button_press_event(move |_, ev| {
-            cbs.borrow_mut().button_press_cb.map(|cb| cb(idx, ev));
+            cbs.button_press_cb.map(|cb| cb(idx, ev));
             Inhibit(false)
         });
 
         let cbs = self.callbacks.clone();
         grid.connect_button_release_event(move |_, ev| {
-            cbs.borrow_mut().button_release_cb.map(|cb| cb(idx, ev));
+            cbs.button_release_cb.map(|cb| cb(idx, ev));
+            Inhibit(false)
+        });
+
+        let cbs = self.callbacks.clone();
+        grid.connect_key_press_event(move |_, ev| {
+            cbs.key_press_cb
+                .map(|cb| cb(idx, ev))
+                .unwrap_or(Inhibit(false))
+        });
+
+        let cbs = self.callbacks.clone();
+        grid.connect_key_release_event(move |_, ev| {
+            cbs.key_release_cb
+                .map(|cb| cb(idx, ev))
+                .unwrap_or(Inhibit(false))
+        });
+
+        let cbs = self.callbacks.clone();
+        grid.connect_scroll_event(move |_, ev| {
+            cbs.scroll_cb.map(|cb| cb(idx, ev));
             Inhibit(false)
         });
 
@@ -143,16 +170,37 @@ impl GridMap {
 impl GridMap {
     pub fn connect_button_press_event<T>(&mut self, cb: T)
     where
-        T: FnMut(u64, &gdk::EventButton) + 'static,
+        T: Fn(u64, &gdk::EventButton) + 'static,
     {
-        self.callbacks.borrow_mut().button_press_cb = Some(Box::new(cb));
+        Rc::get_mut(&mut self.callbacks).unwrap().button_press_cb = Some(Box::new(cb));
     }
 
     pub fn connect_button_release_event<T>(&mut self, cb: T)
     where
-        T: FnMut(u64, &gdk::EventButton) + 'static,
+        T: Fn(u64, &gdk::EventButton) + 'static,
     {
-        self.callbacks.borrow_mut().button_release_cb = Some(Box::new(cb));
+        Rc::get_mut(&mut self.callbacks).unwrap().button_release_cb = Some(Box::new(cb));
+    }
+
+    pub fn connect_key_press_event<T>(&mut self, cb: T)
+    where
+        T: Fn(u64, &gdk::EventKey) -> Inhibit + 'static,
+    {
+        Rc::get_mut(&mut self.callbacks).unwrap().key_press_cb = Some(Box::new(cb));
+    }
+
+    pub fn connect_key_release_event<T>(&mut self, cb: T)
+    where
+        T: Fn(u64, &gdk::EventKey) -> Inhibit + 'static,
+    {
+        Rc::get_mut(&mut self.callbacks).unwrap().key_release_cb = Some(Box::new(cb));
+    }
+
+    pub fn connect_scroll_event<T>(&mut self, cb: T)
+    where
+        T: Fn(u64, &gdk::EventScroll) + 'static,
+    {
+        Rc::get_mut(&mut self.callbacks).unwrap().scroll_cb = Some(Box::new(cb));
     }
 }
 

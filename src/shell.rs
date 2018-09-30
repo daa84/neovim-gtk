@@ -355,7 +355,7 @@ impl State {
             char_width,
             ..
         } = self.render_state.borrow().font_ctx.cell_metrics();
-        let alloc = self.drawing_area.get_allocation();
+        let alloc = self.grids.get_allocation();
         (
             (alloc.width as f64 / char_width).trunc() as usize,
             (alloc.height as f64 / line_height).trunc() as usize,
@@ -661,7 +661,7 @@ impl Shell {
 
         let ref_ui_state = self.ui_state.clone();
         let ref_state = self.state.clone();
-        state.drawing_area.connect_key_press_event(move |_, ev| {
+        state.grids.connect_key_press_event(move |_, ev| {
             ref_state
                 .borrow_mut()
                 .cursor
@@ -682,17 +682,17 @@ impl Shell {
             }
         });
         let ref_state = self.state.clone();
-        state.drawing_area.connect_key_release_event(move |da, ev| {
+        state.grids.connect_key_release_event(move |da, ev| {
             ref_state.borrow().im_context.filter_keypress(ev);
             ref_ui_state
                 .borrow_mut()
-                .apply_mouse_cursor(MouseCursor::None, da.get_window());
+                .apply_mouse_cursor(MouseCursor::None, ev.get_window());
             Inhibit(false)
         });
 
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
-        state.drawing_area.connect_scroll_event(move |_, ev| {
+        state.grids.connect_scroll_event(move |_, ev| {
             gtk_scroll_event(
                 &mut *ref_state.borrow_mut(),
                 &mut *ref_ui_state.borrow_mut(),
@@ -911,9 +911,9 @@ fn gtk_focus_out(state: &mut State) -> Inhibit {
     Inhibit(false)
 }
 
-fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll) -> Inhibit {
+fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll) {
     if !state.mouse_enabled && !state.nvim.is_initializing() {
-        return Inhibit(false);
+        return;
     }
 
     state.close_popup_menu();
@@ -957,7 +957,6 @@ fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll)
         }
         _ => (),
     }
-    Inhibit(false)
 }
 
 fn gtk_button_press(
