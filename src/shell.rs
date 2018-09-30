@@ -616,36 +616,24 @@ impl Shell {
         let nvim_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         nvim_box.pack_start(&*state.tabs, false, true, 0);
-        nvim_box.pack_start(&state.drawing_area, true, true, 0);
+        nvim_box.pack_start(&*state.grids, true, true, 0);
 
         state.stack.add_named(&nvim_box, "Nvim");
         state.stack.add_named(&*state.error_area, "Error");
 
         self.widget.pack_start(&state.stack, true, true, 0);
 
-        state
-            .drawing_area
-            .add_events((gdk::EventMask::BUTTON_RELEASE_MASK
-                | gdk::EventMask::BUTTON_PRESS_MASK
-                | gdk::EventMask::BUTTON_MOTION_MASK
-                | gdk::EventMask::SCROLL_MASK
-                | gdk::EventMask::SMOOTH_SCROLL_MASK
-                | gdk::EventMask::ENTER_NOTIFY_MASK
-                | gdk::EventMask::LEAVE_NOTIFY_MASK
-                | gdk::EventMask::POINTER_MOTION_MASK)
-                .bits() as i32);
-
         let menu = self.create_context_menu();
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
-        state.drawing_area.connect_button_press_event(move |_, ev| {
+        state.grids.connect_button_press_event(move |_, ev| {
             gtk_button_press(&mut *ref_state.borrow_mut(), &ref_ui_state, ev, &menu)
         });
 
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
         state
-            .drawing_area
+            .grids
             .connect_button_release_event(move |_, ev| {
                 gtk_button_release(
                     &mut *ref_state.borrow_mut(),
@@ -723,7 +711,7 @@ impl Shell {
             .connect_focus_out_event(move |_, _| gtk_focus_out(&mut *ref_state.borrow_mut()));
 
         let ref_state = self.state.clone();
-        state.drawing_area.connect_realize(move |w| {
+        state.grids.connect_realize(move |w| {
             // sometime set_client_window does not work without idle_add
             // and looks like not enabled im_context
             gtk::idle_add(clone!(ref_state, w => move || {
@@ -740,7 +728,7 @@ impl Shell {
             .connect_commit(move |_, ch| ref_state.borrow().im_commit(ch));
 
         let ref_state = self.state.clone();
-        state.drawing_area.connect_configure_event(move |_, ev| {
+        state.grids.connect_configure_event(move |_, ev| {
             debug!("configure_event {:?}", ev.get_size());
 
             let mut state = ref_state.borrow_mut();
@@ -750,7 +738,7 @@ impl Shell {
         });
 
         let ref_state = self.state.clone();
-        state.drawing_area.connect_size_allocate(move |_, _| {
+        state.grids.connect_size_allocate(move |_, _| {
             init_nvim(&ref_state);
         });
 
@@ -761,10 +749,10 @@ impl Shell {
             0,
         )];
         state
-            .drawing_area
+            .grids
             .drag_dest_set(gtk::DestDefaults::ALL, &targets, gdk::DragAction::COPY);
         state
-            .drawing_area
+            .grids
             .connect_drag_data_received(move |_, _, _, _, s, _, _| {
                 let uris = s.get_uris();
                 let command = uris.iter().filter_map(|uri| decode_uri(uri)).fold(
@@ -780,7 +768,7 @@ impl Shell {
             });
 
         let ui_state_ref = self.ui_state.clone();
-        state.drawing_area.connect_enter_notify_event(move |_, ev| {
+        state.grids.connect_enter_notify_event(move |_, ev| {
             ui_state_ref
                 .borrow_mut()
                 .apply_mouse_cursor(MouseCursor::Text, ev.get_window());
@@ -788,7 +776,7 @@ impl Shell {
         });
 
         let ui_state_ref = self.ui_state.clone();
-        state.drawing_area.connect_leave_notify_event(move |_, ev| {
+        state.grids.connect_leave_notify_event(move |_, ev| {
             ui_state_ref
                 .borrow_mut()
                 .apply_mouse_cursor(MouseCursor::Default, ev.get_window());
@@ -977,9 +965,9 @@ fn gtk_button_press(
     ui_state: &Rc<RefCell<UiState>>,
     ev: &EventButton,
     menu: &gtk::Menu,
-) -> Inhibit {
+) {
     if ev.get_event_type() != EventType::ButtonPress {
-        return Inhibit(false);
+        return;
     }
 
     if shell.mouse_enabled {
@@ -993,7 +981,6 @@ fn gtk_button_press(
             _ => (),
         }
     }
-    Inhibit(false)
 }
 
 fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f64, f64)) {
@@ -1013,7 +1000,7 @@ fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f
     }
 }
 
-fn gtk_button_release(shell: &mut State, ui_state: &mut UiState, ev: &EventButton) -> Inhibit {
+fn gtk_button_release(shell: &mut State, ui_state: &mut UiState, ev: &EventButton) {
     ui_state.mouse_pressed = false;
 
     if shell.mouse_enabled && !shell.nvim.is_initializing() {
@@ -1024,8 +1011,6 @@ fn gtk_button_release(shell: &mut State, ui_state: &mut UiState, ev: &EventButto
             _ => (),
         }
     }
-
-    Inhibit(false)
 }
 
 fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion) -> Inhibit {
@@ -1033,7 +1018,7 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
         mouse_input(shell, "LeftDrag", ev.get_state(), ev.get_position());
     }
 
-    ui_state.apply_mouse_cursor(MouseCursor::Text, shell.drawing_area.get_window());
+    ui_state.apply_mouse_cursor(MouseCursor::Text, shell.grids.get_window());
     Inhibit(false)
 }
 

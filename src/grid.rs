@@ -1,22 +1,43 @@
-use std::ops::{Index, IndexMut};
+use std::cell::RefCell;
+use std::ops::{Deref, Index, IndexMut};
 use std::rc::Rc;
 
+use gdk;
 use gtk::{self, prelude::*};
 
 use fnv::FnvHashMap;
 
 use neovim_lib::Value;
 
-use shell::RenderState;
-use render;
-use nvim::{RepaintGridEvent, RepaintMode};
 use highlight::{Highlight, HighlightMap};
+use nvim::{RepaintGridEvent, RepaintMode};
+use render;
+use shell::RenderState;
 use ui_model::{ModelRect, ModelRectVec, UiModel};
 
 const DEFAULT_GRID: u64 = 1;
 
+type ButtonEventCb = FnMut(u64, &gdk::EventButton) + 'static;
+
+struct Callbacks {
+    button_press_cb: Option<Box<ButtonEventCb>>,
+    button_release_cb: Option<Box<ButtonEventCb>>,
+}
+
+impl Callbacks {
+    pub fn new() -> Self {
+        Callbacks {
+            button_press_cb: None,
+            button_release_cb: None,
+        }
+    }
+}
+
 pub struct GridMap {
     grids: FnvHashMap<u64, Grid>,
+    fixed: gtk::Fixed,
+
+    callbacks: Rc<RefCell<Callbacks>>,
 }
 
 impl Index<u64> for GridMap {
@@ -35,14 +56,24 @@ impl IndexMut<u64> for GridMap {
 
 impl GridMap {
     pub fn new() -> Self {
+        let fixed = gtk::Fixed::new();
+        fixed.set_hexpand(true);
+        fixed.set_vexpand(true);
+
         GridMap {
             grids: FnvHashMap::default(),
+            fixed,
+
+            callbacks: Rc::new(RefCell::new(Callbacks::new())),
         }
     }
 
     pub fn queue_redraw_all(&mut self, render_state: &RenderState) {
         for grid_id in self.grids.keys() {
-            self.queue_redraw(render_state, &RepaintGridEvent::new(*grid_id, RepaintMode::All));
+            self.queue_redraw(
+                render_state,
+                &RepaintGridEvent::new(*grid_id, RepaintMode::All),
+            );
         }
     }
 
@@ -79,7 +110,22 @@ impl GridMap {
             return self.grids.get_mut(&idx).unwrap();
         }
 
-        self.grids.insert(idx, Grid::new(idx));
+        let grid = Grid::new(idx);
+        self.fixed.put(&*grid, 0, 0);
+
+        let cbs = self.callbacks.clone();
+        grid.connect_button_press_event(move |_, ev| {
+            cbs.borrow_mut().button_press_cb.map(|cb| cb(idx, ev));
+            Inhibit(false)
+        });
+
+        let cbs = self.callbacks.clone();
+        grid.connect_button_release_event(move |_, ev| {
+            cbs.borrow_mut().button_release_cb.map(|cb| cb(idx, ev));
+            Inhibit(false)
+        });
+
+        self.grids.insert(idx, grid);
         self.grids.get_mut(&idx).unwrap()
     }
 
@@ -94,6 +140,30 @@ impl GridMap {
     }
 }
 
+impl GridMap {
+    pub fn connect_button_press_event<T>(&mut self, cb: T)
+    where
+        T: FnMut(u64, &gdk::EventButton) + 'static,
+    {
+        self.callbacks.borrow_mut().button_press_cb = Some(Box::new(cb));
+    }
+
+    pub fn connect_button_release_event<T>(&mut self, cb: T)
+    where
+        T: FnMut(u64, &gdk::EventButton) + 'static,
+    {
+        self.callbacks.borrow_mut().button_release_cb = Some(Box::new(cb));
+    }
+}
+
+impl Deref for GridMap {
+    type Target = gtk::Fixed;
+
+    fn deref(&self) -> &gtk::Fixed {
+        &self.fixed
+    }
+}
+
 pub struct Grid {
     grid: u64,
     model: UiModel,
@@ -101,7 +171,11 @@ pub struct Grid {
 }
 
 impl Grid {
-    pub fn queue_draw_area<M: AsRef<ModelRect>>(&mut self, render_state: &RenderState, rect_list: &[M]) {
+    pub fn queue_draw_area<M: AsRef<ModelRect>>(
+        &mut self,
+        render_state: &RenderState,
+        rect_list: &[M],
+    ) {
         // extends by items before, then after changes
 
         let rects: Vec<_> = rect_list
@@ -110,8 +184,7 @@ impl Grid {
             .map(|mut rect| {
                 rect.extend_by_items(&self.model);
                 rect
-            })
-            .collect();
+            }).collect();
 
         self.update_dirty_glyphs(&render_state);
 
@@ -120,8 +193,7 @@ impl Grid {
         for mut rect in rects {
             rect.extend_by_items(&self.model);
 
-            let (x, y, width, height) =
-                rect.to_area_extend_ink(&self.model, cell_metrics);
+            let (x, y, width, height) = rect.to_area_extend_ink(&self.model, cell_metrics);
             self.drawing_area.queue_draw_area(x, y, width, height);
         }
     }
@@ -129,16 +201,25 @@ impl Grid {
     pub fn update_dirty_glyphs(&mut self, render_state: &RenderState) {
         render::shape_dirty(&render_state.font_ctx, &mut self.model, &render_state.hl);
     }
-
 }
 
 impl Grid {
     pub fn new(grid: u64) -> Self {
         let drawing_area = gtk::DrawingArea::new();
 
-        drawing_area.set_hexpand(true);
-        drawing_area.set_vexpand(true);
         drawing_area.set_can_focus(true);
+
+        drawing_area.add_events(
+            (gdk::EventMask::BUTTON_RELEASE_MASK
+                | gdk::EventMask::BUTTON_PRESS_MASK
+                | gdk::EventMask::BUTTON_MOTION_MASK
+                | gdk::EventMask::SCROLL_MASK
+                | gdk::EventMask::SMOOTH_SCROLL_MASK
+                | gdk::EventMask::ENTER_NOTIFY_MASK
+                | gdk::EventMask::LEAVE_NOTIFY_MASK
+                | gdk::EventMask::POINTER_MOTION_MASK)
+                .bits() as i32,
+        );
 
         Grid {
             grid,
@@ -220,5 +301,13 @@ impl Grid {
             rows,
             default_hl,
         )
+    }
+}
+
+impl Deref for Grid {
+    type Target = gtk::DrawingArea;
+
+    fn deref(&self) -> &gtk::DrawingArea {
+        &self.drawing_area
     }
 }
