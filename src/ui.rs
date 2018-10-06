@@ -353,6 +353,8 @@ impl Ui {
         new_tab_btn.set_tooltip_text("Open a new tab");
         header_bar.pack_start(&new_tab_btn);
 
+        header_bar.pack_end(&self.create_primary_menu_btn());
+
         let paste_btn =
             Button::new_from_icon_name("edit-paste-symbolic", gtk::IconSize::SmallToolbar.into());
         let shell = self.shell.clone();
@@ -372,15 +374,45 @@ impl Ui {
         window.set_titlebar(Some(&header_bar));
 
         let shell = self.shell.borrow();
-        let update_subtitle = shell.state.borrow().subscribe(
-            "DirChanged",
-            &["getcwd()"],
-            move |args| {
-                header_bar.set_subtitle(&*args[0]);
-            },
-        );
+        let update_subtitle =
+            shell
+                .state
+                .borrow()
+                .subscribe("DirChanged", &["getcwd()"], move |args| {
+                    header_bar.set_subtitle(&*args[0]);
+                });
 
         update_subtitle
+    }
+
+    fn create_primary_menu_btn(&self) -> gtk::MenuButton {
+        let btn = gtk::MenuButton::new();
+        btn.set_can_focus(false);
+        btn.set_image(&gtk::Image::new_from_icon_name(
+            "open-menu-symbolic",
+            gtk::IconSize::SmallToolbar.into(),
+        ));
+
+        // note actions created in application menu
+        let menu = Menu::new();
+
+        let section = Menu::new();
+        section.append_item(&MenuItem::new("New Window", "app.new-window"));
+        menu.append_section(None, &section);
+
+        let section = Menu::new();
+        section.append_item(&MenuItem::new("Sidebar", "app.show-sidebar"));
+        menu.append_section(None, &section);
+
+        let section = Menu::new();
+        section.append_item(&MenuItem::new("Plugins", "app.Plugins"));
+        section.append_item(&MenuItem::new("About", "app.HelpAbout"));
+        menu.append_section(None, &section);
+
+        menu.freeze();
+
+        btn.set_menu_model(&menu);
+        btn
     }
 
     fn create_main_menu(&self, app: &gtk::Application, window: &gtk::ApplicationWindow) {
