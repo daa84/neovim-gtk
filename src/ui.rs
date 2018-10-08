@@ -175,12 +175,8 @@ impl Ui {
             window.set_decorated(false);
         }
 
-        if app.prefers_app_menu() || use_header_bar {
-            self.create_main_menu(app, &window);
-        }
-
         let update_subtitle = if use_header_bar {
-            Some(self.create_header_bar())
+            Some(self.create_header_bar(app))
         } else {
             None
         };
@@ -334,7 +330,7 @@ impl Ui {
         }
     }
 
-    fn create_header_bar(&self) -> SubscriptionHandle {
+    fn create_header_bar(&self, app: &gtk::Application) -> SubscriptionHandle {
         let header_bar = HeaderBar::new();
         let comps = self.comps.borrow();
         let window = comps.window.as_ref().unwrap();
@@ -353,7 +349,7 @@ impl Ui {
         new_tab_btn.set_tooltip_text("Open a new tab");
         header_bar.pack_start(&new_tab_btn);
 
-        header_bar.pack_end(&self.create_primary_menu_btn());
+        header_bar.pack_end(&self.create_primary_menu_btn(app, &window));
 
         let paste_btn =
             Button::new_from_icon_name("edit-paste-symbolic", gtk::IconSize::SmallToolbar.into());
@@ -385,7 +381,8 @@ impl Ui {
         update_subtitle
     }
 
-    fn create_primary_menu_btn(&self) -> gtk::MenuButton {
+    fn create_primary_menu_btn(&self, app: &gtk::Application, window: &gtk::ApplicationWindow) -> gtk::MenuButton {
+        let plug_manager = self.plug_manager.clone(); 
         let btn = gtk::MenuButton::new();
         btn.set_can_focus(false);
         btn.set_image(&gtk::Image::new_from_icon_name(
@@ -410,32 +407,7 @@ impl Ui {
         menu.append_section(None, &section);
 
         menu.freeze();
-
-        btn.set_menu_model(&menu);
-        btn
-    }
-
-    fn create_main_menu(&self, app: &gtk::Application, window: &gtk::ApplicationWindow) {
-        let plug_manager = self.plug_manager.clone();
-
-        let menu = Menu::new();
-
-        let section = Menu::new();
-        section.append_item(&MenuItem::new("New Window", "app.new-window"));
-        menu.append_section(None, &section);
-
-        let section = Menu::new();
-        section.append_item(&MenuItem::new("Sidebar", "app.show-sidebar"));
-        menu.append_section(None, &section);
-
-        let section = Menu::new();
-        section.append_item(&MenuItem::new("Plugins", "app.Plugins"));
-        section.append_item(&MenuItem::new("About", "app.HelpAbout"));
-        menu.append_section(None, &section);
-
-        menu.freeze();
-        app.set_app_menu(Some(&menu));
-
+        
         let plugs_action = SimpleAction::new("Plugins", None);
         plugs_action.connect_activate(
             clone!(window => move |_, _| plug_manager::Ui::new(&plug_manager).show(&window)),
@@ -447,6 +419,9 @@ impl Ui {
 
         app.add_action(&about_action);
         app.add_action(&plugs_action);
+
+        btn.set_menu_model(&menu);
+        btn
     }
 }
 
