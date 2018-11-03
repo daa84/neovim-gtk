@@ -1470,6 +1470,20 @@ impl State {
         RepaintMode::Nothing
     }
 
+    pub fn option_set(&mut self, name: String, val: Value) -> RepaintMode {
+        match name.as_str() {
+            "guifont" => {
+                if let Value::String(val) = val {
+                    if let Some(val) = val.into_str() {
+                        self.set_font(val);
+                    }
+                }
+            },
+            _ => (),
+        };
+        RepaintMode::Nothing
+    }
+
     pub fn mode_info_set(
         &mut self,
         cursor_style_enabled: bool,
