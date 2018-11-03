@@ -24,6 +24,8 @@ install-resources:
 	cp desktop/org.daa.NeovimGtk_48.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/48x48/apps/
 	mkdir -p $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/
 	cp desktop/org.daa.NeovimGtk.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/
+	mkdir -p $(DESTDIR)$(PREFIX)/share/icons/hicolor/symbolic/apps/
+	cp desktop/org.daa.NeovimGtk-symbolic.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/symbolic/apps/
 	mkdir -p $(DESTDIR)$(PREFIX)/share/fonts/
 	cp -n desktop/dejavu_font/*.ttf $(DESTDIR)$(PREFIX)/share/fonts/
 	fc-cache -fv
