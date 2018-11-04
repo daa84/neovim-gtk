@@ -16,7 +16,7 @@
    id="svg2"
    version="1.1"
    inkscape:version="0.92.3 (2405546, 2018-03-11)"
-   sodipodi:docname="org.daa.NeovimGtk.svg"
+   sodipodi:docname="org.daa.NeovimGtk-symbolic.svg"
    enable-background="new"
    inkscape:export-filename="/home/daa/projects/neovim-gtk/desktop/nvim-gtk.png"
    inkscape:export-xdpi="90"
@@ -81,14 +81,14 @@
   </defs>
   <sodipodi:namedview
      id="base"
-     pagecolor="#ffffff"
+     pagecolor="#008800"
      bordercolor="#666666"
      borderopacity="1.0"
-     inkscape:pageopacity="0.0"
+     inkscape:pageopacity="0"
      inkscape:pageshadow="2"
      inkscape:zoom="1.979899"
-     inkscape:cx="64.675932"
-     inkscape:cy="67.502045"
+     inkscape:cx="64.0"
+     inkscape:cy="64.0"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -97,7 +97,10 @@
      inkscape:window-height="523"
      inkscape:window-x="1061"
      inkscape:window-y="520"
-     inkscape:window-maximized="0" />
+     inkscape:window-maximized="0"
+     inkscape:lockguides="false"
+     showguides="true"
+     inkscape:guide-bbox="true" />
   <metadata
      id="metadata7">
     <rdf:RDF>
@@ -125,7 +128,7 @@
        sketch:type="MSPage"
        id="Page-1"
        style="fill:none;fill-rule:evenodd;stroke:none;stroke-width:1"
-       transform="translate(134.08721,222.73276)">
+       transform="translate(134.87034,222.48471)">
       <g
          transform="matrix(0.59861985,0,0,0.59861985,-122.46645,702.21121)"
          sketch:type="MSLayerGroup"
@@ -133,28 +136,23 @@
         <path
            sketch:type="MSShapeGroup"
            id="Left---green"
-           d="M 0.02714063,45.458544 45.223647,-0.17297621 45.223646,211.99833 0.02714063,166.89384 Z"
+           d="M -0.08404055,49.301066 8.7295225,40.402673 42.662307,91.566419 42.662306,206.81252 -0.08404055,164.1532 Z"
            inkscape:connector-curvature="0"
-           style="fill:url(#linearGradient-1)" />
+           style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:5.01152754;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           sodipodi:nodetypes="cccccc" />
         <path
-           transform="matrix(-1,0,0,1,304,0)"
-           sketch:type="MSShapeGroup"
+           style="fill:#ffffff;fill-opacity:1;stroke:none"
+           d="M 88.751953,0.49609375 V 71.714224 l 22.240237,34.133436 5.37109,-5.35938 -0.18555,-72.433592 z"
+           transform="matrix(1.6705093,0,0,1.6705093,-19.412587,-0.97191899)"
            id="Right---blue"
-           d="M 129.33671,45.889361 175.15234,-0.14833204 174.22365,211.99833 129.02714,166.89384 Z"
            inkscape:connector-curvature="0"
-           style="fill:url(#linearGradient-2)" />
+           sodipodi:nodetypes="cccccc" />
         <path
            sketch:type="MSShapeGroup"
            id="Cross---blue"
            d="M 45.193511,-0.13667814 162.69969,179.17338 129.81792,212.05433 12.250244,33.141173 Z"
            inkscape:connector-curvature="0"
-           style="fill:url(#linearGradient-3)" />
-        <path
-           sketch:type="MSShapeGroup"
-           id="Shadow"
-           d="m 45.233948,83.032105 -0.0625,7.0625 -36.2805789,-53.5625 3.3593749,-3.422181 z"
-           inkscape:connector-curvature="0"
-           style="fill:#000000;fill-opacity:0.12999998" />
+           style="fill:#ffffff;fill-opacity:1;stroke:none" />
       </g>
     </g>
   </g>
