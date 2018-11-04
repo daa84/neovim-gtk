@@ -1475,7 +1475,9 @@ impl State {
             "guifont" => {
                 if let Value::String(val) = val {
                     if let Some(val) = val.into_str() {
-                        self.set_font(val);
+                        if !val.is_empty() {
+                            self.set_font(val);
+                        }
                     }
                 }
             },
