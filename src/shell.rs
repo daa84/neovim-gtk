@@ -21,7 +21,7 @@ use neovim_lib::neovim_api::Tabpage;
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 
 use color::{Color, ColorModel, COLOR_BLACK, COLOR_RED, COLOR_WHITE};
-use misc::{decode_uri, escape_filename};
+use misc::{decode_uri, escape_filename, split_at_comma};
 use nvim::{
     self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef, NvimHandler,
     RepaintMode,
@@ -355,8 +355,7 @@ impl State {
             .map(|mut rect| {
                 rect.extend_by_items(&self.model);
                 rect
-            })
-            .collect();
+            }).collect();
 
         self.update_dirty_glyphs();
 
@@ -519,12 +518,16 @@ impl State {
     }
 
     pub fn set_font(&mut self, font_desc: String) {
+        self.set_font_rpc(&font_desc);
+    }
+
+    pub fn set_font_rpc(&mut self, font_desc: &str) {
         {
             let mut settings = self.settings.borrow_mut();
             settings.set_font_source(FontSource::Rpc);
         }
 
-        self.set_font_desc(&font_desc);
+        self.set_font_desc(font_desc);
     }
 
     pub fn on_command(&mut self, command: nvim::NvimCommand) {
@@ -664,9 +667,8 @@ impl Shell {
 
         self.widget.pack_start(&state.stack, true, true, 0);
 
-        state
-            .drawing_area
-            .add_events((gdk::EventMask::BUTTON_RELEASE_MASK
+        state.drawing_area.add_events(
+            (gdk::EventMask::BUTTON_RELEASE_MASK
                 | gdk::EventMask::BUTTON_PRESS_MASK
                 | gdk::EventMask::BUTTON_MOTION_MASK
                 | gdk::EventMask::SCROLL_MASK
@@ -674,7 +676,8 @@ impl Shell {
                 | gdk::EventMask::ENTER_NOTIFY_MASK
                 | gdk::EventMask::LEAVE_NOTIFY_MASK
                 | gdk::EventMask::POINTER_MOTION_MASK)
-                .bits() as i32);
+                .bits() as i32,
+        );
 
         let menu = self.create_context_menu();
         let ref_state = self.state.clone();
@@ -1472,18 +1475,35 @@ impl State {
 
     pub fn option_set(&mut self, name: String, val: Value) -> RepaintMode {
         match name.as_str() {
-            "guifont" => {
-                if let Value::String(val) = val {
-                    if let Some(val) = val.into_str() {
-                        if !val.is_empty() {
-                            self.set_font(val);
-                        }
-                    }
-                }
-            },
+            "guifont" => self.set_font_from_value(val),
             _ => (),
         };
         RepaintMode::Nothing
+    }
+
+    fn set_font_from_value(&mut self, val: Value) {
+        if let Value::String(val) = val {
+            if let Some(val) = val.into_str() {
+                if !val.is_empty() {
+                    let exists_fonts = self.render_state.borrow().font_ctx.font_families();
+                    let fonts = split_at_comma(&val);
+                    for font in &fonts {
+                        let desc = FontDescription::from_string(&font);
+                        if desc.get_size() > 0
+                            && exists_fonts.contains(&desc.get_family().unwrap_or("".to_owned()))
+                        {
+                            self.set_font_rpc(font);
+                            return;
+                        }
+                    }
+
+                    // font does not exists? set first one
+                    if !fonts.is_empty() {
+                        self.set_font_rpc(&fonts[0]);
+                    }
+                }
+            }
+        }
     }
 
     pub fn mode_info_set(
