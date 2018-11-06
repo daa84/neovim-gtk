@@ -591,6 +591,7 @@ pub struct ShellOptions {
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
     input_data: Option<String>,
+    enable_swap: bool,
 }
 
 impl ShellOptions {
@@ -600,6 +601,7 @@ impl ShellOptions {
         timeout: Option<Duration>,
         args_for_neovim: Vec<String>,
         input_data: Option<String>,
+        enable_swap: bool,
     ) -> Self {
         ShellOptions {
             nvim_bin_path,
@@ -607,6 +609,7 @@ impl ShellOptions {
             timeout,
             args_for_neovim,
             input_data,
+            enable_swap,
         }
     }
 
@@ -1155,6 +1158,7 @@ fn init_nvim_async(
         options.nvim_bin_path.as_ref(),
         options.timeout,
         options.args_for_neovim,
+        options.enable_swap,
     ) {
         Ok(nvim) => nvim,
         Err(err) => {

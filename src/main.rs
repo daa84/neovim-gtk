@@ -1,19 +1,19 @@
 #![windows_subsystem = "windows"]
 
-extern crate dirs as env_dirs;
 extern crate cairo;
+extern crate dirs as env_dirs;
 extern crate env_logger;
 extern crate gdk;
 extern crate gdk_sys;
 extern crate gio;
-#[cfg(unix)]
-extern crate unix_daemonize;
 extern crate glib;
 extern crate glib_sys as glib_ffi;
 extern crate gobject_sys as gobject_ffi;
 extern crate gtk;
 extern crate gtk_sys;
 extern crate htmlescape;
+#[cfg(unix)]
+extern crate unix_daemonize;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -82,6 +82,7 @@ const BIN_PATH_ARG: &str = "--nvim-bin-path";
 const TIMEOUT_ARG: &str = "--timeout";
 const DISABLE_WIN_STATE_RESTORE: &str = "--disable-win-restore";
 const NO_FORK: &str = "--no-fork";
+const ENALBE_SWAP: &str = "--enable-swap";
 
 fn main() {
     env_logger::init();
@@ -94,6 +95,7 @@ fn main() {
         .filter(|a| !a.starts_with(TIMEOUT_ARG))
         .filter(|a| !a.starts_with(DISABLE_WIN_STATE_RESTORE))
         .filter(|a| !a.starts_with(NO_FORK))
+        .filter(|a| !a.starts_with(ENALBE_SWAP))
         .collect();
 
     #[cfg(unix)]
@@ -155,6 +157,7 @@ fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
         nvim_timeout(std::env::args()),
         collect_args_for_nvim(),
         None,
+        nvim_enable_swap(std::env::args()),
     ));
 
     ui.init(app, !nvim_disable_win_state(std::env::args()));
@@ -167,6 +170,7 @@ fn activate(app: &gtk::Application, input_data: Option<String>) {
         nvim_timeout(std::env::args()),
         collect_args_for_nvim(),
         input_data,
+        nvim_enable_swap(std::env::args()),
     ));
 
     ui.init(app, !nvim_disable_win_state(std::env::args()));
@@ -192,8 +196,7 @@ where
                 error!("Can't convert timeout argument to integer: {}", err);
                 None
             }
-        })
-        .map(|timeout| Duration::from_secs(timeout))
+        }).map(|timeout| Duration::from_secs(timeout))
 }
 
 fn nvim_disable_win_state<I>(mut args: I) -> bool
@@ -201,6 +204,15 @@ where
     I: Iterator<Item = String>,
 {
     args.find(|a| a.starts_with(DISABLE_WIN_STATE_RESTORE))
+        .map(|_| true)
+        .unwrap_or(false)
+}
+
+fn nvim_enable_swap<I>(mut args: I) -> bool
+where
+    I: Iterator<Item = String>,
+{
+    args.find(|a| a.starts_with(ENALBE_SWAP))
         .map(|_| true)
         .unwrap_or(false)
 }
