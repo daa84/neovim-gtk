@@ -2,9 +2,12 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::str::FromStr;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
+
+use clap;
 
 use cairo;
 use gdk;
@@ -596,20 +599,28 @@ pub struct ShellOptions {
 
 impl ShellOptions {
     pub fn new(
-        nvim_bin_path: Option<String>,
+        matches: &clap::ArgMatches,
         open_paths: Vec<String>,
-        timeout: Option<Duration>,
-        args_for_neovim: Vec<String>,
         input_data: Option<String>,
-        enable_swap: bool,
     ) -> Self {
         ShellOptions {
-            nvim_bin_path,
             open_paths,
-            timeout,
-            args_for_neovim,
             input_data,
-            enable_swap,
+            nvim_bin_path: matches.value_of("nvim-bin-path").map(str::to_owned),
+            timeout: matches
+                .value_of("timeout")
+                .and_then(|timeout| match u64::from_str(&timeout) {
+                    Ok(timeout) => Some(timeout),
+                    Err(err) => {
+                        error!("Can't convert timeout argument to integer: {}", err);
+                        None
+                    }
+                }).map(Duration::from_secs),
+            args_for_neovim: matches
+                .values_of("nvim-args")
+                .map(|args| args.map(str::to_owned).collect())
+                .unwrap_or(vec![]),
+            enable_swap: matches.is_present("enable-swap"),
         }
     }
 

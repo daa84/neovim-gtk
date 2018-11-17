@@ -68,10 +68,7 @@ mod tabline;
 
 use gio::prelude::*;
 use std::cell::RefCell;
-use std::env;
 use std::io::Read;
-use std::str::FromStr;
-use std::time::Duration;
 #[cfg(unix)]
 use unix_daemonize::{daemonize_redirect, ChdirMode};
 
@@ -80,20 +77,27 @@ use ui::Ui;
 use clap::{App, Arg, ArgMatches};
 use shell::ShellOptions;
 
-const TIMEOUT_ARG: &str = "--timeout";
-const DISABLE_WIN_STATE_RESTORE: &str = "--disable-win-restore";
-const NO_FORK: &str = "--no-fork";
-
 fn main() {
     env_logger::init();
 
     let matches = App::new("NeovimGtk")
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
+        .arg(Arg::with_name("no-fork")
+             .long("no-fork")
+             .help("Prevent detach from console"))
+        .arg(Arg::with_name("disable-win-restore")
+             .long("disable-win-restore")
+             .help("Don't restore window size at start"))
+        .arg(Arg::with_name("timeout")
+             .long("timeout")
+             .default_value("10")
+             .help("Wait timeout in seconds. If nvim does not response in given time NvimGtk stops")
+            .takes_value(true))
         .arg(
             Arg::with_name("enable-swap")
                 .long("enable-swap")
-                .help("Enable swap"),
+                .help("Enable swap files"),
         ).arg(Arg::with_name("files").help("Files to open").multiple(true))
         .arg(
             Arg::with_name("nvim-bin-path")
@@ -112,13 +116,7 @@ fn main() {
     #[cfg(unix)]
     {
         // fork to background by default
-        let want_fork = env::args()
-            .take_while(|a| *a != "--")
-            .skip(1)
-            .find(|a| a.starts_with(NO_FORK))
-            .is_none();
-
-        if want_fork {
+        if !matches.is_present("no-fork") {
             daemonize_redirect(
                 Some("/tmp/nvim-gtk_stdout.log"),
                 Some("/tmp/nvim-gtk_stderr.log"),
@@ -170,59 +168,16 @@ fn open(app: &gtk::Application, files: &[gio::File], matches: &ArgMatches) {
         .into_iter()
         .filter_map(|f| f.get_path()?.to_str().map(str::to_owned))
         .collect();
-    let mut ui = Ui::new(ShellOptions::new(
-        matches.value_of("nvim-bin-path").map(str::to_owned),
-        files_list,
-        nvim_timeout(std::env::args()),
-        matches
-            .values_of("nvim-args")
-            .map(|args| args.map(str::to_owned).collect())
-            .unwrap_or(vec![]),
-        None,
-        matches.value_of("enable-swap").is_some(),
-    ));
 
-    ui.init(app, !nvim_disable_win_state(std::env::args()));
+    let mut ui = Ui::new(ShellOptions::new(matches, files_list, None));
+
+    ui.init(app, !matches.is_present("disable-win-restore"));
 }
 
 fn activate(app: &gtk::Application, matches: &ArgMatches, input_data: Option<String>) {
-    let mut ui = Ui::new(ShellOptions::new(
-        matches.value_of("nvim-bin-path").map(str::to_owned),
-        Vec::new(),
-        nvim_timeout(std::env::args()),
-        matches
-            .values_of("nvim-args")
-            .map(|args| args.map(str::to_owned).collect())
-            .unwrap_or(vec![]),
-        input_data,
-        matches.value_of("enable-swap").is_some(),
-    ));
+    let mut ui = Ui::new(ShellOptions::new(matches, Vec::new(), input_data));
 
-    ui.init(app, !nvim_disable_win_state(std::env::args()));
-}
-
-fn nvim_timeout<I>(mut args: I) -> Option<Duration>
-where
-    I: Iterator<Item = String>,
-{
-    args.find(|a| a.starts_with(TIMEOUT_ARG))
-        .and_then(|p| p.split('=').nth(1).map(str::to_owned))
-        .and_then(|timeout| match u64::from_str(&timeout) {
-            Ok(timeout) => Some(timeout),
-            Err(err) => {
-                error!("Can't convert timeout argument to integer: {}", err);
-                None
-            }
-        }).map(|timeout| Duration::from_secs(timeout))
-}
-
-fn nvim_disable_win_state<I>(mut args: I) -> bool
-where
-    I: Iterator<Item = String>,
-{
-    args.find(|a| a.starts_with(DISABLE_WIN_STATE_RESTORE))
-        .map(|_| true)
-        .unwrap_or(false)
+    ui.init(app, !matches.is_present("disable-win-restore"));
 }
 
 fn read_piped_input() -> Option<String> {
