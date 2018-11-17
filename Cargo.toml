@@ -5,6 +5,7 @@ authors = ["daa84 <daa84@inbox.ru>"]
 build = "build.rs"
 
 [dependencies]
+clap = "2.32"
 cairo-rs = "0.5"
 pango-sys = "0.7"
 pangocairo = "0.6"

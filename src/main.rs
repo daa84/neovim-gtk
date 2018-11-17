@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 extern crate cairo;
+extern crate clap;
 extern crate dirs as env_dirs;
 extern crate env_logger;
 extern crate gdk;
@@ -76,27 +77,37 @@ use unix_daemonize::{daemonize_redirect, ChdirMode};
 
 use ui::Ui;
 
+use clap::{App, Arg, ArgMatches};
 use shell::ShellOptions;
 
-const BIN_PATH_ARG: &str = "--nvim-bin-path";
 const TIMEOUT_ARG: &str = "--timeout";
 const DISABLE_WIN_STATE_RESTORE: &str = "--disable-win-restore";
 const NO_FORK: &str = "--no-fork";
-const ENALBE_SWAP: &str = "--enable-swap";
 
 fn main() {
     env_logger::init();
 
-    let input_data = RefCell::new(read_piped_input());
+    let matches = App::new("NeovimGtk")
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .arg(
+            Arg::with_name("enable-swap")
+                .long("enable-swap")
+                .help("Enable swap"),
+        ).arg(Arg::with_name("files").help("Files to open").multiple(true))
+        .arg(
+            Arg::with_name("nvim-bin-path")
+                .long("nvim-bin-path")
+                .help("Path to nvim binary")
+                .takes_value(true),
+        ).arg(
+            Arg::with_name("nvim-args")
+                .help("Args will be passed to nvim")
+                .last(true)
+                .multiple(true),
+        ).get_matches();
 
-    let argv: Vec<String> = env::args()
-        .take_while(|a| *a != "--")
-        .filter(|a| !a.starts_with(BIN_PATH_ARG))
-        .filter(|a| !a.starts_with(TIMEOUT_ARG))
-        .filter(|a| !a.starts_with(DISABLE_WIN_STATE_RESTORE))
-        .filter(|a| !a.starts_with(NO_FORK))
-        .filter(|a| !a.starts_with(ENALBE_SWAP))
-        .collect();
+    let input_data = RefCell::new(read_piped_input());
 
     #[cfg(unix)]
     {
@@ -126,62 +137,68 @@ fn main() {
         gtk::Application::new(Some("org.daa.NeovimGtk"), app_flags)
     }.expect("Failed to initialize GTK application");
 
-    app.connect_activate(move |app| activate(app, input_data.replace(None)));
-    app.connect_open(open);
+    let matches_copy = matches.clone();
+    app.connect_activate(move |app| activate(app, &matches_copy, input_data.replace(None)));
 
-    let new_window_action = gio::SimpleAction::new("new-window", None);
+    let matches_copy = matches.clone();
+    app.connect_open(move |app, files, _| open(app, files, &matches_copy));
+
     let app_ref = app.clone();
-    new_window_action.connect_activate(move |_, _| activate(&app_ref, None));
+    let matches_copy = matches.clone();
+    let new_window_action = gio::SimpleAction::new("new-window", None);
+    new_window_action.connect_activate(move |_, _| activate(&app_ref, &matches_copy, None));
     app.add_action(&new_window_action);
 
     gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
 
-    app.run(&argv);
+    let app_exe = std::env::args().next().unwrap_or("nvim-gtk".to_owned());
+    let default_args = vec![app_exe.clone()];
+
+    app.run(
+        &matches
+            .values_of("files")
+            .map(|files| {
+                std::iter::once(app_exe)
+                    .chain(files.map(str::to_owned))
+                    .collect()
+            }).unwrap_or(default_args),
+    );
 }
 
-fn collect_args_for_nvim() -> Vec<String> {
-    std::env::args()
-        .skip_while(|a| *a != "--")
-        .skip(1)
-        .collect()
-}
-
-fn open(app: &gtk::Application, files: &[gio::File], _: &str) {
+fn open(app: &gtk::Application, files: &[gio::File], matches: &ArgMatches) {
     let files_list: Vec<String> = files
         .into_iter()
         .filter_map(|f| f.get_path()?.to_str().map(str::to_owned))
         .collect();
     let mut ui = Ui::new(ShellOptions::new(
-        nvim_bin_path(std::env::args()),
+        matches.value_of("nvim-bin-path").map(str::to_owned),
         files_list,
         nvim_timeout(std::env::args()),
-        collect_args_for_nvim(),
+        matches
+            .values_of("nvim-args")
+            .map(|args| args.map(str::to_owned).collect())
+            .unwrap_or(vec![]),
         None,
-        nvim_enable_swap(std::env::args()),
+        matches.value_of("enable-swap").is_some(),
     ));
 
     ui.init(app, !nvim_disable_win_state(std::env::args()));
 }
 
-fn activate(app: &gtk::Application, input_data: Option<String>) {
+fn activate(app: &gtk::Application, matches: &ArgMatches, input_data: Option<String>) {
     let mut ui = Ui::new(ShellOptions::new(
-        nvim_bin_path(std::env::args()),
+        matches.value_of("nvim-bin-path").map(str::to_owned),
         Vec::new(),
         nvim_timeout(std::env::args()),
-        collect_args_for_nvim(),
+        matches
+            .values_of("nvim-args")
+            .map(|args| args.map(str::to_owned).collect())
+            .unwrap_or(vec![]),
         input_data,
-        nvim_enable_swap(std::env::args()),
+        matches.value_of("enable-swap").is_some(),
     ));
 
     ui.init(app, !nvim_disable_win_state(std::env::args()));
-}
-
-fn nvim_bin_path<I>(mut args: I) -> Option<String>
-where
-    I: Iterator<Item = String>,
-{
-    args.find(|a| a.starts_with(BIN_PATH_ARG))
-        .and_then(|p| p.split('=').nth(1).map(str::to_owned))
 }
 
 fn nvim_timeout<I>(mut args: I) -> Option<Duration>
@@ -208,15 +225,6 @@ where
         .unwrap_or(false)
 }
 
-fn nvim_enable_swap<I>(mut args: I) -> bool
-where
-    I: Iterator<Item = String>,
-{
-    args.find(|a| a.starts_with(ENALBE_SWAP))
-        .map(|_| true)
-        .unwrap_or(false)
-}
-
 fn read_piped_input() -> Option<String> {
     if atty::isnt(atty::Stream::Stdin) {
         let mut buf = String::new();
@@ -230,34 +238,5 @@ fn read_piped_input() -> Option<String> {
         }
     } else {
         None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_bin_path_arg() {
-        assert_eq!(
-            Some("/test_path".to_string()),
-            nvim_bin_path(
-                vec!["neovim-gtk", "--nvim-bin-path=/test_path"]
-                    .iter()
-                    .map(|s| s.to_string()),
-            )
-        );
-    }
-
-    #[test]
-    fn test_timeout_arg() {
-        assert_eq!(
-            Some(Duration::from_secs(100)),
-            nvim_timeout(
-                vec!["neovim-gtk", "--timeout=100"]
-                    .iter()
-                    .map(|s| s.to_string())
-            )
-        );
     }
 }
