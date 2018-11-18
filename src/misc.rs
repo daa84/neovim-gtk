@@ -1,7 +1,38 @@
 use std::borrow::Cow;
+use std::mem;
 
-use regex::Regex;
 use percent_encoding::percent_decode;
+use regex::Regex;
+
+use shell;
+
+/// Split comma separated parameters with ',' except escaped '\\,'
+pub fn split_at_comma(source: &str) -> Vec<String> {
+    let mut items = Vec::new();
+
+    let mut escaped = false;
+    let mut item = String::new();
+
+    for ch in source.chars() {
+        if ch == ',' && !escaped {
+            item = item.replace("\\,", ",");
+
+            let mut new_item = String::new();
+            mem::swap(&mut item, &mut new_item);
+
+            items.push(new_item);
+        } else {
+            item.push(ch);
+        }
+        escaped = ch == '\\';
+    }
+
+    if !item.is_empty() {
+        items.push(item.replace("\\,", ","));
+    }
+
+    items
+}
 
 /// Escape special ASCII characters with a backslash.
 pub fn escape_filename<'t>(filename: &'t str) -> Cow<'t, str> {
@@ -34,5 +65,32 @@ pub fn decode_uri(uri: &str) -> Option<String> {
         Some(String::from(SLASH.replace_all(&*path, r"\")))
     } else {
         Some("/".to_owned() + &path)
+    }
+}
+
+/// info text
+pub fn about_comments() -> String {
+    format!(
+        "Build on top of neovim\n\
+         Minimum supported neovim version: {}",
+        shell::MINIMUM_SUPPORTED_NVIM_VERSION
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_comma_split() {
+        let res = split_at_comma("a,b");
+        assert_eq!(2, res.len());
+        assert_eq!("a", res[0]);
+        assert_eq!("b", res[1]);
+
+        let res = split_at_comma("a,b\\,c");
+        assert_eq!(2, res.len());
+        assert_eq!("a", res[0]);
+        assert_eq!("b,c", res[1]);
     }
 }
