@@ -634,21 +634,6 @@ impl Shell {
 
         self.widget.pack_start(&state.stack, true, true, 0);
 
-<<<<<<< HEAD
-=======
-        state.drawing_area.add_events(
-            (gdk::EventMask::BUTTON_RELEASE_MASK
-                | gdk::EventMask::BUTTON_PRESS_MASK
-                | gdk::EventMask::BUTTON_MOTION_MASK
-                | gdk::EventMask::SCROLL_MASK
-                | gdk::EventMask::SMOOTH_SCROLL_MASK
-                | gdk::EventMask::ENTER_NOTIFY_MASK
-                | gdk::EventMask::LEAVE_NOTIFY_MASK
-                | gdk::EventMask::POINTER_MOTION_MASK)
-                .bits() as i32,
-        );
-
->>>>>>> newgrid
         let menu = self.create_context_menu();
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
