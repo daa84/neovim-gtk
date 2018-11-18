@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 extern crate cairo;
+#[macro_use]
 extern crate clap;
 extern crate dirs as env_dirs;
 extern crate env_logger;
@@ -83,6 +84,7 @@ fn main() {
     let matches = App::new("NeovimGtk")
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
+        .about(misc::about_comments().as_str())
         .arg(Arg::with_name("no-fork")
              .long("no-fork")
              .help("Prevent detach from console"))
@@ -150,16 +152,15 @@ fn main() {
     gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
 
     let app_exe = std::env::args().next().unwrap_or("nvim-gtk".to_owned());
-    let default_args = vec![app_exe.clone()];
 
     app.run(
-        &matches
-            .values_of("files")
-            .map(|files| {
-                std::iter::once(app_exe)
-                    .chain(files.map(str::to_owned))
-                    .collect()
-            }).unwrap_or(default_args),
+        &std::iter::once(app_exe)
+            .chain(
+                matches
+                    .values_of("files")
+                    .unwrap_or(clap::Values::default())
+                    .map(str::to_owned),
+            ).collect::<Vec<String>>(),
     );
 }
 

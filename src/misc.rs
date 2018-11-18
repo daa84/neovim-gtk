@@ -4,6 +4,8 @@ use std::mem;
 use percent_encoding::percent_decode;
 use regex::Regex;
 
+use shell;
+
 /// Split comma separated parameters with ',' except escaped '\\,'
 pub fn split_at_comma(source: &str) -> Vec<String> {
     let mut items = Vec::new();
@@ -64,6 +66,15 @@ pub fn decode_uri(uri: &str) -> Option<String> {
     } else {
         Some("/".to_owned() + &path)
     }
+}
+
+/// info text
+pub fn about_comments() -> String {
+    format!(
+        "Build on top of neovim\n\
+         Minimum supported neovim version: {}",
+        shell::MINIMUM_SUPPORTED_NVIM_VERSION
+    )
 }
 
 #[cfg(test)]

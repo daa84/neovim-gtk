@@ -14,6 +14,7 @@ use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned,
 
 use toml;
 
+use misc;
 use file_browser::FileBrowserWidget;
 use nvim::NvimCommand;
 use plug_manager;
@@ -432,13 +433,7 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     about.set_version(env!("CARGO_PKG_VERSION"));
     about.set_logo_icon_name("org.daa.NeovimGtk");
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
-    about.set_comments(
-        format!(
-            "Build on top of neovim\n\
-             Minimum supported neovim version: {}",
-            shell::MINIMUM_SUPPORTED_NVIM_VERSION
-        ).as_str(),
-    );
+    about.set_comments(misc::about_comments().as_str());
 
     about.connect_response(|about, _| about.destroy());
     about.show();
