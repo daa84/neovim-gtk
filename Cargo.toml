@@ -5,6 +5,7 @@ authors = ["daa84 <daa84@inbox.ru>"]
 build = "build.rs"
 
 [dependencies]
+clap = "2.32"
 cairo-rs = "0.5"
 pango-sys = "0.7"
 pangocairo = "0.6"
@@ -51,6 +52,9 @@ unix-daemonize = "0.1"
 
 [dependencies.neovim-lib]
 git = "https://github.com/daa84/neovim-lib"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
 
 [build-dependencies]
 phf_codegen = "0.7"

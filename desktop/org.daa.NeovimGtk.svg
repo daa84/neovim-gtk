@@ -15,8 +15,8 @@
    viewBox="0 0 128 128"
    id="svg2"
    version="1.1"
-   inkscape:version="0.91 r13725"
-   sodipodi:docname="nvim-gtk-logo.svg"
+   inkscape:version="0.92.3 (2405546, 2018-03-11)"
+   sodipodi:docname="org.daa.NeovimGtk.svg"
    enable-background="new"
    inkscape:export-filename="/home/daa/projects/neovim-gtk/desktop/nvim-gtk.png"
    inkscape:export-xdpi="90"
@@ -87,17 +87,17 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1.979899"
-     inkscape:cx="52.426816"
-     inkscape:cy="40.703901"
+     inkscape:cx="64.675932"
+     inkscape:cy="67.502045"
      inkscape:document-units="px"
-     inkscape:current-layer="layer3"
+     inkscape:current-layer="layer1"
      showgrid="false"
      units="px"
-     inkscape:window-width="1865"
-     inkscape:window-height="1056"
-     inkscape:window-x="55"
-     inkscape:window-y="24"
-     inkscape:window-maximized="1" />
+     inkscape:window-width="859"
+     inkscape:window-height="523"
+     inkscape:window-x="1061"
+     inkscape:window-y="520"
+     inkscape:window-maximized="0" />
   <metadata
      id="metadata7">
     <rdf:RDF>
@@ -125,7 +125,7 @@
        sketch:type="MSPage"
        id="Page-1"
        style="fill:none;fill-rule:evenodd;stroke:none;stroke-width:1"
-       transform="translate(135.20072,222.56438)">
+       transform="translate(134.08721,222.73276)">
       <g
          transform="matrix(0.59861985,0,0,0.59861985,-122.46645,702.21121)"
          sketch:type="MSLayerGroup"
@@ -133,26 +133,26 @@
         <path
            sketch:type="MSShapeGroup"
            id="Left---green"
-           d="M 0.02714063,45.458544 45.223647,-0.17297621 45.223646,211.99833 0.02714063,166.89384 l 0,-121.435296 z"
+           d="M 0.02714063,45.458544 45.223647,-0.17297621 45.223646,211.99833 0.02714063,166.89384 Z"
            inkscape:connector-curvature="0"
            style="fill:url(#linearGradient-1)" />
         <path
            transform="matrix(-1,0,0,1,304,0)"
            sketch:type="MSShapeGroup"
            id="Right---blue"
-           d="M 129.33671,45.889361 175.15234,-0.14833204 174.22365,211.99833 129.02714,166.89384 129.33671,45.889361 Z"
+           d="M 129.33671,45.889361 175.15234,-0.14833204 174.22365,211.99833 129.02714,166.89384 Z"
            inkscape:connector-curvature="0"
            style="fill:url(#linearGradient-2)" />
         <path
            sketch:type="MSShapeGroup"
            id="Cross---blue"
-           d="M 45.193511,-0.13667814 162.69969,179.17338 129.81792,212.05433 12.250244,33.141173 45.193511,-0.13667814 Z"
+           d="M 45.193511,-0.13667814 162.69969,179.17338 129.81792,212.05433 12.250244,33.141173 Z"
            inkscape:connector-curvature="0"
            style="fill:url(#linearGradient-3)" />
         <path
            sketch:type="MSShapeGroup"
            id="Shadow"
-           d="m 45.233948,83.032105 -0.0625,7.0625 -36.2805789,-53.5625 3.3593749,-3.422181 32.983704,49.922181 z"
+           d="m 45.233948,83.032105 -0.0625,7.0625 -36.2805789,-53.5625 3.3593749,-3.422181 z"
            inkscape:connector-curvature="0"
            style="fill:#000000;fill-opacity:0.12999998" />
       </g>

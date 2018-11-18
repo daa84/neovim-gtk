@@ -85,6 +85,7 @@ pub fn start(
     nvim_bin_path: Option<&String>,
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
+    enable_swap: bool,
 ) -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
@@ -92,10 +93,12 @@ pub fn start(
         Command::new("nvim")
     };
 
+    // Swap files are disabled by default because it shows message window on start up but frontend can't detect it.
+    if !enable_swap {
+        cmd.arg("-n");
+    }
+
     cmd.arg("--embed")
-        .arg("--headless")
-        // Swap files are disabled because it shows message window on start up but frontend can't detect it.
-        .arg("-n")
         .arg("--cmd")
         .arg("set termguicolors")
         .arg("--cmd")
@@ -144,8 +147,8 @@ pub fn start(
 pub fn post_start_init(
     nvim: NeovimClientAsync,
     open_paths: Vec<String>,
-    cols: u64,
-    rows: u64,
+    cols: i64,
+    rows: i64,
     input_data: Option<String>,
 ) -> result::Result<(), NvimInitError> {
     nvim.borrow()
@@ -156,7 +159,7 @@ pub fn post_start_init(
             UiAttachOptions::new()
                 .set_popupmenu_external(true)
                 .set_tabline_external(true)
-                .set_newgrid_external(true)
+                .set_linegrid_external(true)
                 .set_hlstate_external(true)
         )
         .map_err(NvimInitError::new_post_init)?;

@@ -6,6 +6,8 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use clap;
+
 use cairo;
 use gdk;
 use gdk::{EventButton, EventMotion, EventScroll, EventType, ModifierType, WindowExt};
@@ -23,7 +25,7 @@ use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 use color::Color;
 use grid::GridMap;
 use highlight::HighlightMap;
-use misc::{decode_uri, escape_filename};
+use misc::{decode_uri, escape_filename, split_at_comma};
 use nvim::{
     self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef, NvimHandler,
     RepaintGridEvent, RepaintMode, RepaintEvent
@@ -411,7 +413,7 @@ impl State {
                 debug!("ui_try_resize {}/{}", columns, rows);
                 resize_timer.set(None);
 
-                nvim.ui_try_resize_async(columns as u64, rows as u64)
+                nvim.ui_try_resize_async(columns as i64, rows as i64)
                     .cb(|r| r.report_err())
                     .call();
 
@@ -482,12 +484,16 @@ impl State {
     }
 
     pub fn set_font(&mut self, font_desc: String) {
+        self.set_font_rpc(&font_desc);
+    }
+
+    pub fn set_font_rpc(&mut self, font_desc: &str) {
         {
             let mut settings = self.settings.borrow_mut();
             settings.set_font_source(FontSource::Rpc);
         }
 
-        self.set_font_desc(&font_desc);
+        self.set_font_desc(font_desc);
     }
 
     pub fn on_command(&mut self, command: nvim::NvimCommand) {
@@ -551,22 +557,27 @@ pub struct ShellOptions {
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
     input_data: Option<String>,
+    enable_swap: bool,
 }
 
 impl ShellOptions {
     pub fn new(
-        nvim_bin_path: Option<String>,
+        matches: &clap::ArgMatches,
         open_paths: Vec<String>,
-        timeout: Option<Duration>,
-        args_for_neovim: Vec<String>,
         input_data: Option<String>,
     ) -> Self {
         ShellOptions {
-            nvim_bin_path,
             open_paths,
-            timeout,
-            args_for_neovim,
             input_data,
+            nvim_bin_path: matches.value_of("nvim-bin-path").map(str::to_owned),
+            timeout: value_t!(matches.value_of("timeout"), u64)
+                .map(Duration::from_secs)
+                .ok(),
+            args_for_neovim: matches
+                .values_of("nvim-args")
+                .map(|args| args.map(str::to_owned).collect())
+                .unwrap_or(vec![]),
+            enable_swap: matches.is_present("enable-swap"),
         }
     }
 
@@ -623,6 +634,21 @@ impl Shell {
 
         self.widget.pack_start(&state.stack, true, true, 0);
 
+<<<<<<< HEAD
+=======
+        state.drawing_area.add_events(
+            (gdk::EventMask::BUTTON_RELEASE_MASK
+                | gdk::EventMask::BUTTON_PRESS_MASK
+                | gdk::EventMask::BUTTON_MOTION_MASK
+                | gdk::EventMask::SCROLL_MASK
+                | gdk::EventMask::SMOOTH_SCROLL_MASK
+                | gdk::EventMask::ENTER_NOTIFY_MASK
+                | gdk::EventMask::LEAVE_NOTIFY_MASK
+                | gdk::EventMask::POINTER_MOTION_MASK)
+                .bits() as i32,
+        );
+
+>>>>>>> newgrid
         let menu = self.create_context_menu();
         let ref_state = self.state.clone();
         let ref_ui_state = self.ui_state.clone();
@@ -1094,6 +1120,7 @@ fn init_nvim_async(
         options.nvim_bin_path.as_ref(),
         options.timeout,
         options.args_for_neovim,
+        options.enable_swap,
     ) {
         Ok(nvim) => nvim,
         Err(err) => {
@@ -1124,8 +1151,8 @@ fn init_nvim_async(
     if let Err(err) = nvim::post_start_init(
         nvim,
         options.open_paths,
-        cols as u64,
-        rows as u64,
+        cols as i64,
+        rows as i64,
         options.input_data,
     ) {
         show_nvim_init_error(&err, state_arc.clone());
@@ -1399,6 +1426,39 @@ impl State {
         self.tabs.update_tabs(&self.nvim, &selected, &tabs);
 
         RepaintGridEvent::nothing()
+    }
+
+    pub fn option_set(&mut self, name: String, val: Value) -> RepaintMode {
+        match name.as_str() {
+            "guifont" => self.set_font_from_value(val),
+            _ => (),
+        };
+        RepaintMode::Nothing
+    }
+
+    fn set_font_from_value(&mut self, val: Value) {
+        if let Value::String(val) = val {
+            if let Some(val) = val.into_str() {
+                if !val.is_empty() {
+                    let exists_fonts = self.render_state.borrow().font_ctx.font_families();
+                    let fonts = split_at_comma(&val);
+                    for font in &fonts {
+                        let desc = FontDescription::from_string(&font);
+                        if desc.get_size() > 0
+                            && exists_fonts.contains(&desc.get_family().unwrap_or("".to_owned()))
+                        {
+                            self.set_font_rpc(font);
+                            return;
+                        }
+                    }
+
+                    // font does not exists? set first one
+                    if !fonts.is_empty() {
+                        self.set_font_rpc(&fonts[0]);
+                    }
+                }
+            }
+        }
     }
 
     pub fn mode_info_set(
