@@ -3,6 +3,8 @@ use std::rc::Rc;
 
 use gdk;
 use gtk::{self, prelude::*};
+use pango::prelude::*;
+use pango::{FontDescription, LayoutExt};
 
 use fnv::FnvHashMap;
 
@@ -10,11 +12,13 @@ use neovim_lib::Value;
 
 use highlight::{Highlight, HighlightMap};
 use nvim::{RepaintGridEvent, RepaintMode};
+use mode;
 use render;
 use shell::RenderState;
 use ui_model::{ModelRect, ModelRectVec, UiModel};
 
 const DEFAULT_GRID: u64 = 1;
+const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 
 type ButtonEventCb = Fn(u64, &gdk::EventButton) + 'static;
 type KeyEventCb = Fn(u64, &gdk::EventKey) -> Inhibit + 'static;
@@ -216,6 +220,8 @@ pub struct Grid {
     grid: u64,
     model: UiModel,
     drawing_area: gtk::DrawingArea,
+    font_ctx: render::Context,
+    mode: mode::Mode,
 }
 
 impl Grid {
@@ -269,10 +275,15 @@ impl Grid {
                 .bits() as i32,
         );
 
+        let pango_context = drawing_area.create_pango_context().unwrap();
+        pango_context.set_font_description(&FontDescription::from_string(DEFAULT_FONT_NAME));
+
         Grid {
             grid,
             model: UiModel::empty(),
             drawing_area,
+            font_ctx: render::Context::new(pango_context),
+            mode: mode::Mode::new(),
         }
     }
 

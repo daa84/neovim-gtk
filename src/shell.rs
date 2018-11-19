@@ -46,7 +46,6 @@ use subscriptions::{SubscriptionHandle, Subscriptions};
 use tabline::Tabline;
 use ui::UiMutex;
 
-const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.3.2";
 
 macro_rules! idle_cb_call {
@@ -59,22 +58,6 @@ macro_rules! idle_cb_call {
                                glib::Continue(false)
                            });
     )
-}
-
-pub struct RenderState {
-    pub font_ctx: render::Context,
-    pub hl: HighlightMap,
-    pub mode: mode::Mode,
-}
-
-impl RenderState {
-    pub fn new(pango_context: pango::Context) -> Self {
-        RenderState {
-            font_ctx: render::Context::new(pango_context),
-            hl: HighlightMap::new(),
-            mode: mode::Mode::new(),
-        }
-    }
 }
 
 pub struct TransparencySettigns {
@@ -118,7 +101,8 @@ pub struct State {
     popup_menu: PopupMenu,
     cmd_line: CmdLine,
     settings: Rc<RefCell<Settings>>,
-    render_state: Rc<RefCell<RenderState>>,
+    hl: Rc<RefCell<HighlightMap>>,
+    mode: mode::Mode,
 
     resize_request: (i64, i64),
     resize_timer: Rc<Cell<Option<glib::SourceId>>>,
@@ -145,10 +129,6 @@ impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions) -> State {
         let drawing_area = gtk::DrawingArea::new();
 
-        let pango_context = drawing_area.create_pango_context().unwrap();
-        pango_context.set_font_description(&FontDescription::from_string(DEFAULT_FONT_NAME));
-
-        let render_state = Rc::new(RefCell::new(RenderState::new(pango_context)));
         let popup_menu = PopupMenu::new(&drawing_area);
         let cmd_line = CmdLine::new(&drawing_area, render_state.clone());
 
@@ -160,7 +140,8 @@ impl State {
             popup_menu,
             cmd_line,
             settings,
-            render_state,
+            hl: Rc::new(RefCell::new(HighlightMap::new())),
+            mode: mode::Mode::new(),
 
             resize_request: (-1, -1),
             resize_timer: Rc::new(Cell::new(None)),
