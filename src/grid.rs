@@ -14,7 +14,6 @@ use highlight::{Highlight, HighlightMap};
 use nvim::{RepaintGridEvent, RepaintMode};
 use mode;
 use render;
-use shell::RenderState;
 use ui_model::{ModelRect, ModelRectVec, UiModel};
 
 const DEFAULT_GRID: u64 = 1;
@@ -167,6 +166,26 @@ impl GridMap {
     pub fn clear_glyphs(&mut self) {
         for grid in self.grids.values_mut() {
             grid.model.clear_glyphs();
+        }
+    }
+
+    pub fn set_font_description(&mut self, font_description: FontDescription) {
+        for grid in self.grids.values_mut() {
+            let pango_context = grid.drawing_area.create_pango_context().unwrap();
+            pango_context.set_font_description(&font_description);
+            grid.font_ctx.update(pango_context);
+        }
+    }
+
+    pub fn update_font_features(&mut self, font_features: render::FontFeatures) {
+        for grid in self.grids.values_mut() {
+            grid.font_ctx.update_font_features(font_features);
+        }
+    }
+
+    pub fn update_line_space(&mut self, line_space: i32) {
+        for grid in self.grids.values_mut() {
+            grid.font_ctx.update_line_space(line_space);
         }
     }
 }

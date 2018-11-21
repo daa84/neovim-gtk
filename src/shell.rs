@@ -14,7 +14,6 @@ use gdk::{EventButton, EventMotion, EventScroll, EventType, ModifierType, Window
 use glib;
 use gtk;
 use gtk::prelude::*;
-use pango;
 use pango::prelude::*;
 use pango::{FontDescription, LayoutExt};
 use pangocairo;
@@ -236,13 +235,7 @@ impl State {
             return;
         }
 
-        let pango_context = self.drawing_area.create_pango_context().unwrap();
-        pango_context.set_font_description(&font_description);
-
-        self.render_state
-            .borrow_mut()
-            .font_ctx
-            .update(pango_context);
+        self.grids.set_font_description(font_description);
         self.grids.clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintEvent::all());
@@ -251,10 +244,7 @@ impl State {
     pub fn set_font_features(&mut self, font_features: String) {
         let font_features = render::FontFeatures::from(font_features);
 
-        self.render_state
-            .borrow_mut()
-            .font_ctx
-            .update_font_features(font_features);
+        self.grids.update_font_features(font_features);
         self.grids.clear_glyphs();
         self.on_redraw(&RepaintEvent::all());
     }
@@ -268,10 +258,7 @@ impl State {
             }
         };
 
-        self.render_state
-            .borrow_mut()
-            .font_ctx
-            .update_line_space(line_space);
+        self.grids.update_line_space(line_space);
         self.grids.clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintEvent::all());
