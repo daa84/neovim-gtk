@@ -78,24 +78,24 @@ impl GridMap {
         }
     }
 
-    pub fn queue_redraw_all(&mut self, render_state: &RenderState) {
+    pub fn queue_redraw_all(&mut self, hl: &HighlightMap) {
         for grid_id in self.grids.keys() {
             self.queue_redraw(
-                render_state,
+                hl,
                 &RepaintGridEvent::new(*grid_id, RepaintMode::All),
             );
         }
     }
 
-    pub fn queue_redraw(&mut self, render_state: &RenderState, ev: &RepaintGridEvent) {
+    pub fn queue_redraw(&mut self, hl: &HighlightMap, ev: &RepaintGridEvent) {
         if let Some(grid) = self.grids.get(&ev.grid_id.unwrap()) {
             match ev.mode {
                 RepaintMode::All => {
-                    grid.update_dirty_glyphs(render_state);
+                    grid.update_dirty_glyphs(hl);
                     grid.drawing_area.queue_draw();
                 }
-                RepaintMode::Area(ref rect) => grid.queue_draw_area(render_state, &[rect]),
-                RepaintMode::AreaList(ref list) => grid.queue_draw_area(render_state, &list.list),
+                RepaintMode::Area(ref rect) => grid.queue_draw_area(hl, &[rect]),
+                RepaintMode::AreaList(ref list) => grid.queue_draw_area(hl, &list.list),
                 RepaintMode::Nothing => (),
             }
         } else {
@@ -246,7 +246,7 @@ pub struct Grid {
 impl Grid {
     pub fn queue_draw_area<M: AsRef<ModelRect>>(
         &mut self,
-        render_state: &RenderState,
+        hl: &HighlightMap,
         rect_list: &[M],
     ) {
         // extends by items before, then after changes
@@ -259,9 +259,9 @@ impl Grid {
                 rect
             }).collect();
 
-        self.update_dirty_glyphs(&render_state);
+        self.update_dirty_glyphs(hl);
 
-        let cell_metrics = render_state.font_ctx.cell_metrics();
+        let cell_metrics = self.font_ctx.cell_metrics();
 
         for mut rect in rects {
             rect.extend_by_items(&self.model);
@@ -271,8 +271,8 @@ impl Grid {
         }
     }
 
-    pub fn update_dirty_glyphs(&mut self, render_state: &RenderState) {
-        render::shape_dirty(&render_state.font_ctx, &mut self.model, &render_state.hl);
+    pub fn update_dirty_glyphs(&mut self, hl: &HighlightMap) {
+        render::shape_dirty(&self.font_ctx, &mut self.model, hl);
     }
 }
 

@@ -1022,30 +1022,6 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
     ctx.paint();
 }
 
-fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
-    let state = state_arc.borrow();
-    if state.nvim.is_initialized() {
-        draw_content(&*state, ctx);
-    } else if state.nvim.is_initializing() {
-        draw_initializing(&*state, ctx);
-    }
-
-    Inhibit(false)
-}
-
-fn show_nvim_start_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
-    let source = err.source();
-    let cmd = err.cmd().unwrap().to_owned();
-
-    glib::idle_add(move || {
-        let state = state_arc.borrow();
-        state.nvim.set_error();
-        state.error_area.show_nvim_start_error(&source, &cmd);
-        state.show_error_area();
-
-        Continue(false)
-    });
-}
 
 fn show_nvim_init_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
     let source = err.source();
@@ -1207,14 +1183,14 @@ impl State {
         col_start: u64,
         cells: Vec<Vec<Value>>,
     ) -> RepaintGridEvent {
-        let hl = &self.render_state.borrow().hl;
-        let repaint_area = self.grids[grid].line(row as usize, col_start as usize, cells, hl);
+        let hl = self.hl.borrow();
+        let repaint_area = self.grids[grid].line(row as usize, col_start as usize, cells, &hl);
 
         RepaintGridEvent::new(grid, RepaintMode::Area(repaint_area))
     }
 
     pub fn grid_clear(&mut self, grid: u64) -> RepaintGridEvent {
-        let hl = &self.render_state.borrow().hl;
+        let hl = self.hl.borrow();
         self.grids[grid].clear(&hl.default_hl());
 
         RepaintGridEvent::new(grid, RepaintMode::All)
@@ -1242,10 +1218,10 @@ impl State {
 
     pub fn on_redraw(&mut self, event: &RepaintEvent) {
         if event.repaint_all {
-            self.grids.queue_redraw_all(&*self.render_state.borrow());
+            self.grids.queue_redraw_all(&*self.hl.borrow());
         } else {
             for ev in event.events.values() {
-                self.grids.queue_redraw(&*self.render_state.borrow(), ev);
+                self.grids.queue_redraw(&*self.hl.borrow(), ev);
             }
         }
     }
@@ -1260,7 +1236,7 @@ impl State {
         rows: i64,
         cols: i64,
     ) -> RepaintGridEvent {
-        let hl = &self.render_state.borrow().hl;
+        let hl = &self.hl.borrow();
         let area = RepaintMode::Area(self.grids[grid].scroll(
             top,
             bot,
@@ -1281,13 +1257,13 @@ impl State {
         _: &Value,
         info: Vec<HashMap<String, Value>>,
     ) -> RepaintGridEvent {
-        self.render_state.borrow_mut().hl.set(id, &rgb_attr, &info);
+        self.hl.borrow_mut().set(id, &rgb_attr, &info);
 
         RepaintGridEvent::nothing()
     }
 
     pub fn default_colors_set(&mut self, fg: i64, bg: i64, sp: i64) -> RepaintGridEvent {
-        self.render_state.borrow_mut().hl.set_defaults(
+        self.hl.borrow_mut().set_defaults(
             Color::from_indexed_color(fg as u64),
             Color::from_indexed_color(bg as u64),
             Color::from_indexed_color(sp as u64),
