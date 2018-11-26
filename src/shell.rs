@@ -324,7 +324,7 @@ impl State {
             line_height,
             char_width,
             ..
-        } = self.render_state.borrow().font_ctx.cell_metrics();
+        } = self.grids.current_unwrap().font_ctx.cell_metrics();
         let alloc = self.grids.get_allocation();
         (
             (alloc.width as f64 / char_width).trunc() as usize,
@@ -344,7 +344,7 @@ impl State {
         if let Some((row, col)) = self.grids.current().map(|g| g.get_cursor()) {
 
             let (x, y, width, height) = ModelRect::point(col, row)
-                .to_area(self.render_state.borrow().font_ctx.cell_metrics());
+                .to_area(self.grids.current_unwrap().font_ctx.cell_metrics());
 
             self.im_context.set_cursor_location(&gdk::Rectangle {
                 x,
@@ -397,9 +397,9 @@ impl State {
     fn edit_paste(&self, clipboard: &str) {
         let nvim = self.nvim();
         if let Some(mut nvim) = nvim {
-            let render_state = self.render_state.borrow();
-            if render_state.mode.is(&mode::NvimMode::Insert)
-                || render_state.mode.is(&mode::NvimMode::Normal)
+            let mode = &self.grids.current_unwrap().mode;
+            if mode.is(&mode::NvimMode::Insert)
+                || mode.is(&mode::NvimMode::Normal)
             {
                 let paste_code = format!("normal! \"{}P", clipboard);
                 nvim.command_async(&paste_code)
@@ -967,7 +967,7 @@ fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f
             line_height,
             char_width,
             ..
-        } = shell.render_state.borrow().font_ctx.cell_metrics();
+        } = shell.grids.current_unwrap().font_ctx.cell_metrics();
         let (x, y) = position;
         let col = (x / char_width).trunc() as u64;
         let row = (y / line_height).trunc() as u64;
@@ -1000,28 +1000,19 @@ fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion
     Inhibit(false)
 }
 
-fn draw_content(state: &State, ctx: &cairo::Context) {
-    ctx.push_group();
+fn show_nvim_start_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
+    let source = err.source();
+    let cmd = err.cmd().unwrap().to_owned();
 
-    let render_state = state.render_state.borrow();
-    render::render(
-        ctx,
-        state.cursor.as_ref().unwrap(),
-        &render_state.font_ctx,
-        state.grids.current_model().unwrap(),
-        &render_state.hl,
-        state.transparency_settings.filled_alpha(),
-    );
-    render::fill_background(
-        ctx,
-        &render_state.hl,
-        state.transparency_settings.background_alpha(),
-    );
+    glib::idle_add(move || {
+        let state = state_arc.borrow();
+        state.nvim.set_error();
+        state.error_area.show_nvim_start_error(&source, &cmd);
+        state.show_error_area();
 
-    ctx.pop_group_to_source();
-    ctx.paint();
+        Continue(false)
+    });
 }
-
 
 fn show_nvim_init_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
     let source = err.source();
@@ -1130,34 +1121,6 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
     }));
 
     idle_cb_call!(state_arc.nvim_started_cb());
-}
-
-fn draw_initializing(state: &State, ctx: &cairo::Context) {
-    let render_state = state.render_state.borrow();
-    let hl = &render_state.hl;
-    let layout = pangocairo::functions::create_layout(ctx).unwrap();
-    let alloc = state.drawing_area.get_allocation();
-
-    ctx.set_source_rgb(hl.bg_color.0, hl.bg_color.1, hl.bg_color.2);
-    ctx.paint();
-
-    layout.set_text("Loading->");
-    let (width, height) = layout.get_pixel_size();
-
-    let x = alloc.width as f64 / 2.0 - width as f64 / 2.0;
-    let y = alloc.height as f64 / 2.0 - height as f64 / 2.0;
-
-    ctx.move_to(x, y);
-    ctx.set_source_rgb(hl.fg_color.0, hl.fg_color.1, hl.fg_color.2);
-    pangocairo::functions::update_layout(ctx, &layout);
-    pangocairo::functions::show_layout(ctx, &layout);
-
-    ctx.move_to(x + width as f64, y);
-    state
-        .cursor
-        .as_ref()
-        .unwrap()
-        .draw(ctx, &render_state.font_ctx, y, false, &hl);
 }
 
 fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
@@ -1281,14 +1244,15 @@ impl State {
     }
 
     pub fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintGridEvent {
-        let mut render_state = self.render_state.borrow_mut();
-        render_state.mode.update(&mode, idx as usize);
+        self.grids.update_mode(&mode, idx as usize);
+        let mode_info = self.grids.current().and_then(|g| g.mode.mode_info());
+
         self.cursor
             .as_mut()
             .unwrap()
-            .set_mode_info(render_state.mode.mode_info().cloned());
+            .set_mode_info(mode_info.cloned());
         self.cmd_line
-            .set_mode_info(render_state.mode.mode_info().cloned());
+            .set_mode_info(mode_info.cloned());
 
         self.cur_point_area()
     }
@@ -1402,10 +1366,7 @@ impl State {
 
         match mode_info_arr {
             Ok(mode_info_arr) => {
-                let mut render_state = self.render_state.borrow_mut();
-                render_state
-                    .mode
-                    .set_info(cursor_style_enabled, mode_info_arr);
+                self.grids.set_info(cursor_style_enabled, mode_info_arr);
             }
             Err(err) => {
                 error!("Error load mode info: {}", err);

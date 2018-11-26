@@ -103,6 +103,10 @@ impl GridMap {
         }
     }
 
+    pub fn current_unwrap(&self) -> &Grid {
+        self.grids.get(&DEFAULT_GRID).unwrap()
+    }
+
     pub fn current(&self) -> Option<&Grid> {
         self.grids.get(&DEFAULT_GRID)
     }
@@ -188,6 +192,18 @@ impl GridMap {
             grid.font_ctx.update_line_space(line_space);
         }
     }
+
+    pub fn update_mode(&mut self, mode: &str, idx: usize) {
+        for grid in self.grids.values_mut() {
+            grid.mode.update(mode, idx);
+        }
+    }
+
+    pub fn set_info(&mut self, cursor_style_enabled: bool, info: Vec<mode::ModeInfo>) {
+        for grid in self.grids.values_mut() {
+            grid.mode.set_info(cursor_style_enabled, info);
+        }
+    }
 }
 
 impl GridMap {
@@ -239,8 +255,8 @@ pub struct Grid {
     grid: u64,
     model: UiModel,
     drawing_area: gtk::DrawingArea,
-    font_ctx: render::Context,
-    mode: mode::Mode,
+    pub font_ctx: render::Context,
+    pub mode: mode::Mode,
 }
 
 impl Grid {
@@ -389,3 +405,65 @@ impl Deref for Grid {
         &self.drawing_area
     }
 }
+
+fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
+    let state = state_arc.borrow();
+    if state.nvim.is_initialized() {
+        draw_content(&*state, ctx);
+    } else if state.nvim.is_initializing() {
+        draw_initializing(&*state, ctx);
+    }
+
+    Inhibit(false)
+}
+
+fn draw_content(state: &State, ctx: &cairo::Context) {
+    ctx.push_group();
+
+    let render_state = state.render_state.borrow();
+    render::render(
+        ctx,
+        state.cursor.as_ref().unwrap(),
+        &render_state.font_ctx,
+        state.grids.current_model().unwrap(),
+        &render_state.hl,
+        state.transparency_settings.filled_alpha(),
+    );
+    render::fill_background(
+        ctx,
+        &render_state.hl,
+        state.transparency_settings.background_alpha(),
+    );
+
+    ctx.pop_group_to_source();
+    ctx.paint();
+}
+
+fn draw_initializing(state: &State, ctx: &cairo::Context) {
+    let render_state = state.render_state.borrow();
+    let hl = &render_state.hl;
+    let layout = pangocairo::functions::create_layout(ctx).unwrap();
+    let alloc = state.drawing_area.get_allocation();
+
+    ctx.set_source_rgb(hl.bg_color.0, hl.bg_color.1, hl.bg_color.2);
+    ctx.paint();
+
+    layout.set_text("Loading->");
+    let (width, height) = layout.get_pixel_size();
+
+    let x = alloc.width as f64 / 2.0 - width as f64 / 2.0;
+    let y = alloc.height as f64 / 2.0 - height as f64 / 2.0;
+
+    ctx.move_to(x, y);
+    ctx.set_source_rgb(hl.fg_color.0, hl.fg_color.1, hl.fg_color.2);
+    pangocairo::functions::update_layout(ctx, &layout);
+    pangocairo::functions::show_layout(ctx, &layout);
+
+    ctx.move_to(x + width as f64, y);
+    state
+        .cursor
+        .as_ref()
+        .unwrap()
+        .draw(ctx, &render_state.font_ctx, y, false, &hl);
+}
+
