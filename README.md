@@ -1,4 +1,4 @@
-# neovim-gtk [![Build status](https://ci.appveyor.com/api/projects/status/l58o28e13f829llx/branch/master?svg=true)](https://ci.appveyor.com/project/daa84/neovim-gtk/branch/master)
+# neovim-gtk [![Build status](https://ci.appveyor.com/api/projects/status/l58o28e13f829llx/branch/master?svg=true)](https://ci.appveyor.com/project/daa84/neovim-gtk/branch/master) [![Join the chat at https://gitter.im/neovim-gtk/Lobby](https://badges.gitter.im/neovim-gtk/Lobby.svg)](https://gitter.im/neovim-gtk/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 GTK ui for neovim written in rust using gtk-rs bindings. With [ligatures](https://github.com/daa84/neovim-gtk/wiki/Configuration#ligatures) support.
 
 # Screenshot

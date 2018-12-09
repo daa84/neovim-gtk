@@ -28,6 +28,7 @@ struct State {
     word_column: gtk::TreeViewColumn,
     kind_column: gtk::TreeViewColumn,
     menu_column: gtk::TreeViewColumn,
+    preview: bool,
 }
 
 impl State {
@@ -79,6 +80,7 @@ impl State {
             word_column,
             kind_column,
             menu_column,
+            preview: true,
         }
     }
 
@@ -185,7 +187,7 @@ impl State {
             let info_value = model.get_value(&iter, 3);
             let info: &str = info_value.get().unwrap();
 
-            if !info.trim().is_empty() {
+            if self.preview && !info.trim().is_empty() {
                 self.info_label.show();
                 self.info_label.set_text(&info);
             } else {
@@ -194,6 +196,10 @@ impl State {
         } else {
             self.info_label.hide();
         }
+    }
+
+    fn set_preview(&mut self, preview: bool) {
+        self.preview = preview;
     }
 }
 
@@ -286,6 +292,10 @@ impl PopupMenu {
 
     pub fn select(&self, selected: i64) {
         self.state.borrow().select(selected);
+    }
+
+    pub fn set_preview(&self, preview: bool) {
+        self.state.borrow_mut().set_preview(preview);
     }
 }
 
