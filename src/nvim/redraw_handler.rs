@@ -64,6 +64,9 @@ macro_rules! map_array {
 }
 
 macro_rules! try_arg {
+    ($value:expr,val) => {
+        $value
+    };
     ($value:expr,bool) => {
         try_bool!($value)
     };
@@ -110,6 +113,7 @@ macro_rules! call {
 pub enum NvimCommand {
     ToggleSidebar,
     Transparency(f64, f64),
+    PreferDarkTheme(bool),
 }
 
 pub fn call_gui_event(
@@ -162,6 +166,14 @@ pub fn call_gui_event(
                         .parse()
                         .map_err(|e: ParseFloatError| e.to_string())?,
                 )),
+                "PreferDarkTheme" => {
+                    let prefer_dark_theme = match try_str!(args.get(1).cloned().unwrap_or(Value::from("off"))) {
+                        "on" => true,
+                        _ => false,
+                    };
+
+                    ui.on_command(NvimCommand::PreferDarkTheme(prefer_dark_theme))
+                },
                 _ => error!("Unknown command"),
             };
         }
@@ -272,6 +284,7 @@ pub fn call(
             ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
         }
         "mode_info_set" => call!(ui->mode_info_set(args: bool, ext)),
+        "option_set" => call!(ui->option_set(args: str, val)),
         "cmdline_show" => call!(ui->cmdline_show(args: ext, uint, str, str, uint, uint)),
         "cmdline_block_show" => call!(ui->cmdline_block_show(args: ext)),
         "cmdline_block_append" => call!(ui->cmdline_block_append(args: ext)),

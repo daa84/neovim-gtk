@@ -1,11 +1,10 @@
 use render;
 
 use pango;
-use sys::pango as sys_pango;
 
 #[derive(Clone)]
 pub struct Item {
-    pub item: sys_pango::Item,
+    pub item: pango::Item,
     pub cells_count: usize,
     pub glyphs: Option<pango::GlyphString>,
     pub ink_overflow: Option<InkOverflow>,
@@ -13,7 +12,7 @@ pub struct Item {
 }
 
 impl Item {
-    pub fn new(item: sys_pango::Item, cells_count: usize) -> Self {
+    pub fn new(item: pango::Item, cells_count: usize) -> Self {
         debug_assert!(cells_count > 0);
 
         Item {
@@ -25,7 +24,7 @@ impl Item {
         }
     }
 
-    pub fn update(&mut self, item: sys_pango::Item) {
+    pub fn update(&mut self, item: pango::Item) {
         self.font = item.analysis().font();
         self.item = item;
         self.glyphs = None;
@@ -43,7 +42,7 @@ impl Item {
         &self.font
     }
 
-    pub fn analysis(&self) -> sys_pango::Analysis {
+    pub fn analysis(&self) -> &pango::Analysis {
         self.item.analysis()
     }
 }

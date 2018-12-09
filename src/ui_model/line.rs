@@ -1,7 +1,6 @@
 use std::ops::{Index, IndexMut};
 
 use pango;
-use sys::pango as sys_pango;
 
 use super::cell::Cell;
 use super::item::Item;
@@ -107,7 +106,7 @@ impl Line {
         }
     }
 
-    pub fn merge(&mut self, old_items: &StyledLine, pango_items: &[sys_pango::Item]) {
+    pub fn merge(&mut self, old_items: &StyledLine, pango_items: &[pango::Item]) {
         let mut pango_item_iter = pango_items
             .iter()
             .map(|item| PangoItemPosition::new(old_items, item));
@@ -147,7 +146,7 @@ impl Line {
         &mut self,
         start_cell: usize,
         end_cell: usize,
-        new_item: &sys_pango::Item,
+        new_item: &pango::Item,
     ) {
         for i in start_cell..end_cell + 1 {
             self.line[i].dirty = true;
@@ -215,14 +214,15 @@ impl IndexMut<usize> for Line {
 }
 
 struct PangoItemPosition<'a> {
-    item: &'a sys_pango::Item,
+    item: &'a pango::Item,
     start_cell: usize,
     end_cell: usize,
 }
 
 impl<'a> PangoItemPosition<'a> {
-    pub fn new(styled_line: &StyledLine, item: &'a sys_pango::Item) -> Self {
-        let (offset, length, _) = item.offset();
+    pub fn new(styled_line: &StyledLine, item: &'a pango::Item) -> Self {
+        let offset = item.offset() as usize;
+        let length = item.length() as usize;
         let start_cell = styled_line.cell_to_byte[offset];
         let end_cell = styled_line.cell_to_byte[offset + length - 1];
 

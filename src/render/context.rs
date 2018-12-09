@@ -1,8 +1,9 @@
+use std::collections::HashSet;
+
 use pango;
 use pango::prelude::*;
 
 use sys::pango as sys_pango;
-use sys::pango::AttrIteratorFactory;
 
 use super::itemize::ItemizeIterator;
 use ui_model::StyledLine;
@@ -36,21 +37,20 @@ impl Context {
         self.font_metrics = FontMetrix::new(pango_context, self.line_space);
     }
 
-    pub fn itemize(&self, line: &StyledLine) -> Vec<sys_pango::Item> {
-        let mut attr_iter = line.attr_list.get_iterator();
+    pub fn itemize(&self, line: &StyledLine) -> Vec<pango::Item> {
+        let attr_iter = line.attr_list.get_iterator();
 
         ItemizeIterator::new(&line.line_str)
             .flat_map(|(offset, len)| {
-                sys_pango::pango_itemize(
+                pango::itemize(
                     &self.font_metrics.pango_context,
                     &line.line_str,
-                    offset,
-                    len,
+                    offset as i32,
+                    len as i32,
                     &line.attr_list,
-                    Some(&mut attr_iter),
+                    attr_iter.as_ref(),
                 )
-            })
-            .collect()
+            }).collect()
     }
 
     pub fn create_layout(&self) -> pango::Layout {
@@ -67,6 +67,15 @@ impl Context {
 
     pub fn font_features(&self) -> &FontFeatures {
         &self.font_features
+    }
+
+    pub fn font_families(&self) -> HashSet<String> {
+        self.font_metrics
+            .pango_context
+            .list_families()
+            .iter()
+            .filter_map(pango::FontFamilyExt::get_name)
+            .collect()
     }
 }
 
@@ -108,7 +117,8 @@ impl CellMetrics {
             pango_char_width: font_metrics.get_approximate_digit_width(),
             ascent: f64::from(font_metrics.get_ascent()) / f64::from(pango::SCALE),
             line_height: f64::from(font_metrics.get_ascent() + font_metrics.get_descent())
-                / f64::from(pango::SCALE) + f64::from(line_space),
+                / f64::from(pango::SCALE)
+                + f64::from(line_space),
             char_width: f64::from(font_metrics.get_approximate_digit_width())
                 / f64::from(pango::SCALE),
             underline_position: f64::from(

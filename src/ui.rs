@@ -15,6 +15,7 @@ use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned,
 use toml;
 
 use file_browser::FileBrowserWidget;
+use misc;
 use nvim::NvimCommand;
 use plug_manager;
 use project::Projects;
@@ -167,12 +168,16 @@ impl Ui {
             .map(|opt| opt.trim() != "1")
             .unwrap_or(true);
 
-        if app.prefers_app_menu() || use_header_bar {
-            self.create_main_menu(app, &window);
+        let disable_window_decoration = env::var("NVIM_GTK_NO_WINDOW_DECORATION")
+            .map(|opt| opt.trim() == "1")
+            .unwrap_or(false);
+
+        if disable_window_decoration {
+            window.set_decorated(false);
         }
 
         let update_subtitle = if use_header_bar {
-            Some(self.create_header_bar())
+            Some(self.create_header_bar(app))
         } else {
             None
         };
@@ -230,22 +235,15 @@ impl Ui {
         let comps_ref = self.comps.clone();
         let update_title = shell.state.borrow().subscribe(
             SubscriptionKey::from("BufEnter,DirChanged"),
-            &["&title", "&titlestring", "expand('%:p')", "getcwd()"],
+            &["expand('%:p')", "getcwd()"],
             move |args| update_window_title(&comps_ref, args),
         );
 
-        let comps_ref = self.comps.clone();
-        shell.state.borrow().subscribe(
-            SubscriptionKey::with_pattern("OptionSet", "titlestring"),
-            &["&title", "&titlestring", "expand('%:p')", "getcwd()"],
-            move |args| update_window_title(&comps_ref, args),
-        );
-
-        let comps_ref = self.comps.clone();
-        shell.state.borrow().subscribe(
-            SubscriptionKey::with_pattern("OptionSet", "title"),
-            &["&title", "&titlestring", "expand('%:p')", "getcwd()"],
-            move |args| update_window_title(&comps_ref, args),
+        let shell_ref = self.shell.clone();
+        let update_completeopt = shell.state.borrow().subscribe(
+            SubscriptionKey::with_pattern("OptionSet", "completeopt"),
+            &["&completeopt"],
+            move |args| set_completeopts(&*shell_ref, args),
         );
 
         let comps_ref = self.comps.clone();
@@ -274,6 +272,7 @@ impl Ui {
             file_browser_ref.borrow_mut().init(&state);
             state.set_autocmds();
             state.run_now(&update_title);
+            state.run_now(&update_completeopt);
             if let Some(ref update_subtitle) = update_subtitle {
                 state.run_now(&update_subtitle);
             }
@@ -312,10 +311,18 @@ impl Ui {
                     warn!("Screen is not composited");
                 }
             }
+            NvimCommand::PreferDarkTheme(prefer_dark_theme) => {
+                let comps = comps.borrow();
+                let window = comps.window.as_ref().unwrap();
+
+                if let Some(settings) = window.get_settings() {
+                    settings.set_property_gtk_application_prefer_dark_theme(prefer_dark_theme);
+                }
+            }
         }
     }
 
-    fn create_header_bar(&self) -> SubscriptionHandle {
+    fn create_header_bar(&self, app: &gtk::Application) -> SubscriptionHandle {
         let header_bar = HeaderBar::new();
         let comps = self.comps.borrow();
         let window = comps.window.as_ref().unwrap();
@@ -333,6 +340,8 @@ impl Ui {
         new_tab_btn.set_can_focus(false);
         new_tab_btn.set_tooltip_text("Open a new tab");
         header_bar.pack_start(&new_tab_btn);
+
+        header_bar.pack_end(&self.create_primary_menu_btn(app, &window));
 
         let paste_btn =
             Button::new_from_icon_name("edit-paste-symbolic", gtk::IconSize::SmallToolbar.into());
@@ -353,6 +362,7 @@ impl Ui {
         window.set_titlebar(Some(&header_bar));
 
         let shell = self.shell.borrow();
+
         let update_subtitle = shell.state.borrow().subscribe(
             SubscriptionKey::from("DirChanged"),
             &["getcwd()"],
@@ -364,9 +374,20 @@ impl Ui {
         update_subtitle
     }
 
-    fn create_main_menu(&self, app: &gtk::Application, window: &gtk::ApplicationWindow) {
+    fn create_primary_menu_btn(
+        &self,
+        app: &gtk::Application,
+        window: &gtk::ApplicationWindow,
+    ) -> gtk::MenuButton {
         let plug_manager = self.plug_manager.clone();
+        let btn = gtk::MenuButton::new();
+        btn.set_can_focus(false);
+        btn.set_image(&gtk::Image::new_from_icon_name(
+            "open-menu-symbolic",
+            gtk::IconSize::SmallToolbar.into(),
+        ));
 
+        // note actions created in application menu
         let menu = Menu::new();
 
         let section = Menu::new();
@@ -383,7 +404,6 @@ impl Ui {
         menu.append_section(None, &section);
 
         menu.freeze();
-        app.set_app_menu(Some(&menu));
 
         let plugs_action = SimpleAction::new("Plugins", None);
         plugs_action.connect_activate(
@@ -396,6 +416,9 @@ impl Ui {
 
         app.add_action(&about_action);
         app.add_action(&plugs_action);
+
+        btn.set_menu_model(&menu);
+        btn
     }
 }
 
@@ -406,13 +429,7 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     about.set_version(env!("CARGO_PKG_VERSION"));
     about.set_logo_icon_name("org.daa.NeovimGtk");
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
-    about.set_comments(
-        format!(
-            "Build on top of neovim\n\
-             Minimum supported neovim version: {}",
-            shell::MINIMUM_SUPPORTED_NVIM_VERSION
-        ).as_str(),
-    );
+    about.set_comments(misc::about_comments().as_str());
 
     about.connect_response(|about, _| about.destroy());
     about.show();
@@ -454,15 +471,19 @@ fn gtk_window_state_event(event: &gdk::EventWindowState, comps: &mut Components)
         .contains(gdk::WindowState::MAXIMIZED);
 }
 
+fn set_completeopts(shell: &RefCell<Shell>, args: Vec<String>) {
+    let options = &args[0];
+
+    shell.borrow().set_completeopts(options);
+}
+
 fn update_window_title(comps: &Arc<UiMutex<Components>>, args: Vec<String>) {
-    let titles_enabled = &args[0];
-    let new_title_prefix = &args[1];
     let comps_ref = comps.clone();
     let comps = comps_ref.borrow();
     let window = comps.window.as_ref().unwrap();
 
-    let file_path = &args[2];
-    let dir = Path::new(&args[3]);
+    let file_path = &args[0];
+    let dir = Path::new(&args[1]);
     let filename = if file_path.is_empty() {
         "[No Name]"
     } else if let Some(rel_path) = Path::new(&file_path)
@@ -475,12 +496,7 @@ fn update_window_title(comps: &Arc<UiMutex<Components>>, args: Vec<String>) {
         &file_path
     };
 
-    if (titles_enabled == "0") || new_title_prefix.is_empty() {
-        window.set_title(filename);
-    } else {
-        let title = format!("{} - {}", new_title_prefix, filename);
-        window.set_title(&title);
-    }
+    window.set_title(filename);
 }
 
 #[derive(Serialize, Deserialize)]

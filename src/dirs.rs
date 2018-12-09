@@ -1,5 +1,6 @@
 use std;
 use std::path::PathBuf;
+use env_dirs;
 
 pub fn get_app_config_dir_create() -> Result<PathBuf, String> {
     let config_dir = get_app_config_dir()?;
@@ -24,7 +25,7 @@ fn get_xdg_config_dir() -> Result<PathBuf, String> {
         return Ok(PathBuf::from(config_path));
     }
 
-    let mut home_dir = std::env::home_dir().ok_or(
+    let mut home_dir = env_dirs::home_dir().ok_or(
         "Impossible to get your home dir!",
     )?;
     home_dir.push(".config");
