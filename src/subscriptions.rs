@@ -22,7 +22,6 @@ pub struct SubscriptionKey {
 }
 
 impl<'a> From<&'a str> for SubscriptionKey {
-
     fn from(event_name: &'a str) -> Self {
         SubscriptionKey {
             event_name: event_name.to_owned(),
@@ -32,7 +31,6 @@ impl<'a> From<&'a str> for SubscriptionKey {
 }
 
 impl SubscriptionKey {
-
     pub fn with_pattern(event_name: &str, pattern: &str) -> Self {
         SubscriptionKey {
             event_name: event_name.to_owned(),
@@ -105,10 +103,7 @@ impl Subscriptions {
             cb: Box::new(cb),
             args: args.into_iter().map(|&s| s.to_owned()).collect(),
         });
-        SubscriptionHandle {
-            key,
-            index,
-        }
+        SubscriptionHandle { key, index }
     }
 
     /// Register all subscriptions with Neovim.
@@ -116,7 +111,10 @@ impl Subscriptions {
     /// This function is wrapped by `shell::State`.
     pub fn set_autocmds(&self, nvim: &mut NeovimRef) {
         for (key, subscriptions) in &self.0 {
-            let SubscriptionKey { event_name, pattern } = key;
+            let SubscriptionKey {
+                event_name,
+                pattern,
+            } = key;
             for (i, subscription) in subscriptions.iter().enumerate() {
                 let args = subscription
                     .args
@@ -126,8 +124,7 @@ impl Subscriptions {
                     "autocmd {} {} call rpcnotify(1, 'subscription', '{}', '{}', {} {})",
                     event_name, pattern, event_name, pattern, i, args,
                 );
-                nvim.command_async(&autocmd).cb(|r| r.report_err())
-                    .call();
+                nvim.command_async(&autocmd).cb(|r| r.report_err()).call();
             }
         }
     }
@@ -156,7 +153,7 @@ impl Subscriptions {
             .ok_or("Error reading pattern")?;
         let key = SubscriptionKey {
             event_name: String::from(ev_name),
-            pattern: String::from(pattern)
+            pattern: String::from(pattern),
         };
         let index = params_iter
             .next()
@@ -164,12 +161,10 @@ impl Subscriptions {
             .ok_or("Error reading index")? as usize;
         let args = params_iter
             .map(|arg| {
-                arg
-                    .as_str()
-                    .map(|s: &str| s.to_owned())
-                    .or_else(|| arg.as_u64().map(|uint: u64| format!("{}", uint)))
-            })
-            .collect::<Option<Vec<String>>>()
+                arg.as_str()
+                    .map(str::to_owned)
+                    .or_else(|| arg.as_u64().map(|uint| uint.to_string()))
+            }).collect::<Option<Vec<String>>>()
             .ok_or("Error reading args")?;
         self.on_notify(&key, index, args);
         Ok(())
@@ -187,15 +182,12 @@ impl Subscriptions {
             .iter()
             .map(|arg| nvim.eval(arg))
             .map(|res| {
-                res.ok()
-                    .and_then(|val| {
-                        val
-                            .as_str()
-                            .map(|s: &str| s.to_owned())
-                            .or_else(|| val.as_u64().map(|uint: u64| format!("{}", uint)))
-                    })
-            })
-            .collect::<Option<Vec<String>>>();
+                res.ok().and_then(|val| {
+                    val.as_str()
+                        .map(str::to_owned)
+                        .or_else(|| val.as_u64().map(|uint: u64| format!("{}", uint)))
+                })
+            }).collect::<Option<Vec<String>>>();
         if let Some(args) = args {
             self.on_notify(&handle.key, handle.index, args);
         } else {
