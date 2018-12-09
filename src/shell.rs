@@ -42,7 +42,7 @@ use mode;
 use popup_menu::{self, PopupMenu};
 use render;
 use render::CellMetrics;
-use subscriptions::{SubscriptionHandle, Subscriptions};
+use subscriptions::{SubscriptionHandle, SubscriptionKey, Subscriptions};
 use tabline::Tabline;
 use ui::UiMutex;
 
@@ -492,13 +492,11 @@ impl State {
         self.drawing_area.get_allocated_width() - 20
     }
 
-    pub fn subscribe<F>(&self, event_name: &str, args: &[&str], cb: F) -> SubscriptionHandle
+    pub fn subscribe<F>(&self, key: SubscriptionKey, args: &[&str], cb: F) -> SubscriptionHandle
     where
         F: Fn(Vec<String>) + 'static,
     {
-        self.subscriptions
-            .borrow_mut()
-            .subscribe(event_name, args, cb)
+        self.subscriptions.borrow_mut().subscribe(key, args, cb)
     }
 
     pub fn set_autocmds(&self) {
@@ -933,6 +931,13 @@ impl Shell {
     {
         let mut state = self.state.borrow_mut();
         state.set_nvim_command_cb(cb);
+    }
+
+    pub fn set_completeopts(&self, options: &str) {
+        self.state
+            .borrow()
+            .popup_menu
+            .set_preview(options.contains("preview"));
     }
 }
 

@@ -13,8 +13,34 @@ struct Subscription {
     args: Vec<String>,
 }
 
+/// Subscription keys represent a NeoVim event coupled with a matching pattern. It is expected for
+/// the pattern more often than not to be `"*"`.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct SubscriptionKey {
+    event_name: String,
+    pattern: String,
+}
+
+impl<'a> From<&'a str> for SubscriptionKey {
+    fn from(event_name: &'a str) -> Self {
+        SubscriptionKey {
+            event_name: event_name.to_owned(),
+            pattern: "*".to_owned(),
+        }
+    }
+}
+
+impl SubscriptionKey {
+    pub fn with_pattern(event_name: &str, pattern: &str) -> Self {
+        SubscriptionKey {
+            event_name: event_name.to_owned(),
+            pattern: pattern.to_owned(),
+        }
+    }
+}
+
 /// A map of all registered subscriptions.
-pub struct Subscriptions(HashMap<String, Vec<Subscription>>);
+pub struct Subscriptions(HashMap<SubscriptionKey, Vec<Subscription>>);
 
 /// A handle to identify a `Subscription` within the `Subscriptions` map.
 ///
@@ -23,7 +49,7 @@ pub struct Subscriptions(HashMap<String, Vec<Subscription>>);
 /// Could be used in the future to suspend individual subscriptions.
 #[derive(Debug)]
 pub struct SubscriptionHandle {
-    event_name: String,
+    key: SubscriptionKey,
     index: usize,
 }
 
@@ -41,7 +67,7 @@ impl Subscriptions {
     ///
     /// # Arguments:
     ///
-    /// - `event_name`: The event to register.
+    /// - `key`: The subscription key to register.
     ///   See `:help autocmd-events` for a list of supported event names. Event names can be
     ///   comma-separated.
     ///
@@ -67,44 +93,45 @@ impl Subscriptions {
     ///         // do stuff
     ///     });
     /// ```
-    pub fn subscribe<F>(&mut self, event_name: &str, args: &[&str], cb: F) -> SubscriptionHandle
+    pub fn subscribe<F>(&mut self, key: SubscriptionKey, args: &[&str], cb: F) -> SubscriptionHandle
     where
         F: Fn(Vec<String>) + 'static,
     {
-        let entry = self.0.entry(event_name.to_owned()).or_insert(Vec::new());
+        let entry = self.0.entry(key.clone()).or_insert(Vec::new());
         let index = entry.len();
         entry.push(Subscription {
             cb: Box::new(cb),
             args: args.into_iter().map(|&s| s.to_owned()).collect(),
         });
-        SubscriptionHandle {
-            event_name: event_name.to_owned(),
-            index,
-        }
+        SubscriptionHandle { key, index }
     }
 
     /// Register all subscriptions with Neovim.
     ///
     /// This function is wrapped by `shell::State`.
     pub fn set_autocmds(&self, nvim: &mut NeovimRef) {
-        for (event_name, subscriptions) in &self.0 {
+        for (key, subscriptions) in &self.0 {
+            let SubscriptionKey {
+                event_name,
+                pattern,
+            } = key;
             for (i, subscription) in subscriptions.iter().enumerate() {
                 let args = subscription
                     .args
                     .iter()
                     .fold("".to_owned(), |acc, arg| acc + ", " + &arg);
-                nvim.command_async(&format!(
-                    "au {} * call rpcnotify(1, 'subscription', '{}', {} {})",
-                    event_name, event_name, i, args,
-                )).cb(|r| r.report_err())
-                    .call();
+                let autocmd = format!(
+                    "autocmd {} {} call rpcnotify(1, 'subscription', '{}', '{}', {} {})",
+                    event_name, pattern, event_name, pattern, i, args,
+                );
+                nvim.command_async(&autocmd).cb(|r| r.report_err()).call();
             }
         }
     }
 
     /// Trigger given event.
-    fn on_notify(&self, event_name: &str, index: usize, args: Vec<String>) {
-        if let Some(subscription) = self.0.get(event_name).and_then(|v| v.get(index)) {
+    fn on_notify(&self, key: &SubscriptionKey, index: usize, args: Vec<String>) {
+        if let Some(subscription) = self.0.get(key).and_then(|v| v.get(index)) {
             (*subscription.cb)(args);
         }
     }
@@ -119,15 +146,27 @@ impl Subscriptions {
             .as_ref()
             .and_then(Value::as_str)
             .ok_or("Error reading event name")?;
+        let pattern = params_iter.next();
+        let pattern = pattern
+            .as_ref()
+            .and_then(Value::as_str)
+            .ok_or("Error reading pattern")?;
+        let key = SubscriptionKey {
+            event_name: String::from(ev_name),
+            pattern: String::from(pattern),
+        };
         let index = params_iter
             .next()
             .and_then(|i| i.as_u64())
             .ok_or("Error reading index")? as usize;
         let args = params_iter
-            .map(|arg| arg.as_str().map(|s| s.to_owned()))
-            .collect::<Option<Vec<String>>>()
+            .map(|arg| {
+                arg.as_str()
+                    .map(str::to_owned)
+                    .or_else(|| arg.as_u64().map(|uint| uint.to_string()))
+            }).collect::<Option<Vec<String>>>()
             .ok_or("Error reading args")?;
-        self.on_notify(ev_name, index, args);
+        self.on_notify(&key, index, args);
         Ok(())
     }
 
@@ -137,18 +176,20 @@ impl Subscriptions {
     ///
     /// This function is wrapped by `shell::State`.
     pub fn run_now(&self, handle: &SubscriptionHandle, nvim: &mut NeovimRef) {
-        let subscription = &self.0.get(&handle.event_name).unwrap()[handle.index];
+        let subscription = &self.0.get(&handle.key).unwrap()[handle.index];
         let args = subscription
             .args
             .iter()
             .map(|arg| nvim.eval(arg))
             .map(|res| {
-                res.ok()
-                    .and_then(|val| val.as_str().map(|s: &str| s.to_owned()))
-            })
-            .collect::<Option<Vec<String>>>();
+                res.ok().and_then(|val| {
+                    val.as_str()
+                        .map(str::to_owned)
+                        .or_else(|| val.as_u64().map(|uint: u64| format!("{}", uint)))
+                })
+            }).collect::<Option<Vec<String>>>();
         if let Some(args) = args {
-            self.on_notify(&handle.event_name, handle.index, args);
+            self.on_notify(&handle.key, handle.index, args);
         } else {
             error!("Error manually running {:?}", handle);
         }

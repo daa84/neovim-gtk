@@ -14,15 +14,15 @@ use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned,
 
 use toml;
 
-use misc;
 use file_browser::FileBrowserWidget;
+use misc;
 use nvim::NvimCommand;
 use plug_manager;
 use project::Projects;
 use settings::{Settings, SettingsLoader};
 use shell::{self, Shell, ShellOptions};
 use shell_dlg;
-use subscriptions::SubscriptionHandle;
+use subscriptions::{SubscriptionHandle, SubscriptionKey};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -234,26 +234,16 @@ impl Ui {
 
         let comps_ref = self.comps.clone();
         let update_title = shell.state.borrow().subscribe(
-            "BufEnter,DirChanged",
+            SubscriptionKey::from("BufEnter,DirChanged"),
             &["expand('%:p')", "getcwd()"],
-            move |args| {
-                let comps = comps_ref.borrow();
-                let window = comps.window.as_ref().unwrap();
-                let file_path = &args[0];
-                let dir = Path::new(&args[1]);
-                let filename = if file_path.is_empty() {
-                    "[No Name]"
-                } else if let Some(rel_path) = Path::new(&file_path)
-                    .strip_prefix(&dir)
-                    .ok()
-                    .and_then(|p| p.to_str())
-                {
-                    rel_path
-                } else {
-                    &file_path
-                };
-                window.set_title(filename);
-            },
+            move |args| update_window_title(&comps_ref, args),
+        );
+
+        let shell_ref = self.shell.clone();
+        let update_completeopt = shell.state.borrow().subscribe(
+            SubscriptionKey::with_pattern("OptionSet", "completeopt"),
+            &["&completeopt"],
+            move |args| set_completeopts(&*shell_ref, args),
         );
 
         let comps_ref = self.comps.clone();
@@ -282,6 +272,7 @@ impl Ui {
             file_browser_ref.borrow_mut().init(&state);
             state.set_autocmds();
             state.run_now(&update_title);
+            state.run_now(&update_completeopt);
             if let Some(ref update_subtitle) = update_subtitle {
                 state.run_now(&update_subtitle);
             }
@@ -371,19 +362,24 @@ impl Ui {
         window.set_titlebar(Some(&header_bar));
 
         let shell = self.shell.borrow();
-        let update_subtitle =
-            shell
-                .state
-                .borrow()
-                .subscribe("DirChanged", &["getcwd()"], move |args| {
-                    header_bar.set_subtitle(&*args[0]);
-                });
+
+        let update_subtitle = shell.state.borrow().subscribe(
+            SubscriptionKey::from("DirChanged"),
+            &["getcwd()"],
+            move |args| {
+                header_bar.set_subtitle(&*args[0]);
+            },
+        );
 
         update_subtitle
     }
 
-    fn create_primary_menu_btn(&self, app: &gtk::Application, window: &gtk::ApplicationWindow) -> gtk::MenuButton {
-        let plug_manager = self.plug_manager.clone(); 
+    fn create_primary_menu_btn(
+        &self,
+        app: &gtk::Application,
+        window: &gtk::ApplicationWindow,
+    ) -> gtk::MenuButton {
+        let plug_manager = self.plug_manager.clone();
         let btn = gtk::MenuButton::new();
         btn.set_can_focus(false);
         btn.set_image(&gtk::Image::new_from_icon_name(
@@ -408,7 +404,7 @@ impl Ui {
         menu.append_section(None, &section);
 
         menu.freeze();
-        
+
         let plugs_action = SimpleAction::new("Plugins", None);
         plugs_action.connect_activate(
             clone!(window => move |_, _| plug_manager::Ui::new(&plug_manager).show(&window)),
@@ -473,6 +469,34 @@ fn gtk_window_state_event(event: &gdk::EventWindowState, comps: &mut Components)
     comps.window_state.is_maximized = event
         .get_new_window_state()
         .contains(gdk::WindowState::MAXIMIZED);
+}
+
+fn set_completeopts(shell: &RefCell<Shell>, args: Vec<String>) {
+    let options = &args[0];
+
+    shell.borrow().set_completeopts(options);
+}
+
+fn update_window_title(comps: &Arc<UiMutex<Components>>, args: Vec<String>) {
+    let comps_ref = comps.clone();
+    let comps = comps_ref.borrow();
+    let window = comps.window.as_ref().unwrap();
+
+    let file_path = &args[0];
+    let dir = Path::new(&args[1]);
+    let filename = if file_path.is_empty() {
+        "[No Name]"
+    } else if let Some(rel_path) = Path::new(&file_path)
+        .strip_prefix(&dir)
+        .ok()
+        .and_then(|p| p.to_str())
+    {
+        rel_path
+    } else {
+        &file_path
+    };
+
+    window.set_title(filename);
 }
 
 #[derive(Serialize, Deserialize)]
