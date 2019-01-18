@@ -227,11 +227,13 @@ pub fn shape_dirty(
                             let analysis = item.analysis();
                             let offset = item.item.offset() as usize;
                             let length = item.item.length() as usize;
-                            pango::shape(
-                                &styled_line.line_str[offset..offset + length],
-                                analysis,
-                                &mut glyphs,
-                            );
+                            if let Some(line_str) =
+                                styled_line.line_str.get(offset..offset + length)
+                            {
+                                pango::shape(&line_str, analysis, &mut glyphs);
+                            } else {
+                                warn!("Wrong itemize split");
+                            }
                         }
 
                         item.set_glyphs(ctx, glyphs);
