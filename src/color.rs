@@ -1,4 +1,5 @@
 use std;
+use std::borrow::Cow;
 
 use gdk;
 
@@ -46,6 +47,16 @@ impl Color {
             (self.1 * 255.0) as u8,
             (self.2 * 255.0) as u8
         )
+    }
+
+    pub fn inverse(&self, inverse_level: f64) -> Cow<Color> {
+        debug_assert!(inverse_level >= 0.0 && inverse_level <= 1.0);
+
+        if inverse_level <= 0.000001 {
+            Cow::Borrowed(self)
+        } else {
+            Cow::Owned(Color((inverse_level - self.0).abs(), (inverse_level - self.1).abs(), (inverse_level - self.2).abs()))
+        }
     }
 }
 

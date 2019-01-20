@@ -1,10 +1,10 @@
 use cairo;
 use color;
-use ui::UiMutex;
 use mode;
-use std::sync::{Arc, Weak};
 use render;
 use render::CellMetrics;
+use std::sync::{Arc, Weak};
+use ui::UiMutex;
 
 use glib;
 
@@ -69,6 +69,7 @@ impl<CB: CursorRedrawCb> State<CB> {
 }
 
 pub trait Cursor {
+    /// return cursor current alpha value
     fn draw(
         &self,
         ctx: &cairo::Context,
@@ -76,7 +77,11 @@ pub trait Cursor {
         line_y: f64,
         double_width: bool,
         color: &color::ColorModel,
-    );
+    ) -> f64;
+
+    fn is_visible(&self) -> bool;
+
+    fn mode_info(&self) -> Option<&mode::ModeInfo>;
 }
 
 pub struct EmptyCursor;
@@ -95,7 +100,16 @@ impl Cursor for EmptyCursor {
         _line_y: f64,
         _double_width: bool,
         _color: &color::ColorModel,
-    ) {
+    ) -> f64 {
+        0.0
+    }
+
+    fn is_visible(&self) -> bool {
+        false
+    }
+
+    fn mode_info(&self) -> Option<&mode::ModeInfo> {
+        None
     }
 }
 
@@ -117,7 +131,8 @@ impl<CB: CursorRedrawCb + 'static> BlinkCursor<CB> {
     }
 
     pub fn start(&mut self) {
-        let blinkwait = self.mode_info
+        let blinkwait = self
+            .mode_info
             .as_ref()
             .and_then(|mi| mi.blinkwait)
             .unwrap_or(500);
@@ -166,12 +181,8 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         line_y: f64,
         double_width: bool,
         color: &color::ColorModel,
-    ) {
+    ) -> f64 {
         let state = self.state.borrow();
-
-        if state.anim_phase == AnimPhase::Busy {
-            return;
-        }
 
         let current_point = ctx.get_current_point();
 
@@ -179,7 +190,7 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         ctx.set_source_rgba(bg.0, bg.1, bg.2, state.alpha.0);
 
         let (y, width, height) = cursor_rect(
-            self.mode_info.as_ref(),
+            self.mode_info(),
             font_ctx.cell_metrics(),
             line_y,
             double_width,
@@ -191,10 +202,30 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         } else {
             ctx.fill();
         }
+
+        state.alpha.0
+    }
+
+    fn is_visible(&self) -> bool {
+        let state = self.state.borrow();
+
+        if state.anim_phase == AnimPhase::Busy {
+            return false;
+        }
+
+        if state.alpha.0 < 0.000001 {
+            false
+        } else {
+            true
+        }
+    }
+
+    fn mode_info(&self) -> Option<&mode::ModeInfo> {
+        self.mode_info.as_ref()
     }
 }
 
-fn cursor_rect(
+pub fn cursor_rect(
     mode_info: Option<&mode::ModeInfo>,
     cell_metrics: &CellMetrics,
     line_y: f64,
@@ -260,25 +291,29 @@ fn anim_step<CB: CursorRedrawCb + 'static>(state: &Arc<UiMutex<State<CB>>>) -> g
             mut_state.anim_phase = AnimPhase::Hide;
             Some(60)
         }
-        AnimPhase::Hide => if !mut_state.alpha.hide(0.3) {
-            mut_state.anim_phase = AnimPhase::Hidden;
+        AnimPhase::Hide => {
+            if !mut_state.alpha.hide(0.3) {
+                mut_state.anim_phase = AnimPhase::Hidden;
 
-            Some(300)
-        } else {
-            None
-        },
+                Some(300)
+            } else {
+                None
+            }
+        }
         AnimPhase::Hidden => {
             mut_state.anim_phase = AnimPhase::Show;
 
             Some(60)
         }
-        AnimPhase::Show => if !mut_state.alpha.show(0.3) {
-            mut_state.anim_phase = AnimPhase::Shown;
+        AnimPhase::Show => {
+            if !mut_state.alpha.show(0.3) {
+                mut_state.anim_phase = AnimPhase::Shown;
 
-            Some(500)
-        } else {
-            None
-        },
+                Some(500)
+            } else {
+                None
+            }
+        }
         AnimPhase::NoFocus => None,
         AnimPhase::Busy => None,
     };

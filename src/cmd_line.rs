@@ -527,6 +527,8 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
 
     ctx.push_group();
 
+    render::fill_background(ctx, &render_state.color_model, None);
+
     let gap = state.drawing_area.get_allocated_height() - preferred_height;
     if gap > 0 {
         ctx.translate(0.0, (gap / 2) as f64);
@@ -556,7 +558,6 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
         );
     }
 
-    render::fill_background(ctx, &render_state.color_model, None);
 
     ctx.pop_group_to_source();
     ctx.paint();
