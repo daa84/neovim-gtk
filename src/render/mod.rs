@@ -44,7 +44,6 @@ pub fn render<C: Cursor>(
 ) {
     let cell_metrics = font_ctx.cell_metrics();
     let &CellMetrics { char_width, .. } = cell_metrics;
-    let (cursor_row, cursor_col) = ui_model.get_cursor();
 
     // draw background
     for row_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
@@ -68,58 +67,74 @@ pub fn render<C: Cursor>(
         }
     }
 
-    // draw cursor
-    let (_x1, _y1, x2, y2) = ctx.clip_extents();
+    draw_cursor(ctx, cursor, font_ctx, ui_model, color_model, bg_alpha);
+}
+
+fn draw_cursor<C: Cursor>(
+    ctx: &cairo::Context,
+    cursor: &C,
+    font_ctx: &context::Context,
+    ui_model: &ui_model::UiModel,
+    color_model: &color::ColorModel,
+    bg_alpha: Option<f64>,
+) {
+    let cell_metrics = font_ctx.cell_metrics();
+    let (cursor_row, cursor_col) = ui_model.get_cursor();
+
+    let (x1, y1, x2, y2) = ctx.clip_extents();
     let line_x = cursor_col as f64 * cell_metrics.char_width;
     let line_y = cursor_row as f64 * cell_metrics.line_height;
 
-    if line_x < x2 && line_y < y2 && cursor.is_visible() {
-        if let Some(cursor_line) = ui_model.model().get(cursor_row) {
-            let row_view = ui_model.get_row_view(ctx, cell_metrics, cursor_row);
-            let cell_start_col = row_view.line.cell_to_item(cursor_col);
+    if line_x < x1 || line_y < y1 || line_x > x2 || line_y > y2 || !cursor.is_visible() {
+        return;
+    }
 
-            let double_width = cursor_line
-                .line
-                .get(cursor_col + 1)
-                .map_or(false, |c| c.attrs.double_width);
+    let cell_metrics = font_ctx.cell_metrics();
+    let row_view = ui_model.get_row_view(ctx, cell_metrics, cursor_row);
+    let cell_start_col = row_view.line.cell_to_item(cursor_col);
 
-            if cell_start_col >= 0 {
-                let cell = &cursor_line[cursor_col];
+    if let Some(cursor_line) = ui_model.model().get(cursor_row) {
+        let double_width = cursor_line
+            .line
+            .get(cursor_col + 1)
+            .map_or(false, |c| c.attrs.double_width);
 
-                // clip cursor position
-                let (clip_y, clip_width, clip_height) =
-                    cursor_rect(cursor.mode_info(), cell_metrics, line_y, double_width);
-                ctx.rectangle(line_x, clip_y, clip_width, clip_height);
-                ctx.clip();
+        if cell_start_col >= 0 {
+            let cell = &cursor_line[cursor_col];
 
-                // repaint cell backgound
-                ctx.set_operator(cairo::Operator::Source);
-                fill_background(ctx, color_model, bg_alpha);
-                draw_cell_bg(&row_view, color_model, cell, cursor_col, line_x, bg_alpha);
+            // clip cursor position
+            let (clip_y, clip_width, clip_height) =
+                cursor_rect(cursor.mode_info(), cell_metrics, line_y, double_width);
+            ctx.rectangle(line_x, clip_y, clip_width, clip_height);
+            ctx.clip();
 
-                // reapint cursor and text
-                ctx.set_operator(cairo::Operator::Over);
-                ctx.move_to(line_x, line_y);
-                let cursor_alpha = cursor.draw(ctx, font_ctx, line_y, double_width, &color_model);
+            // repaint cell backgound
+            ctx.set_operator(cairo::Operator::Source);
+            fill_background(ctx, color_model, bg_alpha);
+            draw_cell_bg(&row_view, color_model, cell, cursor_col, line_x, bg_alpha);
 
-                let cell_start_line_x =
-                    line_x - (cursor_col as i32 - cell_start_col) as f64 * cell_metrics.char_width;
+            // reapint cursor and text
+            ctx.set_operator(cairo::Operator::Over);
+            ctx.move_to(line_x, line_y);
+            let cursor_alpha = cursor.draw(ctx, font_ctx, line_y, double_width, &color_model);
 
-                debug_assert!(cell_start_line_x >= 0.0);
+            let cell_start_line_x =
+                line_x - (cursor_col as i32 - cell_start_col) as f64 * cell_metrics.char_width;
 
-                draw_cell(
-                    &row_view,
-                    color_model,
-                    cell,
-                    cell_start_col as usize,
-                    cell_start_line_x,
-                    cursor_alpha,
-                );
-                draw_underline(&row_view, color_model, cell, line_x, cursor_alpha);
-            } else {
-                ctx.move_to(line_x, line_y);
-                cursor.draw(ctx, font_ctx, line_y, double_width, &color_model);
-            }
+            debug_assert!(cell_start_line_x >= 0.0);
+
+            draw_cell(
+                &row_view,
+                color_model,
+                cell,
+                cell_start_col as usize,
+                cell_start_line_x,
+                cursor_alpha,
+            );
+            draw_underline(&row_view, color_model, cell, line_x, cursor_alpha);
+        } else {
+            ctx.move_to(line_x, line_y);
+            cursor.draw(ctx, font_ctx, line_y, double_width, &color_model);
         }
     }
 }
