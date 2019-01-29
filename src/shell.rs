@@ -1095,6 +1095,11 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
     ctx.push_group();
 
     let render_state = state.render_state.borrow();
+    render::fill_background(
+        ctx,
+        &render_state.hl,
+        state.transparency_settings.background_alpha(),
+    );
     render::render(
         ctx,
         state.cursor.as_ref().unwrap(),
@@ -1102,11 +1107,6 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
         state.grids.current_model().unwrap(),
         &render_state.hl,
         state.transparency_settings.filled_alpha(),
-    );
-    render::fill_background(
-        ctx,
-        &render_state.hl,
-        state.transparency_settings.background_alpha(),
     );
 
     ctx.pop_group_to_source();

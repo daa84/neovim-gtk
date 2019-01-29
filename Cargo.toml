@@ -1,6 +1,6 @@
 [package]
 name = "nvim-gtk"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["daa84 <daa84@inbox.ru>"]
 build = "build.rs"
 
@@ -26,7 +26,7 @@ gobject-sys = "0.7"
 #pango-sys = { git = 'https://github.com/gtk-rs/sys' }
 #gio = { git = 'https://github.com/gtk-rs/gio' }
 #pangocairo = { git = 'https://github.com/RazrFalcon/pangocairo-rs' }
-#neovim-lib = "0.5"
+neovim-lib = "0.6"
 phf = "0.7"
 log = "0.4"
 env_logger = "0.5"
@@ -49,9 +49,6 @@ dirs = "1.0"
 
 [target.'cfg(unix)'.dependencies]
 unix-daemonize = "0.1"
-
-[dependencies.neovim-lib]
-git = "https://github.com/daa84/neovim-lib"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
