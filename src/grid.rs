@@ -121,7 +121,7 @@ impl Grid {
                 ch,
                 ch.is_empty(),
                 repeat,
-                highlights.get(hl_id.unwrap()),
+                highlights.get(hl_id),
             );
             col_end += repeat;
         }

@@ -3,9 +3,9 @@ use std::rc::Rc;
 
 use fnv::FnvHashMap;
 
-use ui_model::Cell;
 use color::*;
 use neovim_lib::Value;
+use ui_model::Cell;
 
 pub struct HighlightMap {
     highlights: FnvHashMap<u64, Rc<Highlight>>,
@@ -46,20 +46,27 @@ impl HighlightMap {
         self.sp_color = sp;
     }
 
-    pub fn get(&self, idx: u64) -> Rc<Highlight> {
-        self.highlights.get(&idx).map(Rc::clone).unwrap_or_else(|| {
-            self.highlights
-                .get(&0)
-                .map(Rc::clone)
-                .unwrap_or_else(|| self.default_hl.clone())
-        })
+    pub fn get(&self, idx: Option<u64>) -> Rc<Highlight> {
+        idx.and_then(|idx| self.highlights.get(&idx))
+            .map(Rc::clone)
+            .unwrap_or_else(|| {
+                self.highlights
+                    .get(&0)
+                    .map(Rc::clone)
+                    .unwrap_or_else(|| self.default_hl.clone())
+            })
     }
 
     fn remove(&mut self, idx: u64) {
         self.highlights.remove(&idx);
     }
 
-    pub fn set(&mut self, idx: u64, hl: &HashMap<String, Value>, info: &Vec<HashMap<String, Value>>) {
+    pub fn set(
+        &mut self,
+        idx: u64,
+        hl: &HashMap<String, Value>,
+        info: &Vec<HashMap<String, Value>>,
+    ) {
         let hl = Rc::new(Highlight::from_value_map(&hl));
 
         for item in info {

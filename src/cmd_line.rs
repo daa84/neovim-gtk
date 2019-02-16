@@ -621,7 +621,7 @@ impl ToAttributedModelContent for Vec<Vec<(u64, String)>> {
                     .iter()
                     .map(|c| {
                         (
-                            hl.get(c.0),
+                            hl.get(c.0.into()),
                             c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                         )
                     })
@@ -637,7 +637,7 @@ impl ToAttributedModelContent for Vec<(u64, String)> {
             self.iter()
                 .map(|c| {
                     (
-                        hl.get(c.0),
+                        hl.get(c.0.into()),
                         c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                     )
                 })
