@@ -57,10 +57,6 @@ impl HighlightMap {
             })
     }
 
-    fn remove(&mut self, idx: u64) {
-        self.highlights.remove(&idx);
-    }
-
     pub fn set(
         &mut self,
         idx: u64,
@@ -78,7 +74,6 @@ impl HighlightMap {
             }
         }
 
-        self.remove(idx);
         self.highlights.insert(idx, hl);
     }
 
