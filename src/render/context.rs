@@ -163,7 +163,7 @@ impl FontFeatures {
         }
     }
 
-    pub fn insert_attr(&self, attr_list: &pango::AttrList) {
+    pub fn insert_into(&self, attr_list: &pango::AttrList) {
         if let Some(ref attr) = self.attr {
             attr_list.insert(attr.clone());
         }

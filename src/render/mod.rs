@@ -12,8 +12,8 @@ use pango;
 use pangocairo;
 use sys::pangocairo::*;
 
-use highlight::HighlightMap;
 use cursor::{cursor_rect, Cursor};
+use highlight::HighlightMap;
 use ui_model;
 
 trait ContextAlpha {
@@ -259,42 +259,38 @@ fn draw_cell(
     }
 }
 
-pub fn shape_dirty(
-    ctx: &context::Context,
-    ui_model: &mut ui_model::UiModel,
-    hl: &HighlightMap,
-) {
+pub fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel, hl: &HighlightMap) {
     for line in ui_model.model_mut() {
-        if line.dirty_line {
-            let styled_line = ui_model::StyledLine::from(line, hl, ctx.font_features());
-            let items = ctx.itemize(&styled_line);
-            line.merge(&styled_line, &items);
+        if !line.dirty_line {
+            continue;
+        }
 
-            for (col, cell) in line.line.iter_mut().enumerate() {
-                if cell.dirty {
-                    if let Some(item) = line.item_line[col].as_mut() {
-                        let mut glyphs = pango::GlyphString::new();
-                        {
-                            let analysis = item.analysis();
-                            let offset = item.item.offset() as usize;
-                            let length = item.item.length() as usize;
-                            if let Some(line_str) =
-                                styled_line.line_str.get(offset..offset + length)
-                            {
-                                pango::shape(&line_str, analysis, &mut glyphs);
-                            } else {
-                                warn!("Wrong itemize split");
-                            }
+        let styled_line = ui_model::StyledLine::from(line, hl, ctx.font_features());
+        let items = ctx.itemize(&styled_line);
+        line.merge(&styled_line, &items);
+
+        for (col, cell) in line.line.iter_mut().enumerate() {
+            if cell.dirty {
+                if let Some(item) = line.item_line[col].as_mut() {
+                    let mut glyphs = pango::GlyphString::new();
+                    {
+                        let analysis = item.analysis();
+                        let offset = item.item.offset() as usize;
+                        let length = item.item.length() as usize;
+                        if let Some(line_str) = styled_line.line_str.get(offset..offset + length) {
+                            pango::shape(&line_str, analysis, &mut glyphs);
+                        } else {
+                            warn!("Wrong itemize split");
                         }
-
-                        item.set_glyphs(ctx, glyphs);
                     }
-                }
 
-                cell.dirty = false;
+                    item.set_glyphs(ctx, glyphs);
+                }
             }
 
-            line.dirty_line = false;
+            cell.dirty = false;
         }
+
+        line.dirty_line = false;
     }
 }
