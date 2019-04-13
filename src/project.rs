@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::sync::Arc;
 use std::cell::RefCell;
 use std::path::Path;
 
@@ -11,6 +12,7 @@ use gtk::{TreeView, ScrolledWindow, PolicyType, ListStore, TreeViewColumn, CellR
 use neovim_lib::{Neovim, NeovimApi, Value};
 use nvim::ErrorReport;
 use shell::Shell;
+use ui::UiMutex;
 
 use htmlescape::encode_minimal;
 
@@ -59,7 +61,7 @@ pub struct Projects {
 }
 
 impl Projects {
-    pub fn new(ref_widget: &gtk::Button, shell: Rc<RefCell<Shell>>) -> Rc<RefCell<Projects>> {
+    pub fn new(ref_widget: &gtk::Button, shell: Rc<RefCell<Shell>>) -> Arc<UiMutex<Projects>> {
         let projects = Projects {
             shell,
             popup: Popover::new(Some(ref_widget)),
@@ -103,7 +105,7 @@ impl Projects {
         projects.popup.add(&vbox);
 
 
-        let projects = Rc::new(RefCell::new(projects));
+        let projects = Arc::new(UiMutex::new(projects));
 
         let prj_ref = projects.clone();
         projects.borrow().tree.connect_size_allocate(move |_, _| {
@@ -370,7 +372,7 @@ impl Projects {
 }
 
 
-fn on_treeview_allocate(projects: Rc<RefCell<Projects>>) {
+fn on_treeview_allocate(projects: Arc<UiMutex<Projects>>) {
     let treeview_height = projects.borrow().calc_treeview_height();
 
     idle_add(move || {
