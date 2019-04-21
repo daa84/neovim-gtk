@@ -591,7 +591,6 @@ pub struct ShellOptions {
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
     input_data: Option<String>,
-    enable_swap: bool,
 }
 
 impl ShellOptions {
@@ -611,7 +610,6 @@ impl ShellOptions {
                 .values_of("nvim-args")
                 .map(|args| args.map(str::to_owned).collect())
                 .unwrap_or(vec![]),
-            enable_swap: matches.is_present("enable-swap"),
         }
     }
 
@@ -1167,7 +1165,6 @@ fn init_nvim_async(
         options.nvim_bin_path.as_ref(),
         options.timeout,
         options.args_for_neovim,
-        options.enable_swap,
     ) {
         Ok(nvim) => nvim,
         Err(err) => {

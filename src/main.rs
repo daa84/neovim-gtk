@@ -96,11 +96,7 @@ fn main() {
              .default_value("10")
              .help("Wait timeout in seconds. If nvim does not response in given time NvimGtk stops")
             .takes_value(true))
-        .arg(
-            Arg::with_name("enable-swap")
-                .long("enable-swap")
-                .help("Enable swap files"),
-        ).arg(Arg::with_name("files").help("Files to open").multiple(true))
+        .arg(Arg::with_name("files").help("Files to open").multiple(true))
         .arg(
             Arg::with_name("nvim-bin-path")
                 .long("nvim-bin-path")
