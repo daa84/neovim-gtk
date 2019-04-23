@@ -57,6 +57,7 @@ winres = "0.1"
 
 [build-dependencies]
 phf_codegen = "0.7"
+build-version = "0.1.1"
 
 [dependencies.pango]
 features = ["v1_38"]

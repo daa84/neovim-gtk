@@ -1,4 +1,5 @@
 extern crate phf_codegen;
+extern crate build_version;
 
 #[cfg(windows)]
 extern crate winres;
@@ -9,6 +10,8 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 
 fn main() {
+    build_version::write_version_file().expect("Failed to write version.rs file");
+
     if cfg!(target_os = "windows") {
         println!("cargo:rustc-link-search=native=C:\\msys64\\mingw64\\lib");
 

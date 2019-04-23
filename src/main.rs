@@ -78,11 +78,13 @@ use ui::Ui;
 use clap::{App, Arg, ArgMatches};
 use shell::ShellOptions;
 
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
+
 fn main() {
     env_logger::init();
 
     let matches = App::new("NeovimGtk")
-        .version(env!("CARGO_PKG_VERSION"))
+        .version(GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")))
         .author(env!("CARGO_PKG_AUTHORS"))
         .about(misc::about_comments().as_str())
         .arg(Arg::with_name("no-fork")

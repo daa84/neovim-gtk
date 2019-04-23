@@ -434,7 +434,7 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     let about = AboutDialog::new();
     about.set_transient_for(window);
     about.set_program_name("NeovimGtk");
-    about.set_version(env!("CARGO_PKG_VERSION"));
+    about.set_version(::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")));
     about.set_logo_icon_name("org.daa.NeovimGtk");
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
     about.set_comments(misc::about_comments().as_str());
