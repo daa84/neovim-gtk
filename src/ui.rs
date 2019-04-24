@@ -50,7 +50,7 @@ pub struct Ui {
     comps: Arc<UiMutex<Components>>,
     settings: Rc<RefCell<Settings>>,
     shell: Rc<RefCell<Shell>>,
-    projects: Rc<RefCell<Projects>>,
+    projects: Arc<UiMutex<Projects>>,
     plug_manager: Arc<UiMutex<plug_manager::Manager>>,
     file_browser: Arc<UiMutex<FileBrowserWidget>>,
 }
@@ -280,9 +280,10 @@ impl Ui {
 
         let sidebar_action = UiMutex::new(show_sidebar_action);
         let comps_ref = self.comps.clone();
+        let projects = self.projects.clone();
         shell.set_nvim_command_cb(Some(
             move |shell: &mut shell::State, command: NvimCommand| {
-                Ui::nvim_command(shell, command, &sidebar_action, &comps_ref);
+                Ui::nvim_command(shell, command, &sidebar_action, &projects, &comps_ref);
             },
         ));
     }
@@ -291,9 +292,16 @@ impl Ui {
         shell: &mut shell::State,
         command: NvimCommand,
         sidebar_action: &UiMutex<SimpleAction>,
+        projects: &Arc<UiMutex<Projects>>,
         comps: &UiMutex<Components>,
     ) {
         match command {
+            NvimCommand::ShowProjectView => {
+                gtk::idle_add(clone!(projects => move || {
+                    projects.borrow_mut().show();
+                    Continue(false)
+                }));
+            }
             NvimCommand::ToggleSidebar => {
                 let action = sidebar_action.borrow();
                 let state = !bool::from_variant(&action.get_state().unwrap()).unwrap();
@@ -426,7 +434,7 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     let about = AboutDialog::new();
     about.set_transient_for(window);
     about.set_program_name("NeovimGtk");
-    about.set_version(env!("CARGO_PKG_VERSION"));
+    about.set_version(::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")));
     about.set_logo_icon_name("org.daa.NeovimGtk");
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
     about.set_comments(misc::about_comments().as_str());

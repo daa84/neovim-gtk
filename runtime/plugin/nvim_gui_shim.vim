@@ -59,6 +59,7 @@ command! -nargs=? GuiFontFeatures call rpcnotify(1, 'Gui', 'FontFeatures', <q-ar
 command! -nargs=1 GuiLinespace call rpcnotify(1, 'Gui', 'Linespace', <q-args>)
 
 command! NGToggleSidebar call rpcnotify(1, 'Gui', 'Command', 'ToggleSidebar')
+command! NGShowProjectView call rpcnotify(1, 'Gui', 'Command', 'ShowProjectView')
 command! -nargs=+ NGTransparency call rpcnotify(1, 'Gui', 'Command', 'Transparency', <f-args>)
 command! -nargs=1 NGPreferDarkTheme call rpcnotify(1, 'Gui', 'Command', 'PreferDarkTheme', <q-args>)
 

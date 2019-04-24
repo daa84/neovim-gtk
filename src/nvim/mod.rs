@@ -85,18 +85,12 @@ pub fn start(
     nvim_bin_path: Option<&String>,
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
-    enable_swap: bool,
 ) -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
     } else {
         Command::new("nvim")
     };
-
-    // Swap files are disabled by default because it shows message window on start up but frontend can't detect it.
-    if !enable_swap {
-        cmd.arg("-n");
-    }
 
     cmd.arg("--embed")
         .arg("--cmd")

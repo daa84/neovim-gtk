@@ -90,7 +90,7 @@ impl<'a> Builder<'a> {
 fn extract_name(path: &str) -> Option<String> {
     if let Some(idx) = path.rfind(|c| c == '/' || c == '\\') {
         if idx < path.len() - 1 {
-            let path = path.trim_right_matches(".git");
+            let path = path.trim_end_matches(".git");
             Some(path[idx + 1..].to_owned())
         } else {
             None

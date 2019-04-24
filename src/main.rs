@@ -80,11 +80,13 @@ use ui::Ui;
 use clap::{App, Arg, ArgMatches};
 use shell::ShellOptions;
 
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
+
 fn main() {
     env_logger::init();
 
     let matches = App::new("NeovimGtk")
-        .version(env!("CARGO_PKG_VERSION"))
+        .version(GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")))
         .author(env!("CARGO_PKG_AUTHORS"))
         .about(misc::about_comments().as_str())
         .arg(Arg::with_name("no-fork")
@@ -98,11 +100,7 @@ fn main() {
              .default_value("10")
              .help("Wait timeout in seconds. If nvim does not response in given time NvimGtk stops")
             .takes_value(true))
-        .arg(
-            Arg::with_name("enable-swap")
-                .long("enable-swap")
-                .help("Enable swap files"),
-        ).arg(Arg::with_name("files").help("Files to open").multiple(true))
+        .arg(Arg::with_name("files").help("Files to open").multiple(true))
         .arg(
             Arg::with_name("nvim-bin-path")
                 .long("nvim-bin-path")
