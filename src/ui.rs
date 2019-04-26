@@ -271,29 +271,15 @@ impl Ui {
         let files_list = self.open_paths.clone();
 
         shell.set_nvim_started_cb(Some(move || {
-            let state = state_ref.borrow();
-            plug_manager_ref
-                .borrow_mut()
-                .init_nvim_client(state_ref.borrow().nvim_clone());
-            file_browser_ref.borrow_mut().init(&state);
-            state.set_autocmds();
-            state.run_now(&update_title);
-            state.run_now(&update_completeopt);
-            if let Some(ref update_subtitle) = update_subtitle {
-                state.run_now(&update_subtitle);
-            }
-
-            // open files as last command
-            // because it can generate user query
-            if !files_list.is_empty() {
-                let command = files_list
-                    .iter()
-                    .fold(":ar".to_owned(), |command, filename| {
-                        let filename = misc::escape_filename(filename);
-                        command + " " + &filename
-                    });
-                state.nvim().unwrap().command(&command).report_err();
-            }
+            Ui::nvim_started(
+                &state_ref.borrow(),
+                &plug_manager_ref,
+                &file_browser_ref,
+                &files_list,
+                &update_title,
+                &update_subtitle,
+                &update_completeopt,
+            );
         }));
 
         let sidebar_action = UiMutex::new(show_sidebar_action);
@@ -304,6 +290,39 @@ impl Ui {
                 Ui::nvim_command(shell, command, &sidebar_action, &projects, &comps_ref);
             },
         ));
+    }
+
+    fn nvim_started(
+        shell: &shell::State,
+        plug_manager: &UiMutex<plug_manager::Manager>,
+        file_browser: &UiMutex<FileBrowserWidget>,
+        files_list: &Box<[String]>,
+        update_title: &SubscriptionHandle,
+        update_subtitle: &Option<SubscriptionHandle>,
+        update_completeopt: &SubscriptionHandle,
+    ) {
+        plug_manager
+            .borrow_mut()
+            .init_nvim_client(shell.nvim_clone());
+        file_browser.borrow_mut().init(shell);
+        shell.set_autocmds();
+        shell.run_now(&update_title);
+        shell.run_now(&update_completeopt);
+        if let Some(ref update_subtitle) = update_subtitle {
+            shell.run_now(&update_subtitle);
+        }
+
+        // open files as last command
+        // because it can generate user query
+        if !files_list.is_empty() {
+            let command = files_list
+                .iter()
+                .fold(":ar".to_owned(), |command, filename| {
+                    let filename = misc::escape_filename(filename);
+                    command + " " + &filename
+                });
+            shell.nvim().unwrap().command(&command).report_err();
+        }
     }
 
     fn nvim_command(
