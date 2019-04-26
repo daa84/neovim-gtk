@@ -585,7 +585,6 @@ impl UiState {
 #[derive(Clone)]
 pub struct ShellOptions {
     nvim_bin_path: Option<String>,
-    open_paths: Vec<String>,
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
     input_data: Option<String>,
@@ -594,11 +593,9 @@ pub struct ShellOptions {
 impl ShellOptions {
     pub fn new(
         matches: &clap::ArgMatches,
-        open_paths: Vec<String>,
         input_data: Option<String>,
     ) -> Self {
         ShellOptions {
-            open_paths,
             input_data,
             nvim_bin_path: matches.value_of("nvim-bin-path").map(str::to_owned),
             timeout: value_t!(matches.value_of("timeout"), u64)
@@ -1191,7 +1188,6 @@ fn init_nvim_async(
     // attach ui
     if let Err(err) = nvim::post_start_init(
         nvim,
-        options.open_paths,
         cols as i64,
         rows as i64,
         options.input_data,

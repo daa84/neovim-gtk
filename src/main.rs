@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
-extern crate fnv;
 extern crate cairo;
+extern crate fnv;
 #[macro_use]
 extern crate clap;
 extern crate dirs as env_dirs;
@@ -54,6 +54,8 @@ mod cmd_line;
 mod cursor;
 mod error;
 mod file_browser;
+mod grid;
+mod highlight;
 mod input;
 mod misc;
 mod nvim;
@@ -63,8 +65,6 @@ mod project;
 mod render;
 mod settings;
 mod shell;
-mod highlight;
-mod grid;
 mod shell_dlg;
 mod subscriptions;
 mod tabline;
@@ -123,7 +123,8 @@ fn main() {
                 Some("/tmp/nvim-gtk_stdout.log"),
                 Some("/tmp/nvim-gtk_stderr.log"),
                 ChdirMode::NoChdir,
-            ).unwrap();
+            )
+            .unwrap();
         }
     }
 
@@ -135,10 +136,17 @@ fn main() {
         gtk::Application::new(Some("org.daa.NeovimGtkDebug"), app_flags)
     } else {
         gtk::Application::new(Some("org.daa.NeovimGtk"), app_flags)
-    }.expect("Failed to initialize GTK application");
+    }
+    .expect("Failed to initialize GTK application");
 
     let matches_copy = matches.clone();
-    app.connect_activate(move |app| activate(app, &matches_copy, input_data.replace(None)));
+    app.connect_activate(move |app| {
+        let input_data = input_data
+            .replace(None)
+            .filter(|_input| !matches_copy.is_present("files"));
+
+        activate(app, &matches_copy, input_data)
+    });
 
     let matches_copy = matches.clone();
     app.connect_open(move |app, files, _| open(app, files, &matches_copy));
@@ -160,7 +168,8 @@ fn main() {
                     .values_of("files")
                     .unwrap_or(clap::Values::default())
                     .map(str::to_owned),
-            ).collect::<Vec<String>>(),
+            )
+            .collect::<Vec<String>>(),
     );
 }
 
@@ -170,13 +179,16 @@ fn open(app: &gtk::Application, files: &[gio::File], matches: &ArgMatches) {
         .filter_map(|f| f.get_path()?.to_str().map(str::to_owned))
         .collect();
 
-    let mut ui = Ui::new(ShellOptions::new(matches, files_list, None));
+    let mut ui = Ui::new(
+        ShellOptions::new(matches, None),
+        files_list.into_boxed_slice(),
+    );
 
     ui.init(app, !matches.is_present("disable-win-restore"));
 }
 
 fn activate(app: &gtk::Application, matches: &ArgMatches, input_data: Option<String>) {
-    let mut ui = Ui::new(ShellOptions::new(matches, Vec::new(), input_data));
+    let mut ui = Ui::new(ShellOptions::new(matches, input_data), Box::new([]));
 
     ui.init(app, !matches.is_present("disable-win-restore"));
 }

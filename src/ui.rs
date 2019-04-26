@@ -14,9 +14,11 @@ use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned,
 
 use toml;
 
+use neovim_lib::NeovimApi;
+
 use file_browser::FileBrowserWidget;
 use misc;
-use nvim::NvimCommand;
+use nvim::{ErrorReport, NvimCommand};
 use plug_manager;
 use project::Projects;
 use settings::{Settings, SettingsLoader};
@@ -46,6 +48,7 @@ const DEFAULT_HEIGHT: i32 = 600;
 const DEFAULT_SIDEBAR_WIDTH: i32 = 200;
 
 pub struct Ui {
+    open_paths: Box<[String]>,
     initialized: bool,
     comps: Arc<UiMutex<Components>>,
     settings: Rc<RefCell<Settings>>,
@@ -91,7 +94,7 @@ impl Components {
 }
 
 impl Ui {
-    pub fn new(options: ShellOptions) -> Ui {
+    pub fn new(options: ShellOptions, open_paths: Box<[String]>) -> Ui {
         let plug_manager = plug_manager::Manager::new();
 
         let plug_manager = Arc::new(UiMutex::new(plug_manager));
@@ -111,6 +114,7 @@ impl Ui {
             projects,
             plug_manager,
             file_browser,
+            open_paths,
         }
     }
 
@@ -264,6 +268,8 @@ impl Ui {
         let state_ref = self.shell.borrow().state.clone();
         let file_browser_ref = self.file_browser.clone();
         let plug_manager_ref = self.plug_manager.clone();
+        let files_list = self.open_paths.clone();
+
         shell.set_nvim_started_cb(Some(move || {
             let state = state_ref.borrow();
             plug_manager_ref
@@ -275,6 +281,18 @@ impl Ui {
             state.run_now(&update_completeopt);
             if let Some(ref update_subtitle) = update_subtitle {
                 state.run_now(&update_subtitle);
+            }
+
+            // open files as last command
+            // because it can generate user query
+            if !files_list.is_empty() {
+                let command = files_list
+                    .iter()
+                    .fold(":ar".to_owned(), |command, filename| {
+                        let filename = misc::escape_filename(filename);
+                        command + " " + &filename
+                    });
+                state.nvim().unwrap().command(&command).report_err();
             }
         }));
 
