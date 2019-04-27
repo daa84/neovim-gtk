@@ -4,9 +4,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{env, thread};
 
-use gdk::{self, ScreenExt};
+use gdk;
 use gio::prelude::*;
-use gio::{Menu, MenuExt, MenuItem, SimpleAction};
+use gio::{Menu, MenuItem, SimpleAction};
 use glib::variant::FromVariant;
 use gtk;
 use gtk::prelude::*;

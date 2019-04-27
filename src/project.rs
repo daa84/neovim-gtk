@@ -1,13 +1,16 @@
-use std::rc::Rc;
-use std::sync::Arc;
 use std::cell::RefCell;
 use std::path::Path;
+use std::rc::Rc;
+use std::sync::Arc;
 
-use pango;
+use glib::translate::FromGlib;
 use gtk;
 use gtk::prelude::*;
-use gtk::{TreeView, ScrolledWindow, PolicyType, ListStore, TreeViewColumn, CellRendererText,
-          CellRendererPixbuf, CellRendererToggle, Type, Orientation, TreeModel, TreeIter, Popover};
+use gtk::{
+    CellRendererPixbuf, CellRendererText, CellRendererToggle, ListStore, Orientation, PolicyType,
+    Popover, ScrolledWindow, TreeIter, TreeModel, TreeView, TreeViewColumn, Type,
+};
+use pango;
 
 use neovim_lib::{Neovim, NeovimApi, Value};
 use nvim::ErrorReport;
@@ -66,7 +69,10 @@ impl Projects {
             shell,
             popup: Popover::new(Some(ref_widget)),
             tree: TreeView::new(),
-            scroll: ScrolledWindow::new(None, None),
+            scroll: ScrolledWindow::new(
+                Option::<&gtk::Adjustment>::None,
+                Option::<&gtk::Adjustment>::None,
+            ),
             store: None,
             name_renderer: CellRendererText::new(),
             path_renderer: CellRendererText::new(),
@@ -77,7 +83,9 @@ impl Projects {
 
         projects.tree.set_activate_on_single_click(true);
         projects.tree.set_hover_selection(true);
-        projects.tree.set_grid_lines(gtk::TreeViewGridLines::Horizontal);
+        projects
+            .tree
+            .set_grid_lines(gtk::TreeViewGridLines::Horizontal);
 
         let vbox = gtk::Box::new(Orientation::Vertical, 5);
         vbox.set_border_width(5);
@@ -87,11 +95,9 @@ impl Projects {
 
         vbox.pack_start(&search_box, false, true, 0);
 
-
-        projects.scroll.set_policy(
-            PolicyType::Never,
-            PolicyType::Automatic,
-        );
+        projects
+            .scroll
+            .set_policy(PolicyType::Never, PolicyType::Automatic);
 
         projects.scroll.add(&projects.tree);
         projects.scroll.set_shadow_type(gtk::ShadowType::In);
@@ -104,13 +110,13 @@ impl Projects {
         vbox.show_all();
         projects.popup.add(&vbox);
 
-
         let projects = Arc::new(UiMutex::new(projects));
 
         let prj_ref = projects.clone();
-        projects.borrow().tree.connect_size_allocate(move |_, _| {
-            on_treeview_allocate(prj_ref.clone())
-        });
+        projects
+            .borrow()
+            .tree
+            .connect_size_allocate(move |_, _| on_treeview_allocate(prj_ref.clone()));
 
         let prj_ref = projects.clone();
         search_box.connect_changed(move |search_box| {
@@ -134,8 +140,10 @@ impl Projects {
         });
 
         let prj_ref = projects.clone();
-        projects.borrow().tree.connect_row_activated(
-            move |tree, _, column| {
+        projects
+            .borrow()
+            .tree
+            .connect_row_activated(move |tree, _, column| {
                 // Don't activate if the user clicked the checkbox.
                 let toggle_column = tree.get_column(2).unwrap();
                 if *column == toggle_column {
@@ -147,8 +155,7 @@ impl Projects {
                     let popup = prj_ref.borrow().popup.clone();
                     popup.popdown();
                 }
-            },
-        );
+            });
 
         let prj_ref = projects.clone();
         open_btn.connect_clicked(move |_| {
@@ -158,16 +165,16 @@ impl Projects {
         });
 
         let prj_ref = projects.clone();
-        projects.borrow().popup.connect_closed(
-            move |_| prj_ref.borrow_mut().clear(),
-        );
+        projects
+            .borrow()
+            .popup
+            .connect_closed(move |_| prj_ref.borrow_mut().clear());
 
         let prj_ref = projects.clone();
-        projects.borrow().toggle_renderer.connect_toggled(
-            move |_, path| {
-                prj_ref.borrow_mut().toggle_stored(&path)
-            },
-        );
+        projects
+            .borrow()
+            .toggle_renderer
+            .connect_toggled(move |_, path| prj_ref.borrow_mut().toggle_stored(&path));
         projects
     }
 
@@ -207,9 +214,7 @@ impl Projects {
 
             store.changed();
         }
-
     }
-
 
     fn open_uri(&self, model: &TreeModel, iter: &TreeIter) {
         let uri: String = model
@@ -237,7 +242,8 @@ impl Projects {
     }
 
     fn show_open_file_dlg(&self) {
-        let window = self.popup
+        let window = self
+            .popup
             .get_toplevel()
             .unwrap()
             .downcast::<gtk::Window>()
@@ -248,11 +254,11 @@ impl Projects {
             gtk::FileChooserAction::Open,
         );
 
-        const OPEN_ID: i32 = 0;
-        const CANCEL_ID: i32 = 1;
-
-        dlg.add_buttons(&[("_Open", OPEN_ID), ("_Cancel", CANCEL_ID)]);
-        if dlg.run() == OPEN_ID {
+        dlg.add_buttons(&[
+            ("_Open", gtk::ResponseType::Ok),
+            ("_Cancel", gtk::ResponseType::Cancel),
+        ]);
+        if gtk::ResponseType::from_glib(dlg.run()) == gtk::ResponseType::Ok {
             if let Some(filename) = dlg.get_filename() {
                 if let Some(filename) = filename.to_str() {
                     self.shell.borrow().open_file(filename);
@@ -307,23 +313,17 @@ impl Projects {
 
         self.name_renderer.set_property_width_chars(45);
         self.path_renderer.set_property_width_chars(45);
-        self.name_renderer.set_property_ellipsize(
-            pango::EllipsizeMode::Middle,
-        );
-        self.path_renderer.set_property_ellipsize(
-            pango::EllipsizeMode::Start,
-        );
+        self.name_renderer
+            .set_property_ellipsize(pango::EllipsizeMode::Middle);
+        self.path_renderer
+            .set_property_ellipsize(pango::EllipsizeMode::Start);
         self.name_renderer.set_padding(0, 5);
         self.path_renderer.set_padding(0, 5);
 
         text_column.pack_start(&self.name_renderer, true);
         text_column.pack_start(&self.path_renderer, true);
 
-        text_column.add_attribute(
-            &self.name_renderer,
-            "text",
-            ProjectViewColumns::Name as i32,
-        );
+        text_column.add_attribute(&self.name_renderer, "text", ProjectViewColumns::Name as i32);
         text_column.add_attribute(
             &self.path_renderer,
             "markup",
@@ -338,7 +338,6 @@ impl Projects {
         area.set_orientation(gtk::Orientation::Vertical);
 
         self.tree.append_column(&text_column);
-
 
         let toggle_column = TreeViewColumn::new();
         self.toggle_renderer.set_activatable(true);
@@ -359,7 +358,6 @@ impl Projects {
         self.tree.append_column(&toggle_column);
     }
 
-
     fn calc_treeview_height(&self) -> i32 {
         let (_, name_renderer_natural_size) = self.name_renderer.get_preferred_height(&self.tree);
         let (_, path_renderer_natural_size) = self.path_renderer.get_preferred_height(&self.tree);
@@ -370,7 +368,6 @@ impl Projects {
         row_height * MAX_VISIBLE_ROWS as i32
     }
 }
-
 
 fn on_treeview_allocate(projects: Arc<UiMutex<Projects>>) {
     let treeview_height = projects.borrow().calc_treeview_height();
@@ -391,9 +388,7 @@ fn on_treeview_allocate(projects: Arc<UiMutex<Projects>>) {
     });
 }
 
-
 fn list_old_files(nvim: &mut Neovim) -> Vec<String> {
-
     let oldfiles_var = nvim.get_vvar("oldfiles");
 
     match oldfiles_var {
@@ -464,20 +459,20 @@ impl EntryStore {
                     .filter(|e| e.project && e.stored)
                     .map(|p| p.to_entry_settings())
                     .collect(),
-            ).save();
+            )
+            .save();
         }
     }
 
-    pub fn populate(&self, list_store: &ListStore, filter: Option<&String>) {
+    pub fn populate(&self, list_store: &ListStore, filter: Option<&glib::GString>) {
         for file in &self.entries {
             if match filter.map(|f| f.to_uppercase()) {
                 Some(ref filter) => {
-                    file.file_name.to_uppercase().contains(filter) ||
-                        file.path.to_uppercase().contains(filter)
+                    file.file_name.to_uppercase().contains(filter)
+                        || file.path.to_uppercase().contains(filter)
                 }
                 None => true,
-            }
-            {
+            } {
                 list_store.insert_with_values(None, &COLUMN_IDS, &file.to_values());
             }
         }
@@ -504,10 +499,9 @@ impl Entry {
 
         Entry {
             uri: uri.to_owned(),
-            path: path.parent()
-                .map(|s| {
-                    format!("<small>{}</small>", encode_minimal(&s.to_string_lossy()))
-                })
+            path: path
+                .parent()
+                .map(|s| format!("<small>{}</small>", encode_minimal(&s.to_string_lossy())))
                 .unwrap_or_else(|| "".to_owned()),
             file_name: encode_minimal(name),
             name: name.to_owned(),
@@ -519,16 +513,16 @@ impl Entry {
 
     fn new_current_project(uri: &str) -> Entry {
         let path = Path::new(uri);
-        let name = path.file_name()
+        let name = path
+            .file_name()
             .map(|f| f.to_string_lossy().as_ref().to_owned())
             .unwrap_or_else(|| path.to_string_lossy().as_ref().to_owned());
 
         Entry {
             uri: uri.to_owned(),
-            path: path.parent()
-                .map(|s| {
-                    format!("<small>{}</small>", encode_minimal(&s.to_string_lossy()))
-                })
+            path: path
+                .parent()
+                .map(|s| format!("<small>{}</small>", encode_minimal(&s.to_string_lossy())))
                 .unwrap_or_else(|| "".to_owned()),
             file_name: encode_minimal(&name),
             name,
@@ -540,16 +534,16 @@ impl Entry {
 
     fn new_from_path(uri: &str) -> Entry {
         let path = Path::new(uri);
-        let name = path.file_name()
+        let name = path
+            .file_name()
             .map(|f| f.to_string_lossy().as_ref().to_owned())
             .unwrap_or_else(|| "<empty>".to_owned());
 
         Entry {
             uri: uri.to_owned(),
-            path: path.parent()
-                .map(|s| {
-                    format!("<small>{}</small>", encode_minimal(&s.to_string_lossy()))
-                })
+            path: path
+                .parent()
+                .map(|s| format!("<small>{}</small>", encode_minimal(&s.to_string_lossy())))
                 .unwrap_or_else(|| "".to_owned()),
             file_name: encode_minimal(&name),
             name,
@@ -560,16 +554,14 @@ impl Entry {
     }
 
     fn to_values(&self) -> Box<[&gtk::ToValue]> {
-        Box::new(
-            [
-                &self.file_name,
-                &self.path,
-                &self.uri,
-                &self.pixbuf,
-                &self.project,
-                &self.stored,
-            ],
-        )
+        Box::new([
+            &self.file_name,
+            &self.path,
+            &self.uri,
+            &self.pixbuf,
+            &self.project,
+            &self.stored,
+        ])
     }
 
     fn to_entry_settings(&self) -> ProjectEntrySettings {

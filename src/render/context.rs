@@ -69,7 +69,7 @@ impl Context {
         &self.font_features
     }
 
-    pub fn font_families(&self) -> HashSet<String> {
+    pub fn font_families(&self) -> HashSet<glib::GString> {
         self.font_metrics
             .pango_context
             .list_families()

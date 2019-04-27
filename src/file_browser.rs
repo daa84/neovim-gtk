@@ -10,7 +10,6 @@ use std::ops::Deref;
 use gio;
 use gio::prelude::*;
 use gtk;
-use gtk::MenuExt;
 use gtk::prelude::*;
 
 use neovim_lib::{NeovimApi, NeovimApiAsync};
@@ -553,6 +552,6 @@ fn reveal_path_in_tree(store: &gtk::TreeStore, tree: &gtk::TreeView, rel_file_pa
     if tree_path.get_depth() == 0 {
         return false;
     }
-    tree.set_cursor(&tree_path, None, false);
+    tree.set_cursor(&tree_path, Option::<&gtk::TreeViewColumn>::None, false);
     true
 }

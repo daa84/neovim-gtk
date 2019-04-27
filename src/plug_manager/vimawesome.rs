@@ -1,13 +1,13 @@
 use std::io;
-use std::thread;
-use std::rc::Rc;
 use std::process::{Command, Stdio};
+use std::rc::Rc;
+use std::thread;
 
 use serde_json;
 
+use glib;
 use gtk;
 use gtk::prelude::*;
-use glib;
 
 use super::store::PlugInfo;
 
@@ -42,10 +42,8 @@ fn request(query: Option<&str>) -> io::Result<DescriptionList> {
         if out.stdout.is_empty() {
             Ok(DescriptionList::empty())
         } else {
-            let description_list: DescriptionList =
-                serde_json::from_slice(&out.stdout).map_err(|e| {
-                    io::Error::new(io::ErrorKind::Other, e)
-                })?;
+            let description_list: DescriptionList = serde_json::from_slice(&out.stdout)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
             Ok(description_list)
         }
     } else {
@@ -66,8 +64,11 @@ pub fn build_result_panel<F: Fn(PlugInfo) + 'static>(
     list: &DescriptionList,
     add_cb: F,
 ) -> gtk::ScrolledWindow {
-    let scroll = gtk::ScrolledWindow::new(None, None);
-    scroll.get_style_context().map(|c| c.add_class("view"));
+    let scroll = gtk::ScrolledWindow::new(
+        Option::<&gtk::Adjustment>::None,
+        Option::<&gtk::Adjustment>::None,
+    );
+    scroll.get_style_context().add_class("view");
     let panel = gtk::ListBox::new();
 
     let cb_ref = Rc::new(add_cb);
@@ -92,7 +93,6 @@ fn create_plug_row<F: Fn(PlugInfo) + 'static>(
     let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
     let label_box = create_plug_label(plug);
 
-
     let button_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     button_box.set_halign(gtk::Align::End);
 
@@ -105,7 +105,6 @@ fn create_plug_row<F: Fn(PlugInfo) + 'static>(
 
     row.add(&row_container);
 
-
     add_btn.connect_clicked(clone!(plug => move |btn| {
         if let Some(ref github_url) = plug.github_url {
             btn.set_sensitive(false);
@@ -116,7 +115,6 @@ fn create_plug_row<F: Fn(PlugInfo) + 'static>(
     row
 }
 
-
 fn create_plug_label(plug: &Description) -> gtk::Box {
     let label_box = gtk::Box::new(gtk::Orientation::Vertical, 5);
 
@@ -124,9 +122,10 @@ fn create_plug_label(plug: &Description) -> gtk::Box {
     name_lbl.set_markup(&format!(
         "<b>{}</b> by {}",
         plug.name,
-        plug.author.as_ref().map(|s| s.as_ref()).unwrap_or(
-            "unknown",
-        )
+        plug.author
+            .as_ref()
+            .map(|s| s.as_ref())
+            .unwrap_or("unknown",)
     ));
     name_lbl.set_halign(gtk::Align::Start);
     let url_lbl = gtk::Label::new(None);
@@ -134,7 +133,6 @@ fn create_plug_label(plug: &Description) -> gtk::Box {
         url_lbl.set_markup(&format!("<a href=\"{}\">{}</a>", url, url));
     }
     url_lbl.set_halign(gtk::Align::Start);
-
 
     label_box.pack_start(&name_lbl, true, true, 0);
     label_box.pack_start(&url_lbl, true, true, 0);
@@ -148,7 +146,9 @@ pub struct DescriptionList {
 
 impl DescriptionList {
     fn empty() -> DescriptionList {
-        DescriptionList { plugins: Box::new([]) }
+        DescriptionList {
+            plugins: Box::new([]),
+        }
     }
 }
 

@@ -356,7 +356,8 @@ impl State {
             .map(|mut rect| {
                 rect.extend_by_items(self.grids.current_model());
                 rect
-            }).collect();
+            })
+            .collect();
 
         self.update_dirty_glyphs();
 
@@ -408,7 +409,6 @@ impl State {
 
     fn set_im_location(&self) {
         if let Some((row, col)) = self.grids.current().map(|g| g.get_cursor()) {
-
             let (x, y, width, height) = ModelRect::point(col, row)
                 .to_area(self.render_state.borrow().font_ctx.cell_metrics());
 
@@ -591,10 +591,7 @@ pub struct ShellOptions {
 }
 
 impl ShellOptions {
-    pub fn new(
-        matches: &clap::ArgMatches,
-        input_data: Option<String>,
-    ) -> Self {
+    pub fn new(matches: &clap::ArgMatches, input_data: Option<String>) -> Self {
         ShellOptions {
             input_data,
             nvim_bin_path: matches.value_of("nvim-bin-path").map(str::to_owned),
@@ -666,15 +663,14 @@ impl Shell {
         self.widget.pack_start(&state.stack, true, true, 0);
 
         state.drawing_area.add_events(
-            (gdk::EventMask::BUTTON_RELEASE_MASK
+            gdk::EventMask::BUTTON_RELEASE_MASK
                 | gdk::EventMask::BUTTON_PRESS_MASK
                 | gdk::EventMask::BUTTON_MOTION_MASK
                 | gdk::EventMask::SCROLL_MASK
                 | gdk::EventMask::SMOOTH_SCROLL_MASK
                 | gdk::EventMask::ENTER_NOTIFY_MASK
                 | gdk::EventMask::LEAVE_NOTIFY_MASK
-                | gdk::EventMask::POINTER_MOTION_MASK)
-                .bits() as i32,
+                | gdk::EventMask::POINTER_MOTION_MASK,
         );
 
         let menu = self.create_context_menu();
@@ -1186,12 +1182,7 @@ fn init_nvim_async(
     });
 
     // attach ui
-    if let Err(err) = nvim::post_start_init(
-        nvim,
-        cols as i64,
-        rows as i64,
-        options.input_data,
-    ) {
+    if let Err(err) = nvim::post_start_init(nvim, cols as i64, rows as i64, options.input_data) {
         show_nvim_init_error(&err, state_arc.clone());
     } else {
         set_nvim_initialized(state_arc);
@@ -1476,7 +1467,7 @@ impl State {
                     for font in &fonts {
                         let desc = FontDescription::from_string(&font);
                         if desc.get_size() > 0
-                            && exists_fonts.contains(&desc.get_family().unwrap_or("".to_owned()))
+                            && exists_fonts.contains(&desc.get_family().unwrap_or("".into()))
                         {
                             self.set_font_rpc(font);
                             return;
@@ -1556,19 +1547,13 @@ impl State {
         self.on_busy(false)
     }
 
-    pub fn cmdline_block_show(
-        &mut self,
-        content: Vec<Vec<(u64, String)>>,
-    ) -> RepaintMode {
+    pub fn cmdline_block_show(&mut self, content: Vec<Vec<(u64, String)>>) -> RepaintMode {
         let max_width = self.max_popup_width();
         self.cmd_line.show_block(&content, max_width);
         self.on_busy(true)
     }
 
-    pub fn cmdline_block_append(
-        &mut self,
-        content: Vec<(u64, String)>,
-    ) -> RepaintMode {
+    pub fn cmdline_block_append(&mut self, content: Vec<(u64, String)>) -> RepaintMode {
         self.cmd_line.block_append(&content);
         RepaintMode::Nothing
     }

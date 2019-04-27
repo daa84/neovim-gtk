@@ -5,7 +5,6 @@ use std::sync::Arc;
 use neovim_lib::neovim_api::Tabpage;
 use neovim_lib::{UiOption, Value};
 
-use gtk::ClipboardExt;
 use shell;
 use ui::UiMutex;
 
@@ -210,7 +209,7 @@ pub fn call_gui_request(
                             _ => ui.clipboard_clipboard.clone(),
                         }
                     };
-                    let t = clipboard.wait_for_text().unwrap_or_else(|| String::new());
+                    let t = clipboard.wait_for_text().unwrap_or_else(|| String::new().into());
                     Ok(Value::Array(
                         t.split("\n").map(|s| s.into()).collect::<Vec<Value>>(),
                     ))

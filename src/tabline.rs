@@ -127,7 +127,7 @@ impl Tabline {
                     gtk::IconSize::Menu.into(),
                 );
                 close_btn.set_relief(gtk::ReliefStyle::None);
-                close_btn.get_style_context().unwrap().add_class("small-button");
+                close_btn.get_style_context().add_class("small-button");
                 close_btn.set_focus_on_click(false);
                 let label_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
                 label_box.pack_start(&title, true, false, 0);
