@@ -4,15 +4,19 @@ use std::rc::Rc;
 use fnv::FnvHashMap;
 
 use crate::color::*;
-use neovim_lib::Value;
 use crate::ui_model::Cell;
+use neovim_lib::Value;
 
 pub struct HighlightMap {
     highlights: FnvHashMap<u64, Rc<Highlight>>,
     default_hl: Rc<Highlight>,
-    pub bg_color: Color,
-    pub fg_color: Color,
+    bg_color: Color,
+    fg_color: Color,
     sp_color: Color,
+
+    cterm_bg_color: Color,
+    cterm_fg_color: Color,
+    cterm_color: bool,
 
     pmenu: Rc<Highlight>,
     pmenu_sel: Rc<Highlight>,
@@ -28,6 +32,10 @@ impl HighlightMap {
             fg_color: COLOR_WHITE,
             sp_color: COLOR_RED,
 
+            cterm_bg_color: COLOR_BLACK,
+            cterm_fg_color: COLOR_WHITE,
+            cterm_color: false,
+
             pmenu: default_hl.clone(),
             pmenu_sel: default_hl.clone(),
             cursor: default_hl.clone(),
@@ -40,10 +48,39 @@ impl HighlightMap {
         self.default_hl.clone()
     }
 
-    pub fn set_defaults(&mut self, fg: Color, bg: Color, sp: Color) {
+    pub fn set_defaults(
+        &mut self,
+        fg: Color,
+        bg: Color,
+        sp: Color,
+        cterm_fg: Color,
+        cterm_bg: Color,
+    ) {
         self.fg_color = fg;
         self.bg_color = bg;
         self.sp_color = sp;
+        self.cterm_fg_color = cterm_fg;
+        self.cterm_bg_color = cterm_bg;
+    }
+
+    pub fn set_use_cterm(&mut self, cterm_color: bool) {
+        self.cterm_color = cterm_color;
+    }
+
+    pub fn bg(&self) -> &Color {
+        if self.cterm_color {
+            &self.cterm_bg_color
+        } else {
+            &self.bg_color
+        }
+    }
+
+    pub fn fg(&self) -> &Color {
+        if self.cterm_color {
+            &self.cterm_fg_color
+        } else {
+            &self.fg_color
+        }
     }
 
     pub fn get(&self, idx: Option<u64>) -> Rc<Highlight> {
@@ -81,15 +118,15 @@ impl HighlightMap {
         if !cell.hl.reverse {
             cell.hl.foreground.as_ref()
         } else {
-            cell.hl.background.as_ref().or(Some(&self.bg_color))
+            cell.hl.background.as_ref().or(Some(self.bg()))
         }
     }
 
     pub fn actual_cell_fg<'a>(&'a self, cell: &'a Cell) -> &'a Color {
         if !cell.hl.reverse {
-            cell.hl.foreground.as_ref().unwrap_or(&self.fg_color)
+            cell.hl.foreground.as_ref().unwrap_or(self.fg())
         } else {
-            cell.hl.background.as_ref().unwrap_or(&self.bg_color)
+            cell.hl.background.as_ref().unwrap_or(self.bg())
         }
     }
 
@@ -97,7 +134,7 @@ impl HighlightMap {
         if !cell.hl.reverse {
             cell.hl.background.as_ref()
         } else {
-            cell.hl.foreground.as_ref().or(Some(&self.fg_color))
+            cell.hl.foreground.as_ref().or(Some(self.fg()))
         }
     }
 
@@ -108,41 +145,41 @@ impl HighlightMap {
 
     pub fn pmenu_bg(&self) -> &Color {
         if !self.pmenu.reverse {
-            self.pmenu.background.as_ref().unwrap_or(&self.bg_color)
+            self.pmenu.background.as_ref().unwrap_or(self.bg())
         } else {
-            self.pmenu.foreground.as_ref().unwrap_or(&self.fg_color)
+            self.pmenu.foreground.as_ref().unwrap_or(self.fg())
         }
     }
 
     pub fn pmenu_fg(&self) -> &Color {
         if !self.pmenu.reverse {
-            self.pmenu.foreground.as_ref().unwrap_or(&self.fg_color)
+            self.pmenu.foreground.as_ref().unwrap_or(self.fg())
         } else {
-            self.pmenu.background.as_ref().unwrap_or(&self.bg_color)
+            self.pmenu.background.as_ref().unwrap_or(self.bg())
         }
     }
 
     pub fn pmenu_bg_sel(&self) -> &Color {
         if !self.pmenu_sel.reverse {
-            self.pmenu_sel.background.as_ref().unwrap_or(&self.bg_color)
+            self.pmenu_sel.background.as_ref().unwrap_or(self.bg())
         } else {
-            self.pmenu_sel.foreground.as_ref().unwrap_or(&self.fg_color)
+            self.pmenu_sel.foreground.as_ref().unwrap_or(self.fg())
         }
     }
 
     pub fn pmenu_fg_sel(&self) -> &Color {
         if !self.pmenu_sel.reverse {
-            self.pmenu_sel.foreground.as_ref().unwrap_or(&self.fg_color)
+            self.pmenu_sel.foreground.as_ref().unwrap_or(self.fg())
         } else {
-            self.pmenu_sel.background.as_ref().unwrap_or(&self.bg_color)
+            self.pmenu_sel.background.as_ref().unwrap_or(self.bg())
         }
     }
 
     pub fn cursor_bg(&self) -> &Color {
         if !self.cursor.reverse {
-            self.cursor.background.as_ref().unwrap_or(&self.bg_color)
+            self.cursor.background.as_ref().unwrap_or(self.bg())
         } else {
-            self.cursor.foreground.as_ref().unwrap_or(&self.fg_color)
+            self.cursor.foreground.as_ref().unwrap_or(self.fg())
         }
     }
 }

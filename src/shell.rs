@@ -22,7 +22,7 @@ use pangocairo;
 use neovim_lib::neovim_api::Tabpage;
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 
-use crate::color::Color;
+use crate::color::{Color, COLOR_BLACK, COLOR_WHITE};
 use crate::grid::GridMap;
 use crate::highlight::HighlightMap;
 use crate::misc::{decode_uri, escape_filename, split_at_comma};
@@ -149,7 +149,10 @@ impl State {
         let pango_context = drawing_area.create_pango_context().unwrap();
         pango_context.set_font_description(&FontDescription::from_string(DEFAULT_FONT_NAME));
 
-        let render_state = Rc::new(RefCell::new(RenderState::new(pango_context)));
+        let mut render_state = RenderState::new(pango_context);
+        render_state.hl.set_use_cterm(options.cterm_colors);
+        let render_state = Rc::new(RefCell::new(render_state));
+
         let popup_menu = PopupMenu::new(&drawing_area);
         let cmd_line = CmdLine::new(&drawing_area, render_state.clone());
 
@@ -588,12 +591,14 @@ pub struct ShellOptions {
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
     input_data: Option<String>,
+    cterm_colors: bool,
 }
 
 impl ShellOptions {
     pub fn new(matches: &clap::ArgMatches, input_data: Option<String>) -> Self {
         ShellOptions {
             input_data,
+            cterm_colors: matches.is_present("cterm-colors"),
             nvim_bin_path: matches.value_of("nvim-bin-path").map(str::to_owned),
             timeout: value_t!(matches.value_of("timeout"), u64)
                 .map(Duration::from_secs)
@@ -1237,7 +1242,9 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let layout = pangocairo::functions::create_layout(ctx).unwrap();
     let alloc = state.drawing_area.get_allocation();
 
-    ctx.set_source_rgb(hl.bg_color.0, hl.bg_color.1, hl.bg_color.2);
+    let bg_color = hl.bg();
+    let fg_color = hl.fg();
+    ctx.set_source_rgb(bg_color.0, bg_color.1, bg_color.2);
     ctx.paint();
 
     layout.set_text("Loading->");
@@ -1247,7 +1254,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let y = alloc.height as f64 / 2.0 - height as f64 / 2.0;
 
     ctx.move_to(x, y);
-    ctx.set_source_rgb(hl.fg_color.0, hl.fg_color.1, hl.fg_color.2);
+    ctx.set_source_rgb(fg_color.0, fg_color.1, fg_color.2);
     pangocairo::functions::update_layout(ctx, &layout);
     pangocairo::functions::show_layout(ctx, &layout);
 
@@ -1356,11 +1363,28 @@ impl State {
         RepaintMode::Nothing
     }
 
-    pub fn default_colors_set(&mut self, fg: i64, bg: i64, sp: i64) -> RepaintMode {
+    pub fn default_colors_set(
+        &mut self,
+        fg: i64,
+        bg: i64,
+        sp: i64,
+        cterm_fg: i64,
+        cterm_bg: i64,
+    ) -> RepaintMode {
         self.render_state.borrow_mut().hl.set_defaults(
             Color::from_indexed_color(fg as u64),
             Color::from_indexed_color(bg as u64),
             Color::from_indexed_color(sp as u64),
+            if cterm_fg > 0 {
+                Color::from_cterm((cterm_fg - 1) as u8)
+            } else {
+                COLOR_WHITE
+            },
+            if cterm_bg > 0 {
+                Color::from_cterm((cterm_bg - 1) as u8)
+            } else {
+                COLOR_BLACK
+            },
         );
         RepaintMode::All
     }

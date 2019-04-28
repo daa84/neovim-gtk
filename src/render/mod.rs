@@ -31,7 +31,7 @@ impl ContextAlpha for cairo::Context {
 }
 
 pub fn fill_background(ctx: &cairo::Context, hl: &HighlightMap, alpha: Option<f64>) {
-    ctx.set_source_rgbo(&hl.bg_color, alpha);
+    ctx.set_source_rgbo(hl.bg(), alpha);
     ctx.paint();
 }
 
@@ -213,7 +213,7 @@ fn draw_cell_bg(
 
     if let Some(bg) = bg {
         if !line.is_binded_to_item(col) {
-            if bg != &hl.bg_color {
+            if bg != hl.bg() {
                 ctx.set_source_rgbo(bg, bg_alpha);
                 ctx.rectangle(line_x, line_y, char_width, line_height);
                 ctx.fill();
