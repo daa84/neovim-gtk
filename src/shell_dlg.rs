@@ -1,11 +1,13 @@
 use std::cell::RefCell;
 
-use ui::{Components, UiMutex};
-use shell::Shell;
-use neovim_lib::{NeovimApi, CallError, Value};
+use glib::translate::FromGlib;
 use gtk;
 use gtk::prelude::*;
-use gtk::{MessageDialog, MessageType, ButtonsType};
+use gtk::{ButtonsType, MessageDialog, MessageType};
+
+use neovim_lib::{CallError, NeovimApi, Value};
+use crate::shell::Shell;
+use crate::ui::{Components, UiMutex};
 
 pub fn can_close_window(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> bool {
     let shell = shell.borrow();
@@ -40,20 +42,14 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>, shell: &Shell, changed_bufs: 
         &format!("Save changes to '{}'?", changed_files),
     );
 
-    const SAVE_ID: i32 = 0;
-    const CLOSE_WITHOUT_SAVE: i32 = 1;
-    const CANCEL_ID: i32 = 2;
+    dlg.add_buttons(&[
+        ("_Yes", gtk::ResponseType::Yes),
+        ("_No", gtk::ResponseType::No),
+        ("_Cancel", gtk::ResponseType::Cancel),
+    ]);
 
-    dlg.add_buttons(
-        &[
-            ("_Yes", SAVE_ID),
-            ("_No", CLOSE_WITHOUT_SAVE),
-            ("_Cancel", CANCEL_ID),
-        ],
-    );
-
-    let res = match dlg.run() {
-        SAVE_ID => {
+    let res = match gtk::ResponseType::from_glib(dlg.run()) {
+        gtk::ResponseType::Yes => {
             let state = shell.state.borrow();
             let mut nvim = state.nvim().unwrap();
             match nvim.command("wa") {
@@ -64,8 +60,8 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>, shell: &Shell, changed_bufs: 
                 _ => true,
             }
         }
-        CLOSE_WITHOUT_SAVE => true,
-        CANCEL_ID | _ => false,
+        gtk::ResponseType::No => true,
+        gtk::ResponseType::Cancel | _ => false,
     };
 
     dlg.destroy();
@@ -79,41 +75,33 @@ fn get_changed_buffers(shell: &Shell) -> Result<Vec<String>, CallError> {
     if let Some(mut nvim) = nvim {
         let buffers = nvim.list_bufs().unwrap();
 
-        Ok(
-            buffers
-                .iter()
-                .map(|buf| {
-                    (
-                        match buf.get_option(&mut nvim, "modified") {
-                            Ok(Value::Boolean(val)) => val,
-                            Ok(_) => {
-                                warn!("Value must be boolean");
-                                false
-                            }
-                            Err(ref err) => {
-                                error!(
-                                    "Something going wrong while getting buffer option: {}",
-                                    err
-                                );
-                                false
-                            }
-                        },
-                        match buf.get_name(&mut nvim) {
-                            Ok(name) => name,
-                            Err(ref err) => {
-                                error!(
-                                    "Something going wrong while getting buffer name: {}",
-                                    err
-                                );
-                                "<Error>".to_owned()
-                            }
-                        },
-                    )
-                })
-                .filter(|e| e.0)
-                .map(|e| e.1)
-                .collect(),
-        )
+        Ok(buffers
+            .iter()
+            .map(|buf| {
+                (
+                    match buf.get_option(&mut nvim, "modified") {
+                        Ok(Value::Boolean(val)) => val,
+                        Ok(_) => {
+                            warn!("Value must be boolean");
+                            false
+                        }
+                        Err(ref err) => {
+                            error!("Something going wrong while getting buffer option: {}", err);
+                            false
+                        }
+                    },
+                    match buf.get_name(&mut nvim) {
+                        Ok(name) => name,
+                        Err(ref err) => {
+                            error!("Something going wrong while getting buffer name: {}", err);
+                            "<Error>".to_owned()
+                        }
+                    },
+                )
+            })
+            .filter(|e| e.0)
+            .map(|e| e.1)
+            .collect())
     } else {
         Ok(vec![])
     }

@@ -11,15 +11,15 @@ use pango;
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use cursor;
-use highlight::{Highlight, HighlightMap};
-use mode;
-use nvim::{self, NeovimClient};
-use popup_menu;
-use render::{self, CellMetrics};
-use shell;
-use ui::UiMutex;
-use ui_model::ModelLayout;
+use crate::cursor;
+use crate::highlight::{Highlight, HighlightMap};
+use crate::mode;
+use crate::nvim::{self, NeovimClient};
+use crate::popup_menu;
+use crate::render::{self, CellMetrics};
+use crate::shell;
+use crate::ui::UiMutex;
+use crate::ui_model::ModelLayout;
 
 pub struct Level {
     model_layout: ModelLayout,
@@ -30,7 +30,8 @@ pub struct Level {
 
 impl Level {
     pub fn insert(&mut self, c: String, shift: bool, render_state: &shell::RenderState) {
-        self.model_layout.insert_char(c, shift, render_state.hl.default_hl());
+        self.model_layout
+            .insert_char(c, shift, render_state.hl.default_hl());
         self.update_preferred_size(render_state);
     }
 
@@ -314,7 +315,7 @@ impl CmdLine {
         let css_provider = gtk::CssProvider::new();
 
         let tree = gtk::TreeView::new();
-        let style_context = tree.get_style_context().unwrap();
+        let style_context = tree.get_style_context();
         style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
         tree.get_selection().set_mode(gtk::SelectionMode::Single);
@@ -329,20 +330,23 @@ impl CmdLine {
         column.add_attribute(&renderer, "text", 0);
         tree.append_column(&column);
 
-        let scroll = gtk::ScrolledWindow::new(None, None);
+        let scroll = gtk::ScrolledWindow::new(
+            Option::<&gtk::Adjustment>::None,
+            Option::<&gtk::Adjustment>::None,
+        );
         scroll.set_propagate_natural_height(true);
         scroll.set_propagate_natural_width(true);
 
         scroll.add(&tree);
 
         tree.connect_button_press_event(clone!(state => move |tree, ev| {
-                let state = state.borrow();
-                let nvim = state.nvim.as_ref().unwrap().nvim();
-                if let Some(mut nvim) = nvim {
-                    popup_menu::tree_button_press(tree, ev, &mut *nvim, "");
-                }
-                Inhibit(false)
-            }));
+            let state = state.borrow();
+            let nvim = state.nvim.as_ref().unwrap().nvim();
+            if let Some(mut nvim) = nvim {
+                popup_menu::tree_button_press(tree, ev, &mut *nvim, "");
+            }
+            Inhibit(false)
+        }));
 
         (scroll, tree, css_provider, renderer, column)
     }
@@ -466,8 +470,13 @@ impl CmdLine {
         max_width: i32,
     ) {
         // update font/color
-        self.wild_renderer
-            .set_property_font(Some(&render_state.font_ctx.font_description().to_string()));
+        self.wild_renderer.set_property_font(Some(
+            render_state
+                .font_ctx
+                .font_description()
+                .to_string()
+                .as_str(),
+        ));
 
         self.wild_renderer
             .set_property_foreground_rgba(Some(&render_state.hl.pmenu_fg().into()));
@@ -509,7 +518,7 @@ impl CmdLine {
             idle_add(move || {
                 let selected_path = gtk::TreePath::new_from_string(&format!("{}", selected));
                 wild_tree.get_selection().select_path(&selected_path);
-                wild_tree.scroll_to_cell(&selected_path, None, false, 0.0, 0.0);
+                wild_tree.scroll_to_cell(&selected_path, Option::<&gtk::TreeViewColumn>::None, false, 0.0, 0.0);
 
                 Continue(false)
             });
@@ -528,6 +537,8 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
     let render_state = state.render_state.borrow();
 
     ctx.push_group();
+
+    render::fill_background(ctx, &render_state.hl, None);
 
     let gap = state.drawing_area.get_allocated_height() - preferred_height;
     if gap > 0 {
@@ -557,8 +568,6 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
             None,
         );
     }
-
-    render::fill_background(ctx, &render_state.hl, None);
 
     ctx.pop_group_to_source();
     ctx.paint();
@@ -621,7 +630,7 @@ impl ToAttributedModelContent for Vec<Vec<(u64, String)>> {
                     .iter()
                     .map(|c| {
                         (
-                            hl.get(c.0),
+                            hl.get(c.0.into()),
                             c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                         )
                     })
@@ -633,15 +642,14 @@ impl ToAttributedModelContent for Vec<Vec<(u64, String)>> {
 
 impl ToAttributedModelContent for Vec<(u64, String)> {
     fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<Vec<(Rc<Highlight>, Vec<String>)>> {
-        vec![
-            self.iter()
-                .map(|c| {
-                    (
-                        hl.get(c.0),
-                        c.1.graphemes(true).map(|g| g.to_owned()).collect(),
-                    )
-                })
-                .collect(),
-        ]
+        vec![self
+            .iter()
+            .map(|c| {
+                (
+                    hl.get(c.0.into()),
+                    c.1.graphemes(true).map(|g| g.to_owned()).collect(),
+                )
+            })
+            .collect()]
     }
 }

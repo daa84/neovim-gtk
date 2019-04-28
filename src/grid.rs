@@ -10,11 +10,11 @@ use fnv::FnvHashMap;
 
 use neovim_lib::Value;
 
-use highlight::{Highlight, HighlightMap};
-use nvim::{RepaintGridEvent, RepaintMode};
-use mode;
-use render;
-use ui_model::{ModelRect, ModelRectVec, UiModel};
+use crate::highlight::{Highlight, HighlightMap};
+use crate::nvim::{RepaintGridEvent, RepaintMode};
+use crate::mode;
+use crate::render;
+use crate::ui_model::{ModelRect, ModelRectVec, UiModel};
 
 const DEFAULT_GRID: u64 = 1;
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
@@ -299,15 +299,14 @@ impl Grid {
         drawing_area.set_can_focus(true);
 
         drawing_area.add_events(
-            (gdk::EventMask::BUTTON_RELEASE_MASK
-                | gdk::EventMask::BUTTON_PRESS_MASK
-                | gdk::EventMask::BUTTON_MOTION_MASK
-                | gdk::EventMask::SCROLL_MASK
-                | gdk::EventMask::SMOOTH_SCROLL_MASK
-                | gdk::EventMask::ENTER_NOTIFY_MASK
-                | gdk::EventMask::LEAVE_NOTIFY_MASK
-                | gdk::EventMask::POINTER_MOTION_MASK)
-                .bits() as i32,
+            gdk::EventMask::BUTTON_RELEASE_MASK
+            | gdk::EventMask::BUTTON_PRESS_MASK
+            | gdk::EventMask::BUTTON_MOTION_MASK
+            | gdk::EventMask::SCROLL_MASK
+            | gdk::EventMask::SMOOTH_SCROLL_MASK
+            | gdk::EventMask::ENTER_NOTIFY_MASK
+            | gdk::EventMask::LEAVE_NOTIFY_MASK
+            | gdk::EventMask::POINTER_MOTION_MASK
         );
 
         let pango_context = drawing_area.create_pango_context().unwrap();
@@ -369,7 +368,7 @@ impl Grid {
                 ch,
                 ch.is_empty(),
                 repeat,
-                highlights.get(hl_id.unwrap()),
+                highlights.get(hl_id),
             );
             col_end += repeat;
         }

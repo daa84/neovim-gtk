@@ -17,10 +17,9 @@ use std::process::{Command, Stdio};
 use std::result;
 use std::time::Duration;
 
-use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Session, UiAttachOptions};
+use neovim_lib::{Neovim, NeovimApi, Session, UiAttachOptions};
 
-use misc::escape_filename;
-use nvim_config::NvimConfig;
+use crate::nvim_config::NvimConfig;
 
 #[derive(Debug)]
 pub struct NvimInitError {
@@ -85,18 +84,12 @@ pub fn start(
     nvim_bin_path: Option<&String>,
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
-    enable_swap: bool,
 ) -> result::Result<Neovim, NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
     } else {
         Command::new("nvim")
     };
-
-    // Swap files are disabled by default because it shows message window on start up but frontend can't detect it.
-    if !enable_swap {
-        cmd.arg("-n");
-    }
 
     cmd.arg("--embed")
         .arg("--cmd")
@@ -146,7 +139,6 @@ pub fn start(
 
 pub fn post_start_init(
     nvim: NeovimClientAsync,
-    open_paths: Vec<String>,
     cols: i64,
     rows: i64,
     input_data: Option<String>,
@@ -169,32 +161,18 @@ pub fn post_start_init(
         .command("runtime! ginit.vim")
         .map_err(NvimInitError::new_post_init)?;
 
-    if !open_paths.is_empty() {
-        let command = open_paths
-            .iter()
-            .fold(":ar".to_owned(), |command, filename| {
-                let filename = escape_filename(filename);
-                command + " " + &filename
-            });
-        nvim.borrow()
-            .unwrap()
-            .command_async(&command)
-            .cb(|r| r.report_err())
-            .call();
-    } else {
-        if let Some(input_data) = input_data {
-            let mut nvim = nvim.borrow().unwrap();
-            let buf = nvim.get_current_buf().ok_and_report();
+    if let Some(input_data) = input_data {
+        let mut nvim = nvim.borrow().unwrap();
+        let buf = nvim.get_current_buf().ok_and_report();
 
-            if let Some(buf) = buf {
-                buf.set_lines(
-                    &mut *nvim,
-                    0,
-                    0,
-                    true,
-                    input_data.lines().map(|l| l.to_owned()).collect(),
-                ).report_err();
-            }
+        if let Some(buf) = buf {
+            buf.set_lines(
+                &mut *nvim,
+                0,
+                0,
+                true,
+                input_data.lines().map(|l| l.to_owned()).collect(),
+            ).report_err();
         }
     }
 

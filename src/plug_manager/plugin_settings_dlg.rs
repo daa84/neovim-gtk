@@ -41,7 +41,6 @@ impl<'a> Builder<'a> {
 
         list.add(&path);
 
-
         let name = gtk::Box::new(gtk::Orientation::Horizontal, 5);
         name.set_border_width(5);
         let name_lbl = gtk::Label::new("Name");
@@ -67,15 +66,18 @@ impl<'a> Builder<'a> {
             path_e.get_text().map(|path| {
                 let name = name_e
                     .get_text()
-                    .and_then(|name| if name.trim().is_empty() {
-                        None
-                    } else {
-                        Some(name)
+                    .map(String::from)
+                    .and_then(|name| {
+                        if name.trim().is_empty() {
+                            None
+                        } else {
+                            Some(name.to_owned())
+                        }
                     })
-                    .or_else(|| extract_name(&path))
-                    .unwrap_or_else(|| path.clone());
+                    .or_else(|| extract_name(path.as_str()))
+                    .unwrap_or_else(|| path.as_str().to_owned());
 
-                store::PlugInfo::new(name.to_owned(), path.to_owned())
+                store::PlugInfo::new(name, path.to_owned())
             })
         } else {
             None
@@ -90,7 +92,7 @@ impl<'a> Builder<'a> {
 fn extract_name(path: &str) -> Option<String> {
     if let Some(idx) = path.rfind(|c| c == '/' || c == '\\') {
         if idx < path.len() - 1 {
-            let path = path.trim_right_matches(".git");
+            let path = path.trim_end_matches(".git");
             Some(path[idx + 1..].to_owned())
         } else {
             None

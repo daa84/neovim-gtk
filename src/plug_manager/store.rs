@@ -1,6 +1,6 @@
 use toml;
 
-use settings::SettingsLoader;
+use crate::settings::SettingsLoader;
 use super::vim_plug;
 
 #[derive(Default)]
@@ -139,7 +139,7 @@ impl PlugInfo {
     pub fn get_plug_path(&self) -> String {
         if self.url.contains("github.com") {
             let mut path_comps: Vec<&str> = self.url
-                .trim_right_matches(".git")
+                .trim_end_matches(".git")
                 .rsplit('/')
                 .take(2)
                 .collect();

@@ -3,8 +3,8 @@ use std::sync::{mpsc, Arc};
 
 use neovim_lib::{Handler, RequestHandler, Value};
 
-use ui::UiMutex;
-use shell;
+use crate::ui::UiMutex;
+use crate::shell;
 use glib;
 
 use super::repaint_mode::RepaintMode;

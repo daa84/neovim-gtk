@@ -4,9 +4,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{env, thread};
 
-use gdk::{self, ScreenExt};
+use gdk;
 use gio::prelude::*;
-use gio::{Menu, MenuExt, MenuItem, SimpleAction};
+use gio::{Menu, MenuItem, SimpleAction};
 use glib::variant::FromVariant;
 use gtk;
 use gtk::prelude::*;
@@ -14,15 +14,17 @@ use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned,
 
 use toml;
 
-use file_browser::FileBrowserWidget;
-use misc;
-use nvim::NvimCommand;
-use plug_manager;
-use project::Projects;
-use settings::{Settings, SettingsLoader};
-use shell::{self, Shell, ShellOptions};
-use shell_dlg;
-use subscriptions::{SubscriptionHandle, SubscriptionKey};
+use neovim_lib::NeovimApi;
+
+use crate::file_browser::FileBrowserWidget;
+use crate::misc;
+use crate::nvim::{ErrorReport, NvimCommand};
+use crate::plug_manager;
+use crate::project::Projects;
+use crate::settings::{Settings, SettingsLoader};
+use crate::shell::{self, Shell, ShellOptions};
+use crate::shell_dlg;
+use crate::subscriptions::{SubscriptionHandle, SubscriptionKey};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -46,11 +48,12 @@ const DEFAULT_HEIGHT: i32 = 600;
 const DEFAULT_SIDEBAR_WIDTH: i32 = 200;
 
 pub struct Ui {
+    open_paths: Box<[String]>,
     initialized: bool,
     comps: Arc<UiMutex<Components>>,
     settings: Rc<RefCell<Settings>>,
     shell: Rc<RefCell<Shell>>,
-    projects: Rc<RefCell<Projects>>,
+    projects: Arc<UiMutex<Projects>>,
     plug_manager: Arc<UiMutex<plug_manager::Manager>>,
     file_browser: Arc<UiMutex<FileBrowserWidget>>,
 }
@@ -91,7 +94,7 @@ impl Components {
 }
 
 impl Ui {
-    pub fn new(options: ShellOptions) -> Ui {
+    pub fn new(options: ShellOptions, open_paths: Box<[String]>) -> Ui {
         let plug_manager = plug_manager::Manager::new();
 
         let plug_manager = Arc::new(UiMutex::new(plug_manager));
@@ -111,6 +114,7 @@ impl Ui {
             projects,
             plug_manager,
             file_browser,
+            open_paths,
         }
     }
 
@@ -264,36 +268,77 @@ impl Ui {
         let state_ref = self.shell.borrow().state.clone();
         let file_browser_ref = self.file_browser.clone();
         let plug_manager_ref = self.plug_manager.clone();
+        let files_list = self.open_paths.clone();
+
         shell.set_nvim_started_cb(Some(move || {
-            let state = state_ref.borrow();
-            plug_manager_ref
-                .borrow_mut()
-                .init_nvim_client(state_ref.borrow().nvim_clone());
-            file_browser_ref.borrow_mut().init(&state);
-            state.set_autocmds();
-            state.run_now(&update_title);
-            state.run_now(&update_completeopt);
-            if let Some(ref update_subtitle) = update_subtitle {
-                state.run_now(&update_subtitle);
-            }
+            Ui::nvim_started(
+                &state_ref.borrow(),
+                &plug_manager_ref,
+                &file_browser_ref,
+                &files_list,
+                &update_title,
+                &update_subtitle,
+                &update_completeopt,
+            );
         }));
 
         let sidebar_action = UiMutex::new(show_sidebar_action);
         let comps_ref = self.comps.clone();
+        let projects = self.projects.clone();
         shell.set_nvim_command_cb(Some(
             move |shell: &mut shell::State, command: NvimCommand| {
-                Ui::nvim_command(shell, command, &sidebar_action, &comps_ref);
+                Ui::nvim_command(shell, command, &sidebar_action, &projects, &comps_ref);
             },
         ));
+    }
+
+    fn nvim_started(
+        shell: &shell::State,
+        plug_manager: &UiMutex<plug_manager::Manager>,
+        file_browser: &UiMutex<FileBrowserWidget>,
+        files_list: &Box<[String]>,
+        update_title: &SubscriptionHandle,
+        update_subtitle: &Option<SubscriptionHandle>,
+        update_completeopt: &SubscriptionHandle,
+    ) {
+        plug_manager
+            .borrow_mut()
+            .init_nvim_client(shell.nvim_clone());
+        file_browser.borrow_mut().init(shell);
+        shell.set_autocmds();
+        shell.run_now(&update_title);
+        shell.run_now(&update_completeopt);
+        if let Some(ref update_subtitle) = update_subtitle {
+            shell.run_now(&update_subtitle);
+        }
+
+        // open files as last command
+        // because it can generate user query
+        if !files_list.is_empty() {
+            let command = files_list
+                .iter()
+                .fold(":ar".to_owned(), |command, filename| {
+                    let filename = misc::escape_filename(filename);
+                    command + " " + &filename
+                });
+            shell.nvim().unwrap().command(&command).report_err();
+        }
     }
 
     fn nvim_command(
         shell: &mut shell::State,
         command: NvimCommand,
         sidebar_action: &UiMutex<SimpleAction>,
+        projects: &Arc<UiMutex<Projects>>,
         comps: &UiMutex<Components>,
     ) {
         match command {
+            NvimCommand::ShowProjectView => {
+                gtk::idle_add(clone!(projects => move || {
+                    projects.borrow_mut().show();
+                    Continue(false)
+                }));
+            }
             NvimCommand::ToggleSidebar => {
                 let action = sidebar_action.borrow();
                 let state = !bool::from_variant(&action.get_state().unwrap()).unwrap();
@@ -426,7 +471,7 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     let about = AboutDialog::new();
     about.set_transient_for(window);
     about.set_program_name("NeovimGtk");
-    about.set_version(env!("CARGO_PKG_VERSION"));
+    about.set_version(crate::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")));
     about.set_logo_icon_name("org.daa.NeovimGtk");
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
     about.set_comments(misc::about_comments().as_str());

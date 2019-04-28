@@ -1,20 +1,20 @@
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::iter;
+use std::rc::Rc;
 
+use gdk::{EventButton, EventType};
+use glib;
 use gtk;
 use gtk::prelude::*;
-use glib;
-use gdk::{EventButton, EventType};
 use pango::{self, LayoutExt};
 
 use neovim_lib::{Neovim, NeovimApi};
 
-use highlight::HighlightMap;
-use nvim::{self, ErrorReport, NeovimClient};
-use input;
-use render;
+use crate::highlight::HighlightMap;
+use crate::input;
+use crate::nvim::{self, ErrorReport, NeovimClient};
+use crate::render;
 
 const MAX_VISIBLE_ROWS: i32 = 10;
 
@@ -37,7 +37,7 @@ impl State {
         tree.get_selection().set_mode(gtk::SelectionMode::Single);
         let css_provider = gtk::CssProvider::new();
 
-        let style_context = tree.get_style_context().unwrap();
+        let style_context = tree.get_style_context();
         style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
         let renderer = gtk::CellRendererText::new();
@@ -64,7 +64,10 @@ impl State {
         let info_label = gtk::Label::new(None);
         info_label.set_line_wrap(true);
 
-        let scroll = gtk::ScrolledWindow::new(None, None);
+        let scroll = gtk::ScrolledWindow::new(
+            Option::<&gtk::Adjustment>::None,
+            Option::<&gtk::Adjustment>::None,
+        );
 
         tree.connect_size_allocate(
             clone!(scroll, renderer => move |tree, _| on_treeview_allocate(&scroll, tree, &renderer)),
@@ -146,7 +149,7 @@ impl State {
         self.limit_column_widths(ctx);
 
         self.renderer
-            .set_property_font(Some(&ctx.font_ctx.font_description().to_string()));
+            .set_property_font(Some(ctx.font_ctx.font_description().to_string().as_str()));
 
         let hl = &ctx.hl;
         self.renderer
@@ -169,8 +172,13 @@ impl State {
         if selected >= 0 {
             let selected_path = gtk::TreePath::new_from_string(&format!("{}", selected));
             self.tree.get_selection().select_path(&selected_path);
-            self.tree
-                .scroll_to_cell(Some(&selected_path), None, false, 0.0, 0.0);
+            self.tree.scroll_to_cell(
+                Some(&selected_path),
+                Option::<&gtk::TreeViewColumn>::None,
+                false,
+                0.0,
+                0.0,
+            );
 
             self.show_info_column(&selected_path);
         } else {
@@ -340,7 +348,7 @@ pub fn tree_button_press(
 
         let scroll_count = find_scroll_count(selected_idx, target_idx);
 
-        let mut apply_command: String = if target_idx > selected_idx {
+        let apply_command: String = if target_idx > selected_idx {
             (0..scroll_count)
                 .map(|_| "<C-n>")
                 .chain(iter::once(last_command))
@@ -392,7 +400,8 @@ pub fn update_css(css_provider: &gtk::CssProvider, hl: &HighlightMap) {
             fg.to_hex(),
             bg.to_hex(),
             hl.pmenu_bg().to_hex(),
-        ).as_bytes(),
+        )
+        .as_bytes(),
     ) {
         Err(e) => error!("Can't update css {}", e),
         Ok(_) => (),

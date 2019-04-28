@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use highlight::Highlight;
+use crate::highlight::Highlight;
 
 #[derive(Clone)]
 pub struct Cell {

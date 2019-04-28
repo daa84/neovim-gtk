@@ -6,7 +6,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use clap;
+use clap::{self, value_t};
 
 use cairo;
 use gdk;
@@ -21,29 +21,29 @@ use pangocairo;
 use neovim_lib::neovim_api::Tabpage;
 use neovim_lib::{Neovim, NeovimApi, NeovimApiAsync, Value};
 
-use color::Color;
-use grid::GridMap;
-use highlight::HighlightMap;
-use misc::{decode_uri, escape_filename, split_at_comma};
-use nvim::{
+use crate::color::Color;
+use crate::grid::GridMap;
+use crate::highlight::HighlightMap;
+use crate::misc::{decode_uri, escape_filename, split_at_comma};
+use crate::nvim::{
     self, CompleteItem, ErrorReport, NeovimClient, NeovimClientAsync, NeovimRef, NvimHandler,
     RepaintGridEvent, RepaintMode, RepaintEvent
 };
-use settings::{FontSource, Settings};
-use ui_model::ModelRect;
+use crate::settings::{FontSource, Settings};
+use crate::ui_model::ModelRect;
 
-use cmd_line::{CmdLine, CmdLineContext};
-use cursor::{BlinkCursor, Cursor, CursorRedrawCb};
-use error;
-use input;
-use input::keyval_to_input_string;
-use mode;
-use popup_menu::{self, PopupMenu};
-use render;
-use render::CellMetrics;
-use subscriptions::{SubscriptionHandle, SubscriptionKey, Subscriptions};
-use tabline::Tabline;
-use ui::UiMutex;
+use crate::cmd_line::{CmdLine, CmdLineContext};
+use crate::cursor::{BlinkCursor, Cursor, CursorRedrawCb};
+use crate::error;
+use crate::input;
+use crate::input::keyval_to_input_string;
+use crate::mode;
+use crate::popup_menu::{self, PopupMenu};
+use crate::render;
+use crate::render::CellMetrics;
+use crate::subscriptions::{SubscriptionHandle, SubscriptionKey, Subscriptions};
+use crate::tabline::Tabline;
+use crate::ui::UiMutex;
 
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.3.2";
 
@@ -342,7 +342,6 @@ impl State {
 
     fn set_im_location(&self) {
         if let Some((row, col)) = self.grids.current().map(|g| g.get_cursor()) {
-
             let (x, y, width, height) = ModelRect::point(col, row)
                 .to_area(self.grids.current_unwrap().font_ctx.cell_metrics());
 
@@ -519,21 +518,14 @@ impl UiState {
 #[derive(Clone)]
 pub struct ShellOptions {
     nvim_bin_path: Option<String>,
-    open_paths: Vec<String>,
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
     input_data: Option<String>,
-    enable_swap: bool,
 }
 
 impl ShellOptions {
-    pub fn new(
-        matches: &clap::ArgMatches,
-        open_paths: Vec<String>,
-        input_data: Option<String>,
-    ) -> Self {
+    pub fn new(matches: &clap::ArgMatches, input_data: Option<String>) -> Self {
         ShellOptions {
-            open_paths,
             input_data,
             nvim_bin_path: matches.value_of("nvim-bin-path").map(str::to_owned),
             timeout: value_t!(matches.value_of("timeout"), u64)
@@ -543,7 +535,6 @@ impl ShellOptions {
                 .values_of("nvim-args")
                 .map(|args| args.map(str::to_owned).collect())
                 .unwrap_or(vec![]),
-            enable_swap: matches.is_present("enable-swap"),
         }
     }
 
@@ -1045,7 +1036,6 @@ fn init_nvim_async(
         options.nvim_bin_path.as_ref(),
         options.timeout,
         options.args_for_neovim,
-        options.enable_swap,
     ) {
         Ok(nvim) => nvim,
         Err(err) => {
@@ -1073,13 +1063,7 @@ fn init_nvim_async(
     });
 
     // attach ui
-    if let Err(err) = nvim::post_start_init(
-        nvim,
-        options.open_paths,
-        cols as i64,
-        rows as i64,
-        options.input_data,
-    ) {
+    if let Err(err) = nvim::post_start_init(nvim, cols as i64, rows as i64, options.input_data) {
         show_nvim_init_error(&err, state_arc.clone());
     } else {
         set_nvim_initialized(state_arc);
@@ -1343,7 +1327,7 @@ impl State {
                     for font in &fonts {
                         let desc = FontDescription::from_string(&font);
                         if desc.get_size() > 0
-                            && exists_fonts.contains(&desc.get_family().unwrap_or("".to_owned()))
+                            && exists_fonts.contains(&desc.get_family().unwrap_or("".into()))
                         {
                             self.set_font_rpc(font);
                             return;

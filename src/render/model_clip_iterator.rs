@@ -4,7 +4,7 @@ use std::slice::Iter;
 use cairo;
 
 use super::context::CellMetrics;
-use ui_model;
+use crate::ui_model;
 
 pub struct RowView<'a> {
     pub line: &'a ui_model::Line,
@@ -42,6 +42,13 @@ pub trait ModelClipIteratorFactory {
         ctx: &'a cairo::Context,
         cell_metrics: &'a CellMetrics,
     ) -> ModelClipIterator;
+
+    fn get_row_view<'a>(
+        &'a self,
+        ctx: &'a cairo::Context,
+        cell_metrics: &'a CellMetrics,
+        col: usize,
+    ) -> RowView<'a>;
 }
 
 impl<'a> Iterator for ModelClipIterator<'a> {
@@ -68,6 +75,15 @@ impl<'a> Iterator for ModelClipIterator<'a> {
 /// this is because in some cases(like 'g' character) drawing character does not fit to calculated bounds
 /// and if one line must be repainted - also previous and next line must be repainted to
 impl ModelClipIteratorFactory for ui_model::UiModel {
+    fn get_row_view<'a>(
+        &'a self,
+        ctx: &'a cairo::Context,
+        cell_metrics: &'a CellMetrics,
+        col: usize,
+    ) -> RowView<'a> {
+        RowView::new(col, ctx, cell_metrics, &self.model()[col])
+    }
+
     fn get_clip_iterator<'a>(
         &'a self,
         ctx: &'a cairo::Context,

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use super::vim_plug;
 use super::store::{Store, PlugInfo};
 
-use nvim::NeovimClient;
+use crate::nvim::NeovimClient;
 
 pub struct Manager {
     pub vim_plug: vim_plug::Manager,

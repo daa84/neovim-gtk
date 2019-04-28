@@ -1,7 +1,7 @@
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-use shell::Shell;
+use crate::shell::Shell;
 #[cfg(unix)]
 use gio;
 #[cfg(unix)]
@@ -109,7 +109,7 @@ use std::io::prelude::*;
 use toml;
 use serde;
 
-use dirs;
+use crate::dirs;
 
 pub trait SettingsLoader: Sized + serde::Serialize + Default {
     const SETTINGS_FILE: &'static str;

@@ -5,12 +5,11 @@ use std::sync::Arc;
 use neovim_lib::neovim_api::Tabpage;
 use neovim_lib::{UiOption, Value};
 
-use gtk::ClipboardExt;
-use shell;
-use ui::UiMutex;
+use crate::shell;
+use crate::ui::UiMutex;
 
 use rmpv;
-use value::ValueMapExt;
+use crate::value::ValueMapExt;
 
 use super::handler::NvimHandler;
 use super::repaint_event::RepaintGridEvent;
@@ -115,6 +114,7 @@ macro_rules! call {
 
 pub enum NvimCommand {
     ToggleSidebar,
+    ShowProjectView,
     Transparency(f64, f64),
     PreferDarkTheme(bool),
 }
@@ -136,19 +136,22 @@ pub fn call_gui_event(
             opt => error!("Unknown option {}", opt),
         },
         "Option" => match try_str!(args[0]) {
-            "Popupmenu" => ui.nvim()
+            "Popupmenu" => ui
+                .nvim()
                 .ok_or_else(|| "Nvim not initialized".to_owned())
                 .and_then(|mut nvim| {
                     nvim.set_option(UiOption::ExtPopupmenu(try_uint!(args[1]) == 1))
                         .map_err(|e| e.to_string())
                 })?,
-            "Tabline" => ui.nvim()
+            "Tabline" => ui
+                .nvim()
                 .ok_or_else(|| "Nvim not initialized".to_owned())
                 .and_then(|mut nvim| {
                     nvim.set_option(UiOption::ExtTabline(try_uint!(args[1]) == 1))
                         .map_err(|e| e.to_string())
                 })?,
-            "Cmdline" => ui.nvim()
+            "Cmdline" => ui
+                .nvim()
                 .ok_or_else(|| "Nvim not initialized".to_owned())
                 .and_then(|mut nvim| {
                     nvim.set_option(UiOption::ExtCmdline(try_uint!(args[1]) == 1))
@@ -161,6 +164,7 @@ pub fn call_gui_event(
         "Command" => {
             match try_str!(args[0]) {
                 "ToggleSidebar" => ui.on_command(NvimCommand::ToggleSidebar),
+                "ShowProjectView" => ui.on_command(NvimCommand::ShowProjectView),
                 "Transparency" => ui.on_command(NvimCommand::Transparency(
                     try_str!(args.get(1).cloned().unwrap_or("1.0".into()))
                         .parse()
@@ -170,13 +174,14 @@ pub fn call_gui_event(
                         .map_err(|e: ParseFloatError| e.to_string())?,
                 )),
                 "PreferDarkTheme" => {
-                    let prefer_dark_theme = match try_str!(args.get(1).cloned().unwrap_or(Value::from("off"))) {
-                        "on" => true,
-                        _ => false,
-                    };
+                    let prefer_dark_theme =
+                        match try_str!(args.get(1).cloned().unwrap_or(Value::from("off"))) {
+                            "on" => true,
+                            _ => false,
+                        };
 
                     ui.on_command(NvimCommand::PreferDarkTheme(prefer_dark_theme))
-                },
+                }
                 _ => error!("Unknown command"),
             };
         }
@@ -204,7 +209,7 @@ pub fn call_gui_request(
                             _ => ui.clipboard_clipboard.clone(),
                         }
                     };
-                    let t = clipboard.wait_for_text().unwrap_or_else(|| String::new());
+                    let t = clipboard.wait_for_text().unwrap_or_else(|| String::new().into());
                     Ok(Value::Array(
                         t.split("\n").map(|s| s.into()).collect::<Vec<Value>>(),
                     ))
@@ -257,24 +262,21 @@ pub fn call(
         "popupmenu_hide" => ui.popupmenu_hide(),
         "popupmenu_select" => call!(ui->popupmenu_select(args: int)),
         "tabline_update" => {
-            let tabs_out = map_array!(
-                args[1],
-                "Error get tabline list".to_owned(),
-                |tab| tab.as_map()
-                    .ok_or_else(|| "Error get map for tab".to_owned())
-                    .and_then(|tab_map| tab_map.to_attrs_map())
-                    .map(|tab_attrs| {
-                        let name_attr = tab_attrs
-                            .get("name")
-                            .and_then(|n| n.as_str().map(|s| s.to_owned()));
-                        let tab_attr = tab_attrs
-                            .get("tab")
-                            .map(|&tab_id| Tabpage::new(tab_id.clone()))
-                            .unwrap();
+            let tabs_out = map_array!(args[1], "Error get tabline list".to_owned(), |tab| tab
+                .as_map()
+                .ok_or_else(|| "Error get map for tab".to_owned())
+                .and_then(|tab_map| tab_map.to_attrs_map())
+                .map(|tab_attrs| {
+                    let name_attr = tab_attrs
+                        .get("name")
+                        .and_then(|n| n.as_str().map(|s| s.to_owned()));
+                    let tab_attr = tab_attrs
+                        .get("tab")
+                        .map(|&tab_id| Tabpage::new(tab_id.clone()))
+                        .unwrap();
 
-                        (tab_attr, name_attr)
-                    })
-            )?;
+                    (tab_attr, name_attr)
+                }))?;
             ui.tabline_update(Tabpage::new(args[0].clone()), tabs_out)
         }
         "mode_info_set" => call!(ui->mode_info_set(args: bool, ext)),

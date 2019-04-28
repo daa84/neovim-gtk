@@ -5,9 +5,9 @@ use pango;
 
 use super::cell::Cell;
 use super::item::Item;
-use color;
-use render;
-use highlight::{HighlightMap, Highlight};
+use crate::color;
+use crate::render;
+use crate::highlight::{HighlightMap, Highlight};
 
 pub struct Line {
     pub line: Box<[Cell]>,
@@ -279,15 +279,15 @@ impl StyledLine {
 
             let next = style_attr.next(byte_offset, byte_offset + len, cell, hl);
             if let Some(next) = next {
-                style_attr.insert(&attr_list);
+                style_attr.insert_into(&attr_list);
                 style_attr = next;
             }
 
             byte_offset += len;
         }
 
-        style_attr.insert(&attr_list);
-        font_features.insert_attr(&attr_list);
+        style_attr.insert_into(&attr_list);
+        font_features.insert_into(&attr_list);
 
         StyledLine {
             line_str,
@@ -303,6 +303,7 @@ struct StyleAttr<'c> {
     foreground: Option<&'c color::Color>,
     background: Option<&'c color::Color>,
     empty: bool,
+    space: bool,
 
     start_idx: usize,
     end_idx: usize,
@@ -316,6 +317,7 @@ impl<'c> StyleAttr<'c> {
             foreground: None,
             background: None,
             empty: true,
+            space: false,
 
             start_idx: 0,
             end_idx: 0,
@@ -334,6 +336,7 @@ impl<'c> StyleAttr<'c> {
             foreground: hl.cell_fg(cell),
             background: hl.cell_bg(cell),
             empty: false,
+            space: cell.ch.is_empty(),
 
             start_idx,
             end_idx,
@@ -347,6 +350,13 @@ impl<'c> StyleAttr<'c> {
         cell: &'c Cell,
         hl: &'c HighlightMap,
     ) -> Option<StyleAttr<'c>> {
+        // don't check attr for space
+        if self.space && cell.ch.is_empty() {
+            self.end_idx = end_idx;
+            return None;
+        }
+
+
         let style_attr = Self::from(start_idx, end_idx, cell, hl);
 
         if self != &style_attr {
@@ -357,7 +367,7 @@ impl<'c> StyleAttr<'c> {
         }
     }
 
-    fn insert(&self, attr_list: &pango::AttrList) {
+    fn insert_into(&self, attr_list: &pango::AttrList) {
         if self.empty {
             return;
         }

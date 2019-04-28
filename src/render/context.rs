@@ -3,10 +3,10 @@ use std::collections::HashSet;
 use pango;
 use pango::prelude::*;
 
-use sys::pango as sys_pango;
+use crate::sys::pango as sys_pango;
 
 use super::itemize::ItemizeIterator;
-use ui_model::StyledLine;
+use crate::ui_model::StyledLine;
 
 pub struct Context {
     font_metrics: FontMetrix,
@@ -69,7 +69,7 @@ impl Context {
         &self.font_features
     }
 
-    pub fn font_families(&self) -> HashSet<String> {
+    pub fn font_families(&self) -> HashSet<glib::GString> {
         self.font_metrics
             .pango_context
             .list_families()
@@ -163,7 +163,7 @@ impl FontFeatures {
         }
     }
 
-    pub fn insert_attr(&self, attr_list: &pango::AttrList) {
+    pub fn insert_into(&self, attr_list: &pango::AttrList) {
         if let Some(ref attr) = self.attr {
             attr_list.insert(attr.clone());
         }

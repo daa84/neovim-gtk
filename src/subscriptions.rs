@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use neovim_lib::{NeovimApi, NeovimApiAsync, Value};
 
-use nvim::{ErrorReport, NeovimRef};
+use crate::nvim::{ErrorReport, NeovimRef};
 
 /// A subscription to a Neovim autocmd event.
 struct Subscription {
