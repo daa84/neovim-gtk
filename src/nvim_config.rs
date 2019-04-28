@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::fs::{remove_file, OpenOptions};
 use std::io::Write;
 
-use dirs;
-use plug_manager;
+use crate::dirs;
+use crate::plug_manager;
 
 #[derive(Clone)]
 pub struct NvimConfig {

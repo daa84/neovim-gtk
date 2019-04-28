@@ -1,6 +1,6 @@
 use toml;
 
-use settings::SettingsLoader;
+use crate::settings::SettingsLoader;
 use super::vim_plug;
 
 #[derive(Default)]

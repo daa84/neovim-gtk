@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use unicode_width::UnicodeWidthStr;
 
-use highlight::Highlight;
-use ui_model::UiModel;
+use crate::highlight::Highlight;
+use crate::ui_model::UiModel;
 
 pub struct ModelLayout {
     pub model: UiModel,

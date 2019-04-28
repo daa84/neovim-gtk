@@ -14,10 +14,10 @@ use gtk::prelude::*;
 
 use neovim_lib::{NeovimApi, NeovimApiAsync};
 
-use misc::escape_filename;
-use nvim::{ErrorReport, NeovimClient, NeovimRef};
-use shell;
-use subscriptions::SubscriptionKey;
+use crate::misc::escape_filename;
+use crate::nvim::{ErrorReport, NeovimClient, NeovimRef};
+use crate::shell;
+use crate::subscriptions::SubscriptionKey;
 
 const ICON_FOLDER_CLOSED: &str = "folder-symbolic";
 const ICON_FOLDER_OPEN: &str = "folder-open-symbolic";

@@ -5,9 +5,9 @@ use pango;
 
 use super::cell::Cell;
 use super::item::Item;
-use color;
-use render;
-use highlight::{HighlightMap, Highlight};
+use crate::color;
+use crate::render;
+use crate::highlight::{HighlightMap, Highlight};
 
 pub struct Line {
     pub line: Box<[Cell]>,

@@ -3,7 +3,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ui::UiMutex;
+use crate::ui::UiMutex;
 
 use gtk;
 use gtk::prelude::*;
@@ -12,7 +12,7 @@ use super::manager;
 use super::plugin_settings_dlg;
 use super::store::{PlugInfo, Store};
 use super::vimawesome;
-use nvim_config::NvimConfig;
+use crate::nvim_config::NvimConfig;
 
 pub struct Ui<'a> {
     manager: &'a Arc<UiMutex<manager::Manager>>,

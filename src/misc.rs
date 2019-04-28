@@ -1,10 +1,12 @@
 use std::borrow::Cow;
 use std::mem;
 
+use lazy_static::lazy_static;
+
 use percent_encoding::percent_decode;
 use regex::Regex;
 
-use shell;
+use crate::shell;
 
 /// Split comma separated parameters with ',' except escaped '\\,'
 pub fn split_at_comma(source: &str) -> Vec<String> {

@@ -3,6 +3,7 @@ name = "nvim-gtk"
 version = "0.3.0"
 authors = ["daa84 <daa84@inbox.ru>"]
 build = "build.rs"
+edition = "2018"
 
 [dependencies]
 clap = "2.33"

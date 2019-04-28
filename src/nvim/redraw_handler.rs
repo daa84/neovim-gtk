@@ -5,11 +5,11 @@ use std::sync::Arc;
 use neovim_lib::neovim_api::Tabpage;
 use neovim_lib::{UiOption, Value};
 
-use shell;
-use ui::UiMutex;
+use crate::shell;
+use crate::ui::UiMutex;
 
 use rmpv;
-use value::ValueMapExt;
+use crate::value::ValueMapExt;
 
 use super::handler::NvimHandler;
 use super::repaint_mode::RepaintMode;

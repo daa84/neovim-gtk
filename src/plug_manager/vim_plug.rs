@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use neovim_lib::{NeovimApi, NeovimApiAsync};
 
-use nvim::{NeovimClient, ErrorReport, NeovimRef};
-use value::ValueMapExt;
+use crate::nvim::{NeovimClient, ErrorReport, NeovimRef};
+use crate::value::ValueMapExt;
 
 pub struct Manager {
     nvim: Option<Rc<NeovimClient>>,

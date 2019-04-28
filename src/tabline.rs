@@ -13,8 +13,8 @@ use pango;
 use neovim_lib::{NeovimApi, NeovimApiAsync};
 use neovim_lib::neovim_api::Tabpage;
 
-use nvim;
-use nvim::ErrorReport;
+use crate::nvim;
+use crate::nvim::ErrorReport;
 
 struct State {
     data: Vec<Tabpage>,

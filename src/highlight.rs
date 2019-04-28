@@ -3,9 +3,9 @@ use std::rc::Rc;
 
 use fnv::FnvHashMap;
 
-use color::*;
+use crate::color::*;
 use neovim_lib::Value;
-use ui_model::Cell;
+use crate::ui_model::Cell;
 
 pub struct HighlightMap {
     highlights: FnvHashMap<u64, Rc<Highlight>>,

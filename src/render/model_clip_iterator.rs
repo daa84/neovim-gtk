@@ -4,7 +4,7 @@ use std::slice::Iter;
 use cairo;
 
 use super::context::CellMetrics;
-use ui_model;
+use crate::ui_model;
 
 pub struct RowView<'a> {
     pub line: &'a ui_model::Line,

@@ -1,6 +1,6 @@
 use std;
 use std::path::PathBuf;
-use env_dirs;
+use crate::env_dirs;
 
 pub fn get_app_config_dir_create() -> Result<PathBuf, String> {
     let config_dir = get_app_config_dir()?;

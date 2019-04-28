@@ -1,44 +1,12 @@
 #![windows_subsystem = "windows"]
 
-extern crate cairo;
-extern crate fnv;
-#[macro_use]
-extern crate clap;
 extern crate dirs as env_dirs;
-extern crate env_logger;
-extern crate gdk;
-extern crate gdk_sys;
-extern crate gio;
-extern crate glib;
 extern crate glib_sys as glib_ffi;
 extern crate gobject_sys as gobject_ffi;
-extern crate gtk;
-extern crate gtk_sys;
-extern crate htmlescape;
-#[cfg(unix)]
-extern crate unix_daemonize;
-#[macro_use]
-extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate neovim_lib;
-extern crate pango;
-extern crate pango_cairo_sys;
-extern crate pango_sys;
-extern crate pangocairo;
-extern crate percent_encoding;
-extern crate phf;
-extern crate regex;
-extern crate rmpv;
-extern crate unicode_segmentation;
-extern crate unicode_width;
-
-extern crate atty;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate serde_json;
-extern crate toml;
 
 mod sys;
 
@@ -75,10 +43,10 @@ use std::io::Read;
 #[cfg(unix)]
 use unix_daemonize::{daemonize_redirect, ChdirMode};
 
-use ui::Ui;
+use crate::ui::Ui;
+use crate::shell::ShellOptions;
 
 use clap::{App, Arg, ArgMatches};
-use shell::ShellOptions;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 

@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use neovim_lib::{Neovim, NeovimApi, Session, UiAttachOptions};
 
-use nvim_config::NvimConfig;
+use crate::nvim_config::NvimConfig;
 
 #[derive(Debug)]
 pub struct NvimInitError {

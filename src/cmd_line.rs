@@ -11,15 +11,15 @@ use pango;
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use cursor;
-use highlight::{Highlight, HighlightMap};
-use mode;
-use nvim::{self, NeovimClient};
-use popup_menu;
-use render::{self, CellMetrics};
-use shell;
-use ui::UiMutex;
-use ui_model::ModelLayout;
+use crate::cursor;
+use crate::highlight::{Highlight, HighlightMap};
+use crate::mode;
+use crate::nvim::{self, NeovimClient};
+use crate::popup_menu;
+use crate::render::{self, CellMetrics};
+use crate::shell;
+use crate::ui::UiMutex;
+use crate::ui_model::ModelLayout;
 
 pub struct Level {
     model_layout: ModelLayout,

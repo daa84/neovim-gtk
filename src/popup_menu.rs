@@ -11,10 +11,10 @@ use pango::{self, LayoutExt};
 
 use neovim_lib::{Neovim, NeovimApi};
 
-use highlight::HighlightMap;
-use input;
-use nvim::{self, ErrorReport, NeovimClient};
-use render;
+use crate::highlight::HighlightMap;
+use crate::input;
+use crate::nvim::{self, ErrorReport, NeovimClient};
+use crate::render;
 
 const MAX_VISIBLE_ROWS: i32 = 10;
 
@@ -348,7 +348,7 @@ pub fn tree_button_press(
 
         let scroll_count = find_scroll_count(selected_idx, target_idx);
 
-        let mut apply_command: String = if target_idx > selected_idx {
+        let apply_command: String = if target_idx > selected_idx {
             (0..scroll_count)
                 .map(|_| "<C-n>")
                 .chain(iter::once(last_command))

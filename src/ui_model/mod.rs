@@ -1,4 +1,4 @@
-use highlight::Highlight;
+use crate::highlight::Highlight;
 use std::rc::Rc;
 
 mod cell;
@@ -113,7 +113,7 @@ impl UiModel {
     /// Don't do any validation!
     pub fn swap_rows(&mut self, target: &mut UiModel, to_row: usize) {
         for (row_idx, line) in self.model[0..to_row + 1].iter_mut().enumerate() {
-            let mut target_row = &mut target.model[row_idx];
+            let target_row = &mut target.model[row_idx];
             line.swap_with(target_row, 0, self.columns - 1);
         }
     }

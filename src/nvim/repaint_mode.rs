@@ -1,4 +1,4 @@
-use ui_model::{ModelRect, ModelRectVec};
+use crate::ui_model::{ModelRect, ModelRectVec};
 
 #[derive(Clone, Debug)]
 pub enum RepaintMode {

@@ -1,6 +1,6 @@
 use super::item::Item;
 use super::UiModel;
-use render::CellMetrics;
+use crate::render::CellMetrics;
 
 #[derive(Clone, Debug)]
 pub struct ModelRectVec {

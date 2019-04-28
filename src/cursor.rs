@@ -1,10 +1,10 @@
 use cairo;
-use mode;
-use render;
-use render::CellMetrics;
-use highlight::HighlightMap;
+use crate::mode;
+use crate::render;
+use crate::render::CellMetrics;
+use crate::highlight::HighlightMap;
 use std::sync::{Arc, Weak};
-use ui::UiMutex;
+use crate::ui::UiMutex;
 
 use glib;
 

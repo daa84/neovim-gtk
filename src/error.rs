@@ -5,7 +5,7 @@ use htmlescape::encode_minimal;
 use gtk;
 use gtk::prelude::*;
 
-use shell;
+use crate::shell;
 
 pub struct ErrorArea {
     base: gtk::Box,

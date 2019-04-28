@@ -16,15 +16,15 @@ use toml;
 
 use neovim_lib::NeovimApi;
 
-use file_browser::FileBrowserWidget;
-use misc;
-use nvim::{ErrorReport, NvimCommand};
-use plug_manager;
-use project::Projects;
-use settings::{Settings, SettingsLoader};
-use shell::{self, Shell, ShellOptions};
-use shell_dlg;
-use subscriptions::{SubscriptionHandle, SubscriptionKey};
+use crate::file_browser::FileBrowserWidget;
+use crate::misc;
+use crate::nvim::{ErrorReport, NvimCommand};
+use crate::plug_manager;
+use crate::project::Projects;
+use crate::settings::{Settings, SettingsLoader};
+use crate::shell::{self, Shell, ShellOptions};
+use crate::shell_dlg;
+use crate::subscriptions::{SubscriptionHandle, SubscriptionKey};
 
 macro_rules! clone {
     (@param _) => ( _ );
@@ -471,7 +471,7 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     let about = AboutDialog::new();
     about.set_transient_for(window);
     about.set_program_name("NeovimGtk");
-    about.set_version(::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")));
+    about.set_version(crate::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")));
     about.set_logo_icon_name("org.daa.NeovimGtk");
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
     about.set_comments(misc::about_comments().as_str());

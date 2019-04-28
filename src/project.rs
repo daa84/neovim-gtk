@@ -13,9 +13,9 @@ use gtk::{
 use pango;
 
 use neovim_lib::{Neovim, NeovimApi, Value};
-use nvim::ErrorReport;
-use shell::Shell;
-use ui::UiMutex;
+use crate::nvim::ErrorReport;
+use crate::shell::Shell;
+use crate::ui::UiMutex;
 
 use htmlescape::encode_minimal;
 
@@ -571,7 +571,7 @@ impl Entry {
 
 // ----- Store / Load settings
 //
-use settings::SettingsLoader;
+use crate::settings::SettingsLoader;
 use toml;
 
 #[derive(Serialize, Deserialize, Default)]

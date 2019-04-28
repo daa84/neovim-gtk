@@ -3,10 +3,10 @@ use std::collections::HashSet;
 use pango;
 use pango::prelude::*;
 
-use sys::pango as sys_pango;
+use crate::sys::pango as sys_pango;
 
 use super::itemize::ItemizeIterator;
-use ui_model::StyledLine;
+use crate::ui_model::StyledLine;
 
 pub struct Context {
     font_metrics: FontMetrix,

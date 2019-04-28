@@ -5,8 +5,8 @@ use fnv::FnvHashMap;
 
 use neovim_lib::Value;
 
-use highlight::{Highlight, HighlightMap};
-use ui_model::{ModelRect, ModelRectVec, UiModel};
+use crate::highlight::{Highlight, HighlightMap};
+use crate::ui_model::{ModelRect, ModelRectVec, UiModel};
 
 const DEFAULT_GRID: u64 = 1;
 

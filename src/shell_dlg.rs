@@ -6,8 +6,8 @@ use gtk::prelude::*;
 use gtk::{ButtonsType, MessageDialog, MessageType};
 
 use neovim_lib::{CallError, NeovimApi, Value};
-use shell::Shell;
-use ui::{Components, UiMutex};
+use crate::shell::Shell;
+use crate::ui::{Components, UiMutex};
 
 pub fn can_close_window(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> bool {
     let shell = shell.borrow();

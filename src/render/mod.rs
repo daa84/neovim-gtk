@@ -7,17 +7,17 @@ pub use self::context::{Context, FontFeatures};
 use self::model_clip_iterator::{ModelClipIteratorFactory, RowView};
 
 use cairo;
-use color;
+use crate::color;
 use pango;
 use pangocairo;
-use sys::pangocairo::*;
+use crate::sys::pangocairo::*;
 
-use cursor::{cursor_rect, Cursor};
-use highlight::HighlightMap;
-use ui_model;
+use crate::cursor::{cursor_rect, Cursor};
+use crate::highlight::HighlightMap;
+use crate::ui_model;
 
 trait ContextAlpha {
-    fn set_source_rgbo(&self, &color::Color, Option<f64>);
+    fn set_source_rgbo(&self, _: &color::Color, _: Option<f64>);
 }
 
 impl ContextAlpha for cairo::Context {
