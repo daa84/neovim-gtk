@@ -7,10 +7,10 @@ run:
 	RUST_LOG=warn RUST_BACKTRACE=1 cargo run -- --no-fork
 
 install: install-resources
-	cargo install --force --root $(DESTDIR)$(PREFIX)
+	cargo install --path . --force --root $(DESTDIR)$(PREFIX)
 
 install-debug: install-resources
-	cargo install --debug --force --root $(DESTDIR)$(PREFIX)
+	cargo install --debug --path . --force --root $(DESTDIR)$(PREFIX)
 
 install-resources:
 	mkdir -p $(DESTDIR)$(PREFIX)/share/nvim-gtk/
