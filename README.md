@@ -15,6 +15,8 @@ for more details see [wiki](https://github.com/daa84/neovim-gtk/wiki/Configurati
 
 # Install
 ## From sources
+First check [build prerequisites](#build-prerequisites)
+
 By default to `/usr/local`:
 ```
 make install
@@ -31,16 +33,14 @@ git clone https://aur.archlinux.org/neovim-gtk-git.git
 cd neovim-gtk-git 
 makepkg -si
 ```
-## flatpak
-Flatpak package available [here](https://github.com/daa84/neovim-gtk-flatpak)
 
 ## windows
 Windows binaries on appveyor
 [latest build](https://ci.appveyor.com/api/projects/daa84/neovim-gtk/artifacts/nvim-gtk-mingw64.7z?branch=master)
 
-# Build
+# Build prerequisites
 ## Linux
-Firstly, install the GTK development packages. On Debian/Ubuntu derivatives
+First install the GTK development packages. On Debian/Ubuntu derivatives
 this can be done as follows:
 ```
 apt install libatk1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev libglib2.0-dev libgtk-3-dev libpango1.0-dev
@@ -51,7 +51,7 @@ On Fedora:
 dnf install atk-devel cairo-devel gdk-pixbuf2-devel glib2-devel gtk3-devel pango-devel  
 ```
 
-Then install the latest rust compiler, best done with the
+Then install the latest rust compiler, best with the
 [rustup tool](https://rustup.rs/). The build command:
 ```
 cargo build --release
