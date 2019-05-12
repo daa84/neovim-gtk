@@ -135,6 +135,7 @@ impl Tabline {
                 title.show();
                 close_btn.show();
                 self.tabs.append_page(&empty, Some(&label_box));
+                self.tabs.set_child_tab_expand(&empty, true);
 
                 let tabs = self.tabs.clone();
                 let state_ref = Rc::clone(&self.state);
