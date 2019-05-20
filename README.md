@@ -33,6 +33,8 @@ git clone https://aur.archlinux.org/neovim-gtk-git.git
 cd neovim-gtk-git 
 makepkg -si
 ```
+## openSUSE
+https://build.opensuse.org/package/show/home:mcepl:neovim/neovim-gtk
 
 ## windows
 Windows binaries on appveyor
