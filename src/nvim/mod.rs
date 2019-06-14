@@ -23,14 +23,14 @@ use crate::nvim_config::NvimConfig;
 
 #[derive(Debug)]
 pub struct NvimInitError {
-    source: Box<error::Error>,
+    source: Box<dyn error::Error>,
     cmd: Option<String>,
 }
 
 impl NvimInitError {
     pub fn new_post_init<E>(error: E) -> NvimInitError
     where
-        E: Into<Box<error::Error>>,
+        E: Into<Box<dyn error::Error>>,
     {
         NvimInitError {
             cmd: None,
@@ -40,7 +40,7 @@ impl NvimInitError {
 
     pub fn new<E>(cmd: &Command, error: E) -> NvimInitError
     where
-        E: Into<Box<error::Error>>,
+        E: Into<Box<dyn error::Error>>,
     {
         NvimInitError {
             cmd: Some(format!("{:?}", cmd)),
@@ -68,7 +68,7 @@ impl error::Error for NvimInitError {
         "Can't start nvim instance"
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         Some(&*self.source)
     }
 }

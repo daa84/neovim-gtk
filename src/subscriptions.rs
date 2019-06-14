@@ -7,7 +7,7 @@ use crate::nvim::{ErrorReport, NeovimRef};
 /// A subscription to a Neovim autocmd event.
 struct Subscription {
     /// A callback to be executed each time the event triggers.
-    cb: Box<Fn(Vec<String>) + 'static>,
+    cb: Box<dyn Fn(Vec<String>) + 'static>,
     /// A list of expressions which will be evaluated when the event triggers. The result is passed
     /// to the callback.
     args: Vec<String>,

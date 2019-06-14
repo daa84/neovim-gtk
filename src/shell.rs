@@ -135,9 +135,9 @@ pub struct State {
     options: ShellOptions,
     transparency_settings: TransparencySettigns,
 
-    detach_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
-    nvim_started_cb: Option<Box<RefCell<FnMut() + Send + 'static>>>,
-    command_cb: Option<Box<FnMut(&mut State, nvim::NvimCommand) + Send + 'static>>,
+    detach_cb: Option<Box<RefCell<dyn FnMut() + Send + 'static>>>,
+    nvim_started_cb: Option<Box<RefCell<dyn FnMut() + Send + 'static>>>,
+    command_cb: Option<Box<dyn FnMut(&mut State, nvim::NvimCommand) + Send + 'static>>,
 
     subscriptions: RefCell<Subscriptions>,
 }

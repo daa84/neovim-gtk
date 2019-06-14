@@ -161,7 +161,7 @@ impl State {
         let all_column_ids: Vec<u32> = (0..4).map(|i| i as u32).collect();
 
         for line in ctx.menu_items {
-            let line_array: [&glib::ToValue; 4] = [&line.word, &line.kind, &line.menu, &line.info];
+            let line_array: [&dyn glib::ToValue; 4] = [&line.word, &line.kind, &line.menu, &line.info];
             list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
         }
 
