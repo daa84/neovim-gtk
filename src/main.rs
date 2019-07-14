@@ -91,8 +91,8 @@ fn main() {
         // fork to background by default
         if !matches.is_present("no-fork") {
             daemonize_redirect(
-                Some("/tmp/nvim-gtk_stdout.log"),
-                Some("/tmp/nvim-gtk_stderr.log"),
+                Some(format!("/tmp/nvim-gtk_stdout.{}.log", whoami::username())),
+                Some(format!("/tmp/nvim-gtk_stderr.{}.log", whoami::username())),
                 ChdirMode::NoChdir,
             )
             .unwrap();
