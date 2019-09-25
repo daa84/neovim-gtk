@@ -124,7 +124,7 @@ impl Tabline {
                 title.set_width_chars(25);
                 let close_btn = gtk::Button::new_from_icon_name(
                     "window-close-symbolic",
-                    gtk::IconSize::Menu.into(),
+                    gtk::IconSize::Menu,
                 );
                 close_btn.set_relief(gtk::ReliefStyle::None);
                 close_btn.get_style_context().add_class("small-button");

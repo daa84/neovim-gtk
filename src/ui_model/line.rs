@@ -33,17 +33,17 @@ impl Line {
 
     pub fn swap_with(&mut self, target: &mut Self, left: usize, right: usize) {
         // swap is faster then clone
-        target.line[left..right + 1].swap_with_slice(&mut self.line[left..right + 1]);
+        target.line[left..=right].swap_with_slice(&mut self.line[left..=right]);
 
         // this is because copy can change Item layout
         target.dirty_line = true;
-        for cell in &mut target.line[left..right + 1] {
+        for cell in &mut target.line[left..=right] {
             cell.dirty = true;
         }
     }
 
     pub fn clear(&mut self, left: usize, right: usize, default_hl: &Rc<Highlight>) {
-        for cell in &mut self.line[left..right + 1] {
+        for cell in &mut self.line[left..=right] {
             cell.clear(default_hl.clone());
         }
         self.dirty_line = true;
@@ -92,7 +92,7 @@ impl Line {
             true
         } else {
             // update only if cell marked as dirty
-            if self.line[new_item.start_cell..new_item.end_cell + 1]
+            if self.line[new_item.start_cell..=new_item.end_cell]
                 .iter()
                 .any(|c| c.dirty)
             {
@@ -150,11 +150,11 @@ impl Line {
         end_cell: usize,
         new_item: &pango::Item,
     ) {
-        for i in start_cell..end_cell + 1 {
+        for i in start_cell..=end_cell {
             self.line[i].dirty = true;
             self.cell_to_item[i] = start_cell as i32;
         }
-        for i in start_cell + 1..end_cell + 1 {
+        for i in start_cell + 1..=end_cell {
             self.item_line[i] = None;
         }
         self.item_line[start_cell] = Some(Item::new(new_item.clone(), end_cell - start_cell + 1));

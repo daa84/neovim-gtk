@@ -115,7 +115,7 @@ impl ModelClipIteratorFactory for ui_model::UiModel {
 
         ModelClipIterator {
             model_idx: model_clip_top,
-            model_iter: model[model_clip_top..model_clip_bot + 1].iter(),
+            model_iter: model[model_clip_top..=model_clip_bot].iter(),
             ctx,
             cell_metrics,
         }

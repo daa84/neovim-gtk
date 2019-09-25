@@ -70,7 +70,7 @@ impl Components {
         let open_btn_box = gtk::Box::new(gtk::Orientation::Horizontal, 3);
         open_btn_box.pack_start(&gtk::Label::new("Open"), false, false, 3);
         open_btn_box.pack_start(
-            &gtk::Image::new_from_icon_name("pan-down-symbolic", gtk::IconSize::Menu.into()),
+            &gtk::Image::new_from_icon_name("pan-down-symbolic", gtk::IconSize::Menu),
             false,
             false,
             3,
@@ -379,7 +379,7 @@ impl Ui {
             .connect_clicked(move |_| projects.borrow_mut().show());
 
         let new_tab_btn =
-            Button::new_from_icon_name("tab-new-symbolic", gtk::IconSize::SmallToolbar.into());
+            Button::new_from_icon_name("tab-new-symbolic", gtk::IconSize::SmallToolbar);
         let shell_ref = Rc::clone(&self.shell);
         new_tab_btn.connect_clicked(move |_| shell_ref.borrow_mut().new_tab());
         new_tab_btn.set_can_focus(false);
@@ -389,7 +389,7 @@ impl Ui {
         header_bar.pack_end(&self.create_primary_menu_btn(app, &window));
 
         let paste_btn =
-            Button::new_from_icon_name("edit-paste-symbolic", gtk::IconSize::SmallToolbar.into());
+            Button::new_from_icon_name("edit-paste-symbolic", gtk::IconSize::SmallToolbar);
         let shell = self.shell.clone();
         paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
         paste_btn.set_can_focus(false);
@@ -429,7 +429,7 @@ impl Ui {
         btn.set_can_focus(false);
         btn.set_image(&gtk::Image::new_from_icon_name(
             "open-menu-symbolic",
-            gtk::IconSize::SmallToolbar.into(),
+            gtk::IconSize::SmallToolbar,
         ));
 
         // note actions created in application menu

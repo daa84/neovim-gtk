@@ -98,7 +98,7 @@ impl HighlightMap {
         &mut self,
         idx: u64,
         hl: &HashMap<String, Value>,
-        info: &Vec<HashMap<String, Value>>,
+        info: &[HashMap<String, Value>],
     ) {
         let hl = Rc::new(Highlight::from_value_map(&hl));
 
@@ -118,15 +118,15 @@ impl HighlightMap {
         if !cell.hl.reverse {
             cell.hl.foreground.as_ref()
         } else {
-            cell.hl.background.as_ref().or(Some(self.bg()))
+            cell.hl.background.as_ref().or_else(|| Some(self.bg()))
         }
     }
 
     pub fn actual_cell_fg<'a>(&'a self, cell: &'a Cell) -> &'a Color {
         if !cell.hl.reverse {
-            cell.hl.foreground.as_ref().unwrap_or(self.fg())
+            cell.hl.foreground.as_ref().unwrap_or_else(|| self.fg())
         } else {
-            cell.hl.background.as_ref().unwrap_or(self.bg())
+            cell.hl.background.as_ref().unwrap_or_else(|| self.bg())
         }
     }
 
@@ -134,7 +134,7 @@ impl HighlightMap {
         if !cell.hl.reverse {
             cell.hl.background.as_ref()
         } else {
-            cell.hl.foreground.as_ref().or(Some(self.fg()))
+            cell.hl.foreground.as_ref().or_else(|| Some(self.fg()))
         }
     }
 
@@ -145,41 +145,41 @@ impl HighlightMap {
 
     pub fn pmenu_bg(&self) -> &Color {
         if !self.pmenu.reverse {
-            self.pmenu.background.as_ref().unwrap_or(self.bg())
+            self.pmenu.background.as_ref().unwrap_or_else(|| self.bg())
         } else {
-            self.pmenu.foreground.as_ref().unwrap_or(self.fg())
+            self.pmenu.foreground.as_ref().unwrap_or_else(|| self.fg())
         }
     }
 
     pub fn pmenu_fg(&self) -> &Color {
         if !self.pmenu.reverse {
-            self.pmenu.foreground.as_ref().unwrap_or(self.fg())
+            self.pmenu.foreground.as_ref().unwrap_or_else(|| self.fg())
         } else {
-            self.pmenu.background.as_ref().unwrap_or(self.bg())
+            self.pmenu.background.as_ref().unwrap_or_else(|| self.bg())
         }
     }
 
     pub fn pmenu_bg_sel(&self) -> &Color {
         if !self.pmenu_sel.reverse {
-            self.pmenu_sel.background.as_ref().unwrap_or(self.bg())
+            self.pmenu_sel.background.as_ref().unwrap_or_else(|| self.bg())
         } else {
-            self.pmenu_sel.foreground.as_ref().unwrap_or(self.fg())
+            self.pmenu_sel.foreground.as_ref().unwrap_or_else(|| self.fg())
         }
     }
 
     pub fn pmenu_fg_sel(&self) -> &Color {
         if !self.pmenu_sel.reverse {
-            self.pmenu_sel.foreground.as_ref().unwrap_or(self.fg())
+            self.pmenu_sel.foreground.as_ref().unwrap_or_else(|| self.fg())
         } else {
-            self.pmenu_sel.background.as_ref().unwrap_or(self.bg())
+            self.pmenu_sel.background.as_ref().unwrap_or_else(|| self.bg())
         }
     }
 
     pub fn cursor_bg(&self) -> &Color {
         if !self.cursor.reverse {
-            self.cursor.background.as_ref().unwrap_or(self.bg())
+            self.cursor.background.as_ref().unwrap_or_else(|| self.bg())
         } else {
-            self.cursor.foreground.as_ref().unwrap_or(self.fg())
+            self.cursor.foreground.as_ref().unwrap_or_else(|| self.fg())
         }
     }
 }

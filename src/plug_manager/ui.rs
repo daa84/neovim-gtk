@@ -31,8 +31,8 @@ impl<'a> Ui<'a> {
             Some(parent),
             gtk::DialogFlags::DESTROY_WITH_PARENT,
             &[
-                ("Cancel", gtk::ResponseType::Cancel.into()),
-                ("Ok", gtk::ResponseType::Ok.into()),
+                ("Cancel", gtk::ResponseType::Cancel),
+                ("Ok", gtk::ResponseType::Ok),
             ],
         );
 
