@@ -83,7 +83,7 @@ impl InkOverflow {
             right = 0;
         }
 
-        if left == 0 && right == 0 && top == 0 {
+        if left == 0 && right == 0 && top == 0 && bot == 0 {
             None
         } else {
             Some(InkOverflow {
