@@ -463,8 +463,8 @@ fn populate_tree_nodes(
     let mut entries: Vec<DirEntry> = if state.show_hidden {
         iter.collect()
     } else {
-        iter.filter(|entry| !entry.file_name().to_string_lossy().starts_with("."))
-            .filter(|entry| !entry.file_name().to_string_lossy().ends_with("~"))
+        iter.filter(|entry| !entry.file_name().to_string_lossy().starts_with('.'))
+            .filter(|entry| !entry.file_name().to_string_lossy().ends_with('~'))
             .collect()
     };
     entries.sort_unstable_by(|lhs, rhs| cmp_dirs_first(lhs, rhs).unwrap_or(Ordering::Equal));

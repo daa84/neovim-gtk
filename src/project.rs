@@ -287,7 +287,7 @@ impl Projects {
     }
 
     pub fn clear(&mut self) {
-        self.store.take().map(|s| s.save());
+        if let Some(s) = self.store.take() { s.save() };
         self.get_list_store().clear();
     }
 

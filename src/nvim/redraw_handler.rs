@@ -166,16 +166,16 @@ pub fn call_gui_event(
                 "ToggleSidebar" => ui.on_command(NvimCommand::ToggleSidebar),
                 "ShowProjectView" => ui.on_command(NvimCommand::ShowProjectView),
                 "Transparency" => ui.on_command(NvimCommand::Transparency(
-                    try_str!(args.get(1).cloned().unwrap_or("1.0".into()))
+                    try_str!(args.get(1).cloned().unwrap_or_else(|| "1.0".into()))
                         .parse()
                         .map_err(|e: ParseFloatError| e.to_string())?,
-                    try_str!(args.get(2).cloned().unwrap_or("1.0".into()))
+                    try_str!(args.get(2).cloned().unwrap_or_else(|| "1.0".into()))
                         .parse()
                         .map_err(|e: ParseFloatError| e.to_string())?,
                 )),
                 "PreferDarkTheme" => {
                     let prefer_dark_theme =
-                        match try_str!(args.get(1).cloned().unwrap_or(Value::from("off"))) {
+                        match try_str!(args.get(1).cloned().unwrap_or_else(|| Value::from("off"))) {
                             "on" => true,
                             _ => false,
                         };
@@ -211,7 +211,7 @@ pub fn call_gui_request(
                     };
                     let t = clipboard.wait_for_text().unwrap_or_else(|| String::new().into());
                     Ok(Value::Array(
-                        t.split("\n").map(|s| s.into()).collect::<Vec<Value>>(),
+                        t.split('\n').map(|s| s.into()).collect::<Vec<Value>>(),
                     ))
                 }
                 opt => {

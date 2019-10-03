@@ -59,10 +59,10 @@ impl ModelRect {
         debug_assert!(left <= right, "{} <= {}", left, right);
 
         ModelRect {
-            top: top,
-            bot: bot,
-            left: left,
-            right: right,
+            top,
+            bot,
+            left,
+            right,
         }
     }
 

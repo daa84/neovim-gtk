@@ -18,8 +18,8 @@ impl<'a> Builder<'a> {
             Some(parent),
             gtk::DialogFlags::USE_HEADER_BAR | gtk::DialogFlags::DESTROY_WITH_PARENT,
             &[
-                ("Cancel", gtk::ResponseType::Cancel.into()),
-                ("Ok", gtk::ResponseType::Ok.into()),
+                ("Cancel", gtk::ResponseType::Cancel),
+                ("Ok", gtk::ResponseType::Ok),
             ],
         );
 

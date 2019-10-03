@@ -223,8 +223,8 @@ impl State {
     where
         F: FnMut() + Send + 'static,
     {
-        if cb.is_some() {
-            self.detach_cb = Some(Box::new(RefCell::new(cb.unwrap())));
+        if let Some(c) = cb {
+            self.detach_cb = Some(Box::new(RefCell::new(c)));
         } else {
             self.detach_cb = None;
         }
@@ -234,8 +234,8 @@ impl State {
     where
         F: FnMut() + Send + 'static,
     {
-        if cb.is_some() {
-            self.nvim_started_cb = Some(Box::new(RefCell::new(cb.unwrap())));
+        if let Some(c) = cb {
+            self.nvim_started_cb = Some(Box::new(RefCell::new(c)));
         } else {
             self.nvim_started_cb = None;
         }
@@ -245,8 +245,8 @@ impl State {
     where
         F: FnMut(&mut State, nvim::NvimCommand) + Send + 'static,
     {
-        if cb.is_some() {
-            self.command_cb = Some(Box::new(cb.unwrap()));
+        if let Some(c) = cb {
+            self.command_cb = Some(Box::new(c));
         } else {
             self.command_cb = None;
         }
@@ -606,7 +606,7 @@ impl ShellOptions {
             args_for_neovim: matches
                 .values_of("nvim-args")
                 .map(|args| args.map(str::to_owned).collect())
-                .unwrap_or(vec![]),
+                .unwrap_or_else(|| vec![]),
         }
     }
 
@@ -1475,10 +1475,7 @@ impl State {
     }
 
     pub fn option_set(&mut self, name: String, val: Value) -> RepaintMode {
-        match name.as_str() {
-            "guifont" => self.set_font_from_value(val),
-            _ => (),
-        };
+        if let "guifont" = name.as_str() { self.set_font_from_value(val) };
         RepaintMode::Nothing
     }
 
@@ -1491,7 +1488,7 @@ impl State {
                     for font in &fonts {
                         let desc = FontDescription::from_string(&font);
                         if desc.get_size() > 0
-                            && exists_fonts.contains(&desc.get_family().unwrap_or("".into()))
+                            && exists_fonts.contains(&desc.get_family().unwrap_or_else(|| "".into()))
                         {
                             self.set_font_rpc(font);
                             return;

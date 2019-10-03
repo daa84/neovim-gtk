@@ -212,9 +212,9 @@ impl State {
         // queue old cursor position
         self.queue_redraw_cursor();
 
-        self.levels
-            .get_mut(level - 1)
-            .map(|l| l.set_cursor(render_state, pos));
+        if let Some(l) = self.levels.get_mut(level - 1) {
+            l.set_cursor(render_state, pos)
+        }
     }
 
     fn queue_redraw_cursor(&mut self) {
@@ -493,7 +493,7 @@ impl CmdLine {
         self.wild_scroll.set_max_content_width(max_width);
 
         // load data
-        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 1]);
+        let list_store = gtk::ListStore::new(&[gtk::Type::String; 1]);
         for item in items {
             list_store.insert_with_values(None, &[0], &[&item]);
         }
@@ -601,9 +601,9 @@ impl<'a> CmdLineContext<'a> {
         if content.is_empty() {
             content.push(content_line.remove(0));
         } else {
-            content
-                .last_mut()
-                .map(|line| line.extend(content_line.remove(0)));
+            if let Some(line) = content.last_mut() {
+                line.extend(content_line.remove(0))
+            }
         }
 
         LineContent {

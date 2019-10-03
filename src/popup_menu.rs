@@ -103,7 +103,7 @@ impl State {
         const DEFAULT_PADDING: i32 = 5;
 
         let layout = ctx.font_ctx.create_layout();
-        let kind_exists = ctx.menu_items.iter().find(|i| i.kind.len() > 0).is_some();
+        let kind_exists = ctx.menu_items.iter().any(|i| !i.kind.is_empty());
         let max_width = self.scroll.get_max_content_width();
         let (xpad, _) = self.renderer.get_padding();
 
@@ -130,7 +130,7 @@ impl State {
 
         let max_menu_line = ctx.menu_items.iter().max_by_key(|m| m.menu.len()).unwrap();
 
-        if max_menu_line.menu.len() > 0 {
+        if !max_menu_line.menu.is_empty() {
             layout.set_text(max_menu_line.menu);
             let (menu_max_width, _) = layout.get_pixel_size();
             self.menu_column
@@ -157,7 +157,7 @@ impl State {
 
         update_css(&self.css_provider, hl);
 
-        let list_store = gtk::ListStore::new(&vec![gtk::Type::String; 4]);
+        let list_store = gtk::ListStore::new(&[gtk::Type::String; 4]);
         let all_column_ids: Vec<u32> = (0..4).map(|i| i as u32).collect();
 
         for line in ctx.menu_items {
@@ -392,7 +392,7 @@ pub fn update_css(css_provider: &gtk::CssProvider, hl: &HighlightMap) {
     let bg = hl.pmenu_bg_sel();
     let fg = hl.pmenu_fg_sel();
 
-    match gtk::CssProviderExt::load_from_data(
+    if let Err(e) = gtk::CssProviderExt::load_from_data(
         css_provider,
         &format!(
             ".view :selected {{ color: {}; background-color: {};}}\n
@@ -403,8 +403,7 @@ pub fn update_css(css_provider: &gtk::CssProvider, hl: &HighlightMap) {
         )
         .as_bytes(),
     ) {
-        Err(e) => error!("Can't update css {}", e),
-        Ok(_) => (),
+        error!("Can't update css {}", e)
     };
 }
 

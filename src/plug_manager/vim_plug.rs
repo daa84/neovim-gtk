@@ -30,13 +30,13 @@ impl Manager {
 
             let plugs_map = g_plugs
                 .as_map()
-                .ok_or("Can't retrive g:plugs map".to_owned())?
+                .ok_or_else(|| "Can't retrive g:plugs map".to_owned())?
                 .to_attrs_map()?;
 
             let g_plugs_order = nvim.eval("g:plugs_order").map_err(|e| format!("{}", e))?;
 
-            let order_arr = g_plugs_order.as_array().ok_or(
-                "Can't find g:plugs_order array"
+            let order_arr = g_plugs_order.as_array().ok_or_else(
+                || "Can't find g:plugs_order array"
                     .to_owned(),
             )?;
 
@@ -72,11 +72,7 @@ impl Manager {
             loaded_plug
                 .ok_and_report()
                 .and_then(|loaded_plug| loaded_plug.as_i64())
-                .map_or(false, |loaded_plug| if loaded_plug > 0 {
-                    true
-                } else {
-                    false
-                })
+                .map_or(false, |loaded_plug| loaded_plug > 0)
         } else {
             false
         }

@@ -130,14 +130,14 @@ fn main() {
 
     gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
 
-    let app_exe = std::env::args().next().unwrap_or("nvim-gtk".to_owned());
+    let app_exe = std::env::args().next().unwrap_or_else(|| "nvim-gtk".to_owned());
 
     app.run(
         &std::iter::once(app_exe)
             .chain(
                 matches
                     .values_of("files")
-                    .unwrap_or(clap::Values::default())
+                    .unwrap_or_default()
                     .map(str::to_owned),
             )
             .collect::<Vec<String>>(),
@@ -146,7 +146,7 @@ fn main() {
 
 fn open(app: &gtk::Application, files: &[gio::File], matches: &ArgMatches) {
     let files_list: Vec<String> = files
-        .into_iter()
+        .iter()
         .filter_map(|f| f.get_path()?.to_str().map(str::to_owned))
         .collect();
 
