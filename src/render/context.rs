@@ -111,21 +111,19 @@ pub struct CellMetrics {
 
 impl CellMetrics {
     fn new(font_metrics: &pango::FontMetrics, line_space: i32) -> Self {
+        let ascent = (f64::from(font_metrics.get_ascent()) / f64::from(pango::SCALE)).ceil();
+        let descent = (f64::from(font_metrics.get_descent()) / f64::from(pango::SCALE)).ceil();
+        let underline_position = (f64::from(font_metrics.get_underline_position()) / f64::from(pango::SCALE)).ceil();
         CellMetrics {
             pango_ascent: font_metrics.get_ascent(),
             pango_descent: font_metrics.get_descent(),
             pango_char_width: font_metrics.get_approximate_digit_width(),
-            ascent: f64::from(font_metrics.get_ascent()) / f64::from(pango::SCALE),
-            line_height: f64::from(font_metrics.get_ascent() + font_metrics.get_descent())
-                / f64::from(pango::SCALE)
-                + f64::from(line_space),
-            char_width: f64::from(font_metrics.get_approximate_digit_width())
-                / f64::from(pango::SCALE),
-            underline_position: f64::from(
-                font_metrics.get_ascent() - font_metrics.get_underline_position(),
-            ) / f64::from(pango::SCALE),
-            underline_thickness: f64::from(font_metrics.get_underline_thickness())
-                / f64::from(pango::SCALE),
+            ascent,
+            line_height: ascent + descent + f64::from(line_space),
+            char_width: (f64::from(font_metrics.get_approximate_digit_width())
+                / f64::from(pango::SCALE)).ceil(),
+            underline_position: ascent - underline_position,
+            underline_thickness: f64::from(font_metrics.get_underline_thickness()) / f64::from(pango::SCALE),
         }
     }
 
