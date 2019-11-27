@@ -120,8 +120,8 @@ impl CellMetrics {
             pango_char_width: font_metrics.get_approximate_char_width(),
             ascent,
             line_height: ascent + descent + f64::from(line_space),
-            char_width: (f64::from(font_metrics.get_approximate_char_width())
-                / f64::from(pango::SCALE)),
+            char_width: f64::from(font_metrics.get_approximate_char_width())
+                / f64::from(pango::SCALE),
             underline_position: ascent - underline_position,
             underline_thickness: f64::from(font_metrics.get_underline_thickness()) / f64::from(pango::SCALE),
         }

@@ -47,6 +47,8 @@ pub fn render<C: Cursor>(
     let &CellMetrics { char_width, .. } = cell_metrics;
 
     // draw background
+    // disable antialiase for rectangle borders, so they will not be visible
+    ctx.set_antialias(cairo::Antialias::None);
     for row_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
         let mut line_x = 0.0;
 
@@ -55,6 +57,7 @@ pub fn render<C: Cursor>(
             line_x += char_width;
         }
     }
+    ctx.set_antialias(cairo::Antialias::Default);
 
     // draw text
     for row_view in ui_model.get_clip_iterator(ctx, cell_metrics) {
@@ -110,9 +113,12 @@ fn draw_cursor<C: Cursor>(
             ctx.clip();
 
             // repaint cell backgound
+            // disable antialiase for rectangle borders, so they will not be visible
+            ctx.set_antialias(cairo::Antialias::None);
             ctx.set_operator(cairo::Operator::Source);
             fill_background(ctx, hl, bg_alpha);
             draw_cell_bg(&row_view, hl, cell, cursor_col, line_x, bg_alpha);
+            ctx.set_antialias(cairo::Antialias::Default);
 
             // reapint cursor and text
             ctx.set_operator(cairo::Operator::Over);
