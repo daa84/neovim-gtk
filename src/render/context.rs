@@ -117,11 +117,11 @@ impl CellMetrics {
         CellMetrics {
             pango_ascent: font_metrics.get_ascent(),
             pango_descent: font_metrics.get_descent(),
-            pango_char_width: font_metrics.get_approximate_digit_width(),
+            pango_char_width: font_metrics.get_approximate_char_width(),
             ascent,
             line_height: ascent + descent + f64::from(line_space),
-            char_width: (f64::from(font_metrics.get_approximate_digit_width())
-                / f64::from(pango::SCALE)).ceil(),
+            char_width: (f64::from(font_metrics.get_approximate_char_width())
+                / f64::from(pango::SCALE)),
             underline_position: ascent - underline_position,
             underline_thickness: f64::from(font_metrics.get_underline_thickness()) / f64::from(pango::SCALE),
         }
