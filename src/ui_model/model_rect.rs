@@ -154,8 +154,9 @@ impl ModelRect {
     }
 
     fn extend_left_right_area(&self, model: Option<&UiModel>, cell_metrics: &CellMetrics) -> (i32, i32) {
-        let x = self.left as i32 * cell_metrics.char_width as i32;
-        let x2 = (self.right + 1) as i32 * cell_metrics.char_width as i32;
+        // when convert to i32 area must be bigger then original f64 version
+        let x = (self.left as f64 * cell_metrics.char_width).floor() as i32;
+        let x2 = ((self.right + 1) as f64 * cell_metrics.char_width).ceil() as i32;
 
         if model.is_none() {
             return (x, x2);
@@ -280,11 +281,12 @@ impl ModelRect {
             ..
         } = cell_metrics;
 
+        // when convert to i32 area must be bigger then original f64 version
         (
-            self.left as i32 * char_width as i32,
-            self.top as i32 * line_height as i32,
-            (self.right - self.left + 1) as i32 * char_width as i32,
-            (self.bot - self.top + 1) as i32 * line_height as i32,
+            (self.left as f64 * char_width).floor() as i32,
+            (self.top as f64 * line_height).floor() as i32,
+            ((self.right - self.left + 1) as f64 * char_width).ceil() as i32,
+            ((self.bot - self.top + 1) as f64 * line_height).ceil() as i32,
         )
     }
 
