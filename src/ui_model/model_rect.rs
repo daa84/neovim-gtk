@@ -297,7 +297,6 @@ impl ModelRect {
             ..
         } = cell_metrics;
 
-        // TODO: how precisecly convert this?
         let x2 = if x2 > 0.0 { x2 - 1.0 } else { x2 };
         let y2 = if y2 > 0.0 { y2 - 1.0 } else { y2 };
         let left = (x1 / char_width) as usize;
