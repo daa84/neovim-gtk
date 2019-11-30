@@ -497,7 +497,7 @@ impl CmdLine {
         for item in items {
             list_store.insert_with_values(None, &[0], &[&item]);
         }
-        self.wild_tree.set_model(&list_store);
+        self.wild_tree.set_model(Some(&list_store));
 
         // set height
         let treeview_height =
@@ -518,7 +518,7 @@ impl CmdLine {
             idle_add(move || {
                 let selected_path = gtk::TreePath::new_from_string(&format!("{}", selected));
                 wild_tree.get_selection().select_path(&selected_path);
-                wild_tree.scroll_to_cell(&selected_path, Option::<&gtk::TreeViewColumn>::None, false, 0.0, 0.0);
+                wild_tree.scroll_to_cell(Some(&selected_path), Option::<&gtk::TreeViewColumn>::None, false, 0.0, 0.0);
 
                 Continue(false)
             });

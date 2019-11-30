@@ -32,9 +32,9 @@ impl<'a> Builder<'a> {
 
         let path = gtk::Box::new(gtk::Orientation::Horizontal, 5);
         path.set_border_width(5);
-        let path_lbl = gtk::Label::new("Repo");
+        let path_lbl = gtk::Label::new(Some("Repo"));
         let path_e = gtk::Entry::new();
-        path_e.set_placeholder_text("user_name/repo_name");
+        path_e.set_placeholder_text(Some("user_name/repo_name"));
 
         path.pack_start(&path_lbl, true, true, 0);
         path.pack_end(&path_e, false, true, 0);
@@ -43,7 +43,7 @@ impl<'a> Builder<'a> {
 
         let name = gtk::Box::new(gtk::Orientation::Horizontal, 5);
         name.set_border_width(5);
-        let name_lbl = gtk::Label::new("Name");
+        let name_lbl = gtk::Label::new(Some("Name"));
         let name_e = gtk::Entry::new();
 
         name.pack_start(&name_lbl, true, true, 0);
@@ -61,8 +61,7 @@ impl<'a> Builder<'a> {
             }
         }));
 
-        let ok: i32 = gtk::ResponseType::Ok.into();
-        let res = if dlg.run() == ok {
+        let res = if dlg.run() == gtk::ResponseType::Ok {
             path_e.get_text().map(|path| {
                 let name = name_e
                     .get_text()

@@ -68,9 +68,9 @@ impl Components {
     fn new() -> Components {
         let open_btn = Button::new();
         let open_btn_box = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-        open_btn_box.pack_start(&gtk::Label::new("Open"), false, false, 3);
+        open_btn_box.pack_start(&gtk::Label::new(Some("Open")), false, false, 3);
         open_btn_box.pack_start(
-            &gtk::Image::new_from_icon_name("pan-down-symbolic", gtk::IconSize::Menu),
+            &gtk::Image::new_from_icon_name(Some("pan-down-symbolic"), gtk::IconSize::Menu),
             false,
             false,
             3,
@@ -191,7 +191,7 @@ impl Ui {
         let file_browser_ref = self.file_browser.clone();
         let comps_ref = self.comps.clone();
         show_sidebar_action.connect_change_state(move |action, value| {
-            if let Some(ref value) = *value {
+            if let Some(value) = value {
                 action.set_state(value);
                 let is_active = value.get::<bool>().unwrap();
                 file_browser_ref.borrow().set_visible(is_active);
@@ -379,21 +379,21 @@ impl Ui {
             .connect_clicked(move |_| projects.borrow_mut().show());
 
         let new_tab_btn =
-            Button::new_from_icon_name("tab-new-symbolic", gtk::IconSize::SmallToolbar);
+            Button::new_from_icon_name(Some("tab-new-symbolic"), gtk::IconSize::SmallToolbar);
         let shell_ref = Rc::clone(&self.shell);
         new_tab_btn.connect_clicked(move |_| shell_ref.borrow_mut().new_tab());
         new_tab_btn.set_can_focus(false);
-        new_tab_btn.set_tooltip_text("Open a new tab");
+        new_tab_btn.set_tooltip_text(Some("Open a new tab"));
         header_bar.pack_start(&new_tab_btn);
 
         header_bar.pack_end(&self.create_primary_menu_btn(app, &window));
 
         let paste_btn =
-            Button::new_from_icon_name("edit-paste-symbolic", gtk::IconSize::SmallToolbar);
+            Button::new_from_icon_name(Some("edit-paste-symbolic"), gtk::IconSize::SmallToolbar);
         let shell = self.shell.clone();
         paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
         paste_btn.set_can_focus(false);
-        paste_btn.set_tooltip_text("Paste from clipboard");
+        paste_btn.set_tooltip_text(Some("Paste from clipboard"));
         header_bar.pack_end(&paste_btn);
 
         let save_btn = Button::new_with_label("Save All");
@@ -412,7 +412,7 @@ impl Ui {
             SubscriptionKey::from("DirChanged"),
             &["getcwd()"],
             move |args| {
-                header_bar.set_subtitle(&*args[0]);
+                header_bar.set_subtitle(Some(&*args[0]));
             },
         );
 
@@ -427,25 +427,25 @@ impl Ui {
         let plug_manager = self.plug_manager.clone();
         let btn = gtk::MenuButton::new();
         btn.set_can_focus(false);
-        btn.set_image(&gtk::Image::new_from_icon_name(
-            "open-menu-symbolic",
+        btn.set_image(Some(&gtk::Image::new_from_icon_name(
+            Some("open-menu-symbolic"),
             gtk::IconSize::SmallToolbar,
-        ));
+        )));
 
         // note actions created in application menu
         let menu = Menu::new();
 
         let section = Menu::new();
-        section.append_item(&MenuItem::new("New Window", "app.new-window"));
+        section.append_item(&MenuItem::new(Some("New Window"), Some("app.new-window")));
         menu.append_section(None, &section);
 
         let section = Menu::new();
-        section.append_item(&MenuItem::new("Sidebar", "app.show-sidebar"));
+        section.append_item(&MenuItem::new(Some("Sidebar"), Some("app.show-sidebar")));
         menu.append_section(None, &section);
 
         let section = Menu::new();
-        section.append_item(&MenuItem::new("Plugins", "app.Plugins"));
-        section.append_item(&MenuItem::new("About", "app.HelpAbout"));
+        section.append_item(&MenuItem::new(Some("Plugins"), Some("app.Plugins")));
+        section.append_item(&MenuItem::new(Some("About"), Some("app.HelpAbout")));
         menu.append_section(None, &section);
 
         menu.freeze();
@@ -462,19 +462,19 @@ impl Ui {
         app.add_action(&about_action);
         app.add_action(&plugs_action);
 
-        btn.set_menu_model(&menu);
+        btn.set_menu_model(Some(&menu));
         btn
     }
 }
 
 fn on_help_about(window: &gtk::ApplicationWindow) {
     let about = AboutDialog::new();
-    about.set_transient_for(window);
+    about.set_transient_for(Some(window));
     about.set_program_name("NeovimGtk");
-    about.set_version(crate::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")));
-    about.set_logo_icon_name("org.daa.NeovimGtk");
+    about.set_version(Some(crate::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION"))));
+    about.set_logo_icon_name(Some("org.daa.NeovimGtk"));
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
-    about.set_comments(misc::about_comments().as_str());
+    about.set_comments(Some(misc::about_comments().as_str()));
 
     about.connect_response(|about, _| about.destroy());
     about.show();

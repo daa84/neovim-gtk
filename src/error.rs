@@ -18,7 +18,7 @@ impl ErrorArea {
 
         let label = gtk::Label::new(None);
         label.set_line_wrap(true);
-        let error_image = gtk::Image::new_from_icon_name("dialog-error", gtk::IconSize::Dialog);
+        let error_image = gtk::Image::new_from_icon_name(Some("dialog-error"), gtk::IconSize::Dialog);
         base.pack_start(&error_image, false, true, 10);
         base.pack_start(&label, true, true, 1);
 

@@ -123,7 +123,7 @@ impl Tabline {
                 title.set_ellipsize(pango::EllipsizeMode::Middle);
                 title.set_width_chars(25);
                 let close_btn = gtk::Button::new_from_icon_name(
-                    "window-close-symbolic",
+                    Some("window-close-symbolic"),
                     gtk::IconSize::Menu,
                 );
                 close_btn.set_relief(gtk::ReliefStyle::None);

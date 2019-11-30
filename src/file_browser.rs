@@ -126,7 +126,7 @@ impl FileBrowserWidget {
             // empty child entry for all non-empty directories, so the row will be expandable. Now,
             // when a directory is expanded, populate its children.
             let state = state_ref.borrow();
-            if let Some(child) = store.iter_children(iter) {
+            if let Some(child) = store.iter_children(Some(iter)) {
                 let filename = store.get_value(&child, Column::Filename as i32);
                 if filename.get::<&str>().is_none() {
                     store.remove(&child);
@@ -189,7 +189,7 @@ impl FileBrowserWidget {
 
         self.comps
             .context_menu
-            .insert_action_group("filebrowser", &actions);
+            .insert_action_group("filebrowser", Some(&actions));
     }
 
     fn init_subscriptions(&self, shell_state: &shell::State) {
@@ -298,7 +298,7 @@ impl FileBrowserWidget {
             clone!(store, state_ref, context_menu, cd_action => move |tree, ev_btn| {
                 // Open context menu on right click.
                 if ev_btn.get_button() == 3 {
-                    context_menu.popup_at_pointer(&**ev_btn);
+                    context_menu.popup_at_pointer(Some(&**ev_btn));
                     let (pos_x, pos_y) = ev_btn.get_position();
                     let iter = tree
                         .get_path_at_pos(pos_x as i32, pos_y as i32)
@@ -416,7 +416,7 @@ fn update_dir_list(dir: &str, dir_list_model: &gtk::TreeStore, dir_list: &gtk::C
                 &[0, 1, 2],
                 &[&dir_name, &ICON_FOLDER_OPEN, &path_str],
             );
-            dir_list.set_active_iter(&current_iter);
+            dir_list.set_active_iter(Some(&current_iter));
         };
         // Advance dir_list_iter.
         dir_list_iter = if dir_list_model.iter_next(&current_iter) {
@@ -510,7 +510,7 @@ fn populate_tree_nodes(
                 false
             };
             if not_empty {
-                let iter = store.append(&iter);
+                let iter = store.append(Some(&iter));
                 store.set(&iter, &[], &[]);
             }
         }

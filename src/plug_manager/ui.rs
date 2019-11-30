@@ -53,11 +53,11 @@ impl<'a> Ui<'a> {
 
         header_bar.pack_end(&enable_swc);
 
-        header_bar.set_title("Plug");
+        header_bar.set_title(Some("Plug"));
         header_bar.set_show_close_button(true);
         header_bar.show();
 
-        dlg.set_titlebar(&header_bar);
+        dlg.set_titlebar(Some(&header_bar));
 
         let pages = SettingsPages::new(
             clone!(add_plug_btn => move |row_name| if row_name == "plugins" {
@@ -74,7 +74,7 @@ impl<'a> Ui<'a> {
 
         add_vimawesome_tab(&pages, &self.manager, &plugs_panel);
 
-        let plugins_lbl = gtk::Label::new("Plugins");
+        let plugins_lbl = gtk::Label::new(Some("Plugins"));
         pages.add_page(&plugins_lbl, &plugins, "plugins");
 
         add_help_tab(
@@ -109,8 +109,7 @@ impl<'a> Ui<'a> {
         content.pack_start(&*pages, true, true, 0);
         content.show_all();
 
-        let ok: i32 = gtk::ResponseType::Ok.into();
-        if dlg.run() == ok {
+        if dlg.run() == gtk::ResponseType::Ok {
             let mut manager = self.manager.borrow_mut();
             manager.clear_removed();
             manager.save();
@@ -158,8 +157,8 @@ fn create_up_down_btns(
     manager: &Arc<UiMutex<manager::Manager>>,
 ) -> gtk::Box {
     let buttons_panel = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-    let up_btn = gtk::Button::new_from_icon_name("go-up-symbolic", gtk::IconSize::Button);
-    let down_btn = gtk::Button::new_from_icon_name("go-down-symbolic", gtk::IconSize::Button);
+    let up_btn = gtk::Button::new_from_icon_name(Some("go-up-symbolic"), gtk::IconSize::Button);
+    let down_btn = gtk::Button::new_from_icon_name(Some("go-down-symbolic"), gtk::IconSize::Button);
 
     up_btn.connect_clicked(clone!(plugs_panel, manager => move |_| {
         if let Some(row) = plugs_panel.get_selected_row() {
@@ -168,7 +167,7 @@ fn create_up_down_btns(
                 plugs_panel.unselect_row(&row);
                 plugs_panel.remove(&row);
                 plugs_panel.insert(&row, idx - 1);
-                plugs_panel.select_row(&row);
+                plugs_panel.select_row(Some(&row));
                 manager.borrow_mut().move_item(idx as usize, -1);
             }
         }
@@ -182,7 +181,7 @@ fn create_up_down_btns(
                 plugs_panel.unselect_row(&row);
                 plugs_panel.remove(&row);
                 plugs_panel.insert(&row, idx + 1);
-                plugs_panel.select_row(&row);
+                plugs_panel.select_row(Some(&row));
                 manager.move_item(idx as usize, 1);
             }
         }
@@ -216,7 +215,7 @@ fn populate_get_plugins(
                 panel.pack_start(&result, true, true, 0);
             }
             Err(e) => {
-                panel.pack_start(&gtk::Label::new(format!("{}", e).as_str()), false, true, 0);
+                panel.pack_start(&gtk::Label::new(Some(format!("{}", e).as_str())), false, true, 0);
                 error!("{}", e)
             }
         }
@@ -330,7 +329,7 @@ fn add_vimawesome_tab(
 ) {
     let get_plugins = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let spinner = gtk::Spinner::new();
-    let get_plugins_lbl = gtk::Label::new("Get Plugins");
+    let get_plugins_lbl = gtk::Label::new(Some("Get Plugins"));
     pages.add_page(&get_plugins_lbl, &get_plugins, "get_plugins");
 
     let list_panel = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -366,7 +365,7 @@ fn add_help_tab(pages: &SettingsPages, markup: &str) {
     label.set_markup(markup);
     help.pack_start(&label, true, false, 0);
 
-    let help_lbl = gtk::Label::new("Help");
+    let help_lbl = gtk::Label::new(Some("Help"));
     pages.add_page(&help_lbl, &help, "help");
 }
 
@@ -391,7 +390,7 @@ impl SettingsPages {
         content.pack_start(&stack, true, true, 0);
 
         categories.connect_row_selected(
-            clone!(stack, rows => move |_, row| if let &Some(ref row) = row {
+            clone!(stack, rows => move |_, row| if let Some(row) = row {
                 if let Some(ref r) = rows.borrow().iter().find(|r| r.0 == *row) {
                     if let Some(child) = stack.get_child_by_name(&r.1) {
                         stack.set_visible_child(&child);

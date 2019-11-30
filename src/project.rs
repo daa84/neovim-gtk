@@ -3,7 +3,6 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use glib::translate::FromGlib;
 use gtk;
 use gtk::prelude::*;
 use gtk::{
@@ -91,7 +90,7 @@ impl Projects {
         vbox.set_border_width(5);
 
         let search_box = gtk::Entry::new();
-        search_box.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, "edit-find-symbolic");
+        search_box.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, Some("edit-find-symbolic"));
 
         vbox.pack_start(&search_box, false, true, 0);
 
@@ -258,7 +257,7 @@ impl Projects {
             ("_Open", gtk::ResponseType::Ok),
             ("_Cancel", gtk::ResponseType::Cancel),
         ]);
-        if gtk::ResponseType::from_glib(dlg.run()) == gtk::ResponseType::Ok {
+        if dlg.run() == gtk::ResponseType::Ok {
             if let Some(filename) = dlg.get_filename() {
                 if let Some(filename) = filename.to_str() {
                     self.shell.borrow().open_file(filename);

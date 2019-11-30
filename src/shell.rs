@@ -15,8 +15,7 @@ use glib;
 use gtk;
 use gtk::prelude::*;
 use pango;
-use pango::prelude::*;
-use pango::{FontDescription, LayoutExt};
+use pango::FontDescription;
 use pangocairo;
 
 use neovim_lib::neovim_api::Tabpage;
@@ -580,7 +579,7 @@ impl UiState {
                 MouseCursor::Text => "text",
             };
 
-            window.set_cursor(&gdk::Cursor::new_from_name(&window.get_display(), cursor));
+            window.set_cursor(gdk::Cursor::new_from_name(&window.get_display(), cursor).as_ref());
         }
     }
 }

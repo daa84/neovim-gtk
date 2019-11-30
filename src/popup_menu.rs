@@ -7,7 +7,7 @@ use gdk::{EventButton, EventType};
 use glib;
 use gtk;
 use gtk::prelude::*;
-use pango::{self, LayoutExt};
+use pango;
 
 use neovim_lib::{Neovim, NeovimApi};
 
@@ -165,7 +165,7 @@ impl State {
             list_store.insert_with_values(None, &all_column_ids, &line_array[..]);
         }
 
-        self.tree.set_model(&list_store);
+        self.tree.set_model(Some(&list_store));
     }
 
     fn select(&self, selected: i64) {

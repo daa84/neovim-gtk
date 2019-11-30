@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use pango;
-use pango::prelude::*;
 
 use crate::sys::pango as sys_pango;
 

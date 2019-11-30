@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use glib::translate::FromGlib;
 use gtk;
 use gtk::prelude::*;
 use gtk::{ButtonsType, MessageDialog, MessageType};
@@ -48,7 +47,7 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>, shell: &Shell, changed_bufs: 
         ("_Cancel", gtk::ResponseType::Cancel),
     ]);
 
-    let res = match gtk::ResponseType::from_glib(dlg.run()) {
+    let res = match dlg.run() {
         gtk::ResponseType::Yes => {
             let state = shell.state.borrow();
             let mut nvim = state.nvim().unwrap();
