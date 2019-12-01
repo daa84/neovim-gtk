@@ -130,6 +130,7 @@ fn draw_cursor<C: Cursor>(
 
             debug_assert!(cell_start_line_x >= 0.0);
 
+            ctx.set_operator(cairo::Operator::Xor);
             draw_cell(
                 &row_view,
                 hl,
