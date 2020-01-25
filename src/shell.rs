@@ -552,6 +552,9 @@ pub struct UiState {
     mouse_pressed: bool,
     scroll_delta: (f64, f64),
 
+    // previous editor position (col, row)
+    prev_pos: (u64, u64),
+
     mouse_cursor: MouseCursor,
 }
 
@@ -560,6 +563,7 @@ impl UiState {
         UiState {
             mouse_pressed: false,
             scroll_delta: (0.0, 0.0),
+            prev_pos: (0, 0),
 
             mouse_cursor: MouseCursor::None,
         }
@@ -1047,19 +1051,27 @@ fn gtk_button_press(
 
 fn mouse_input(shell: &mut State, input: &str, state: ModifierType, position: (f64, f64)) {
     if let Some(mut nvim) = shell.try_nvim() {
-        let &CellMetrics {
-            line_height,
-            char_width,
-            ..
-        } = shell.render_state.borrow().font_ctx.cell_metrics();
-        let (x, y) = position;
-        let col = (x / char_width).trunc() as u64;
-        let row = (y / line_height).trunc() as u64;
+        let (col, row) = mouse_coordinates_to_nvim(shell, position);
         let input_str = format!("{}<{},{}>", keyval_to_input_string(input, state), col, row);
 
         nvim.input(&input_str)
             .expect("Can't send mouse input event");
     }
+}
+
+/**
+ * Translate gtk mouse event coordinates to nvim (col, row).
+ */
+fn mouse_coordinates_to_nvim(shell: &State, position: (f64, f64)) -> (u64, u64) {
+    let &CellMetrics {
+        line_height,
+        char_width,
+        ..
+    } = shell.render_state.borrow().font_ctx.cell_metrics();
+    let (x, y) = position;
+    let col = (x / char_width).trunc() as u64;
+    let row = (y / line_height).trunc() as u64;
+    (col, row)
 }
 
 fn gtk_button_release(shell: &mut State, ui_state: &mut UiState, ev: &EventButton) -> Inhibit {
@@ -1079,7 +1091,15 @@ fn gtk_button_release(shell: &mut State, ui_state: &mut UiState, ev: &EventButto
 
 fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion) -> Inhibit {
     if shell.mouse_enabled && ui_state.mouse_pressed {
-        mouse_input(shell, "LeftDrag", ev.get_state(), ev.get_position());
+        let ev_pos = ev.get_position();
+        let pos = mouse_coordinates_to_nvim(shell, ev_pos);
+
+        // if we fire LeftDrag on the same coordinates multiple times, then
+        // we get: https://github.com/daa84/neovim-gtk/issues/185
+        if pos != ui_state.prev_pos {
+            mouse_input(shell, "LeftDrag", ev.get_state(), ev_pos);
+            ui_state.prev_pos = pos;
+        }
     }
 
     ui_state.apply_mouse_cursor(MouseCursor::Text, shell.drawing_area.get_window());
