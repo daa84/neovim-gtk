@@ -49,7 +49,8 @@ impl Context {
                     &line.attr_list,
                     attr_iter.as_ref(),
                 )
-            }).collect()
+            })
+            .collect()
     }
 
     pub fn create_layout(&self) -> pango::Layout {
@@ -112,7 +113,17 @@ impl CellMetrics {
     fn new(font_metrics: &pango::FontMetrics, line_space: i32) -> Self {
         let ascent = (f64::from(font_metrics.get_ascent()) / f64::from(pango::SCALE)).ceil();
         let descent = (f64::from(font_metrics.get_descent()) / f64::from(pango::SCALE)).ceil();
-        let underline_position = (f64::from(font_metrics.get_underline_position()) / f64::from(pango::SCALE)).ceil();
+
+        // distance above top of underline, will typically be negative
+        let pango_underline_position = f64::from(font_metrics.get_underline_position());
+        let underline_position = (pango_underline_position / f64::from(pango::SCALE))
+            .abs()
+            .ceil()
+            .copysign(pango_underline_position);
+
+        let underline_thickness =
+            (f64::from(font_metrics.get_underline_thickness()) / f64::from(pango::SCALE)).ceil();
+
         CellMetrics {
             pango_ascent: font_metrics.get_ascent(),
             pango_descent: font_metrics.get_descent(),
@@ -121,8 +132,8 @@ impl CellMetrics {
             line_height: ascent + descent + f64::from(line_space),
             char_width: f64::from(font_metrics.get_approximate_char_width())
                 / f64::from(pango::SCALE),
-            underline_position: ascent - underline_position,
-            underline_thickness: f64::from(font_metrics.get_underline_thickness()) / f64::from(pango::SCALE),
+            underline_position: ascent - underline_position + underline_thickness / 2.0,
+            underline_thickness,
         }
     }
 
