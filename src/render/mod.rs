@@ -6,11 +6,11 @@ pub use self::context::CellMetrics;
 pub use self::context::{Context, FontFeatures};
 use self::model_clip_iterator::{ModelClipIteratorFactory, RowView};
 
-use cairo;
 use crate::color;
+use crate::sys::pangocairo::*;
+use cairo;
 use pango;
 use pangocairo;
-use crate::sys::pangocairo::*;
 
 use crate::cursor::{cursor_rect, Cursor};
 use crate::highlight::HighlightMap;
