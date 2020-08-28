@@ -94,12 +94,7 @@ impl HighlightMap {
             })
     }
 
-    pub fn set(
-        &mut self,
-        idx: u64,
-        hl: &HashMap<String, Value>,
-        info: &[HashMap<String, Value>],
-    ) {
+    pub fn set(&mut self, idx: u64, hl: &HashMap<String, Value>, info: &[HashMap<String, Value>]) {
         let hl = Rc::new(Highlight::from_value_map(&hl));
 
         for item in info {
@@ -161,17 +156,29 @@ impl HighlightMap {
 
     pub fn pmenu_bg_sel(&self) -> &Color {
         if !self.pmenu_sel.reverse {
-            self.pmenu_sel.background.as_ref().unwrap_or_else(|| self.bg())
+            self.pmenu_sel
+                .background
+                .as_ref()
+                .unwrap_or_else(|| self.bg())
         } else {
-            self.pmenu_sel.foreground.as_ref().unwrap_or_else(|| self.fg())
+            self.pmenu_sel
+                .foreground
+                .as_ref()
+                .unwrap_or_else(|| self.fg())
         }
     }
 
     pub fn pmenu_fg_sel(&self) -> &Color {
         if !self.pmenu_sel.reverse {
-            self.pmenu_sel.foreground.as_ref().unwrap_or_else(|| self.fg())
+            self.pmenu_sel
+                .foreground
+                .as_ref()
+                .unwrap_or_else(|| self.fg())
         } else {
-            self.pmenu_sel.background.as_ref().unwrap_or_else(|| self.bg())
+            self.pmenu_sel
+                .background
+                .as_ref()
+                .unwrap_or_else(|| self.bg())
         }
     }
 
@@ -190,6 +197,7 @@ pub struct Highlight {
     pub bold: bool,
     pub underline: bool,
     pub undercurl: bool,
+    pub strikethrough: bool,
     pub foreground: Option<Color>,
     pub background: Option<Color>,
     pub special: Option<Color>,
@@ -206,6 +214,7 @@ impl Highlight {
             bold: false,
             underline: false,
             undercurl: false,
+            strikethrough: false,
             reverse: false,
         }
     }
@@ -235,6 +244,7 @@ impl Highlight {
                 "italic" => model_attrs.italic = true,
                 "underline" => model_attrs.underline = true,
                 "undercurl" => model_attrs.undercurl = true,
+                "strikethrough" => model_attrs.strikethrough = true,
                 attr_key => error!("unknown attribute {}", attr_key),
             };
         }

@@ -65,7 +65,7 @@ pub fn render<C: Cursor>(
 
         for (col, cell) in row_view.line.line.iter().enumerate() {
             draw_cell(&row_view, hl, cell, col, line_x, 0.0);
-            draw_underline(&row_view, hl, cell, line_x, 0.0);
+            draw_underline_strikethrough(&row_view, hl, cell, line_x, 0.0);
 
             line_x += char_width;
         }
@@ -139,7 +139,7 @@ fn draw_cursor<C: Cursor>(
                 cell_start_line_x,
                 cursor_alpha,
             );
-            draw_underline(&row_view, hl, cell, line_x, cursor_alpha);
+            draw_underline_strikethrough(&row_view, hl, cell, line_x, cursor_alpha);
         } else {
             ctx.move_to(line_x, line_y);
             cursor.draw(ctx, font_ctx, line_y, double_width, &hl);
@@ -147,14 +147,14 @@ fn draw_cursor<C: Cursor>(
     }
 }
 
-fn draw_underline(
+fn draw_underline_strikethrough(
     cell_view: &RowView,
     hl: &HighlightMap,
     cell: &ui_model::Cell,
     line_x: f64,
     inverse_level: f64,
 ) {
-    if cell.hl.underline || cell.hl.undercurl {
+    if cell.hl.underline || cell.hl.undercurl || cell.hl.strikethrough {
         let &RowView {
             ctx,
             line_y,
@@ -164,10 +164,21 @@ fn draw_underline(
                     char_width,
                     underline_position,
                     underline_thickness,
+                    strikethrough_position,
+                    strikethrough_thickness,
                     ..
                 },
             ..
         } = cell_view;
+
+        if cell.hl.strikethrough {
+            let fg = hl.actual_cell_fg(cell).inverse(inverse_level);
+            ctx.set_source_rgb(fg.0, fg.1, fg.2);
+            ctx.set_line_width(strikethrough_thickness);
+            ctx.move_to(line_x, line_y + strikethrough_position);
+            ctx.line_to(line_x + char_width, line_y + strikethrough_position);
+            ctx.stroke();
+        }
 
         if cell.hl.undercurl {
             let sp = hl.actual_cell_sp(cell).inverse(inverse_level);

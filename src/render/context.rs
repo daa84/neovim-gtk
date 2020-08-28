@@ -104,6 +104,8 @@ pub struct CellMetrics {
     pub ascent: f64,
     pub underline_position: f64,
     pub underline_thickness: f64,
+    pub strikethrough_position: f64,
+    pub strikethrough_thickness: f64,
     pub pango_ascent: i32,
     pub pango_descent: i32,
     pub pango_char_width: i32,
@@ -124,6 +126,12 @@ impl CellMetrics {
         let underline_thickness =
             (f64::from(font_metrics.get_underline_thickness()) / f64::from(pango::SCALE)).ceil();
 
+        let strikethrough_position =
+            (f64::from(font_metrics.get_strikethrough_position()) / f64::from(pango::SCALE)).ceil();
+        let strikethrough_thickness = (f64::from(font_metrics.get_strikethrough_thickness())
+            / f64::from(pango::SCALE))
+        .ceil();
+
         CellMetrics {
             pango_ascent: font_metrics.get_ascent(),
             pango_descent: font_metrics.get_descent(),
@@ -134,6 +142,8 @@ impl CellMetrics {
                 / f64::from(pango::SCALE),
             underline_position: ascent - underline_position + underline_thickness / 2.0,
             underline_thickness,
+            strikethrough_position: ascent - strikethrough_position + strikethrough_thickness / 2.0,
+            strikethrough_thickness,
         }
     }
 
@@ -148,6 +158,8 @@ impl CellMetrics {
             char_width,
             underline_position: 0.0,
             underline_thickness: 0.0,
+            strikethrough_position: 0.0,
+            strikethrough_thickness: 0.0,
         }
     }
 }
