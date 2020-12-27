@@ -44,8 +44,8 @@ Windows binaries on appveyor
 ## Linux
 First install the GTK development packages. On Debian/Ubuntu derivatives
 this can be done as follows:
-```
-apt install libatk1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev libglib2.0-dev libgtk-3-dev libpango1.0-dev
+``` shell
+apt install libgtk-3-dev
 ```
 
 On Fedora:
