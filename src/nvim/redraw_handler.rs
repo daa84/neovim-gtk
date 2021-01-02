@@ -182,6 +182,16 @@ pub fn call_gui_event(
 
                     ui.on_command(NvimCommand::PreferDarkTheme(prefer_dark_theme))
                 }
+                "SetCursorBlink" => {
+                    let blink_count =
+                        match try_str!(args.get(1).cloned().unwrap_or_else(|| Value::from(-1)))
+                            .parse::<i32>()
+                        {
+                            Ok(val) => val,
+                            Err(_) => -1,
+                        };
+                    ui.set_cursor_blink(blink_count);
+                }
                 _ => error!("Unknown command"),
             };
         }

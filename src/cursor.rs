@@ -41,12 +41,24 @@ enum AnimPhase {
     Busy,
 }
 
+struct BlinkCount {
+    count: u32,
+    max: u32,
+}
+
+impl BlinkCount {
+    fn new(max: u32) -> Self {
+        Self { count: 0, max }
+    }
+}
+
 struct State<CB: CursorRedrawCb> {
     alpha: Alpha,
     anim_phase: AnimPhase,
     redraw_cb: Weak<UiMutex<CB>>,
 
     timer: Option<glib::SourceId>,
+    counter: Option<BlinkCount>,
 }
 
 impl<CB: CursorRedrawCb> State<CB> {
@@ -56,6 +68,7 @@ impl<CB: CursorRedrawCb> State<CB> {
             anim_phase: AnimPhase::Shown,
             redraw_cb,
             timer: None,
+            counter: None,
         }
     }
 
@@ -130,6 +143,15 @@ impl<CB: CursorRedrawCb + 'static> BlinkCursor<CB> {
         self.mode_info = mode_info;
     }
 
+    pub fn set_cursor_blink(&mut self, val: i32) {
+        let mut mut_state = self.state.borrow_mut();
+        mut_state.counter = if val < 0 {
+            None
+        } else {
+            Some(BlinkCount::new(val as u32))
+        }
+    }
+
     pub fn start(&mut self) {
         let blinkwait = self
             .mode_info
@@ -139,7 +161,13 @@ impl<CB: CursorRedrawCb + 'static> BlinkCursor<CB> {
 
         let state = self.state.clone();
         let mut mut_state = self.state.borrow_mut();
+
         mut_state.reset_to(AnimPhase::Shown);
+
+        if let Some(counter) = &mut mut_state.counter {
+            counter.count = 0;
+        }
+
         mut_state.timer = Some(glib::timeout_add(
             if blinkwait > 0 { blinkwait } else { 500 },
             move || anim_step(&state),
@@ -288,8 +316,18 @@ fn anim_step<CB: CursorRedrawCb + 'static>(state: &Arc<UiMutex<State<CB>>>) -> g
 
     let next_event = match mut_state.anim_phase {
         AnimPhase::Shown => {
-            mut_state.anim_phase = AnimPhase::Hide;
-            Some(60)
+            if let Some(counter) = &mut mut_state.counter {
+                if counter.count < counter.max {
+                    counter.count += 1;
+                    mut_state.anim_phase = AnimPhase::Hide;
+                    Some(60)
+                } else {
+                    None
+                }
+            } else {
+                mut_state.anim_phase = AnimPhase::Hide;
+                Some(60)
+            }
         }
         AnimPhase::Hide => {
             if !mut_state.alpha.hide(0.3) {

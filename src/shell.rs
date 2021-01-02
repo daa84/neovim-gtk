@@ -317,6 +317,12 @@ impl State {
         self.transparency_settings.enabled
     }
 
+    pub fn set_cursor_blink(&mut self, val: i32) {
+        if let Some(cursor) = &mut self.cursor {
+            cursor.set_cursor_blink(val);
+        }
+    }
+
     pub fn open_file(&self, path: &str) {
         if let Some(mut nvim) = self.nvim() {
             nvim.command_async(&format!("e {}", path))
