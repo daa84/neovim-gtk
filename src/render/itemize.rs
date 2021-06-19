@@ -3,6 +3,7 @@ use std::str::CharIndices;
 pub struct ItemizeIterator<'a> {
     char_iter: CharIndices<'a>,
     line: &'a str,
+    prev_char: Option<(usize, char)>,
 }
 
 impl<'a> ItemizeIterator<'a> {
@@ -10,6 +11,7 @@ impl<'a> ItemizeIterator<'a> {
         ItemizeIterator {
             char_iter: line.char_indices(),
             line,
+            prev_char: None,
         }
     }
 }
@@ -21,13 +23,20 @@ impl<'a> Iterator for ItemizeIterator<'a> {
         let mut start_index = None;
 
         let end_index = loop {
-            if let Some((index, ch)) = self.char_iter.next() {
+            let cha = self.prev_char.or_else(|| self.char_iter.next());
+            self.prev_char = None;
+            if let Some((index, ch)) = cha {
                 let is_whitespace = ch.is_whitespace();
+                let is_ascii = ch.is_ascii();
 
                 if start_index.is_none() && !is_whitespace {
                     start_index = Some(index);
+                    if !is_ascii {
+                        break index + ch.len_utf8();
+                    }
                 }
-                if start_index.is_some() && is_whitespace {
+                if start_index.is_some() && (is_whitespace || !is_ascii) {
+                    self.prev_char = cha;
                     break index;
                 }
             } else {

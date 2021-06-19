@@ -87,7 +87,9 @@ struct FontMetrix {
 
 impl FontMetrix {
     pub fn new(pango_context: pango::Context, line_space: i32) -> Self {
-        let font_metrics = pango_context.get_metrics(None, None).unwrap();
+        let font_metrics = pango_context
+            .get_metrics(None, Some(&pango::Language::from_string("en_US")))
+            .unwrap();
         let font_desc = pango_context.get_font_description().unwrap();
 
         FontMetrix {
