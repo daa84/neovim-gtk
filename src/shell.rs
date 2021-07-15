@@ -394,6 +394,23 @@ impl State {
         }
     }
 
+    pub fn should_resize(&self, columns: usize, rows: usize) -> bool {
+        columns != self.resize_request.1 as usize || rows != self.resize_request.0 as usize
+    }
+
+    pub fn calc_window_size(&self, columns: usize, rows: usize) -> (usize, usize) {
+        let &CellMetrics {
+            line_height,
+            char_width,
+            ..
+        } = self.render_state.borrow().font_ctx.cell_metrics();
+
+        (
+            (columns as f64 * char_width).ceil() as usize,
+            (rows as f64 * line_height).ceil() as usize,
+        )
+    }
+
     fn calc_nvim_size(&self) -> (usize, usize) {
         let &CellMetrics {
             line_height,
@@ -1500,7 +1517,9 @@ impl State {
     }
 
     pub fn option_set(&mut self, name: String, val: Value) -> RepaintMode {
-        if let "guifont" = name.as_str() { self.set_font_from_value(val) };
+        if let "guifont" = name.as_str() {
+            self.set_font_from_value(val)
+        };
         RepaintMode::Nothing
     }
 
@@ -1513,7 +1532,8 @@ impl State {
                     for font in &fonts {
                         let desc = FontDescription::from_string(&font);
                         if desc.get_size() > 0
-                            && exists_fonts.contains(&desc.get_family().unwrap_or_else(|| "".into()))
+                            && exists_fonts
+                                .contains(&desc.get_family().unwrap_or_else(|| "".into()))
                         {
                             self.set_font_rpc(font);
                             return;
