@@ -196,8 +196,8 @@ fn draw_underline_strikethrough(
                 undercurl_height,
             );
         } else if cell.hl.underline {
-            let fg = hl.actual_cell_fg(cell).inverse(inverse_level);
-            ctx.set_source_rgb(fg.0, fg.1, fg.2);
+            let sp = hl.actual_cell_sp(cell).inverse(inverse_level);
+            ctx.set_source_rgb(sp.0, sp.1, sp.2);
             ctx.set_line_width(underline_thickness);
             ctx.move_to(line_x, line_y + underline_position);
             ctx.line_to(line_x + char_width, line_y + underline_position);
