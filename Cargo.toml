@@ -1,6 +1,7 @@
 [package]
 name = "nvim-gtk"
 version = "0.3.0"
+description = "gtk ui for neovim"
 authors = ["daa84 <daa84@inbox.ru>"]
 build = "build.rs"
 edition = "2018"
@@ -73,4 +74,14 @@ features = ["v3_22"]
 version = "0.9"
 features = ["v3_22"]
 #git = 'https://github.com/gtk-rs/sys'
+
+[package.metadata.bundle]
+name = "NeoVIM GTK"
+identifier = "org.daa.NeovimGtk"
+icon = ["desktop/macOS/128x128.png"]
+version = "0.3.0"
+resources = ["runtime"]
+copyright = ""
+category = "Developer Tool"
+short_description = "gtk ui for neovim"
 
