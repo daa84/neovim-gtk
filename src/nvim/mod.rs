@@ -12,7 +12,7 @@ pub use self::handler::NvimHandler;
 
 use std::error;
 use std::fmt;
-use std::env;
+use std::env::{self, current_exe};
 use std::process::{Command, Stdio};
 use std::result;
 use std::time::Duration;
@@ -108,7 +108,17 @@ pub fn start(
         cmd.arg("--cmd")
             .arg(format!("let &rtp.=',{}/share/nvim-gtk/runtime'", prefix));
     } else {
-        cmd.arg("--cmd").arg("let &rtp.=',runtime'");
+        let mut extra_dirs = "".to_string();
+
+        // Find resources dir for bundled macOS Application.
+        if let Ok(mut resources_dir) = current_exe() {
+            resources_dir.push("../Resource/runtime");
+            if let Some(path) = resources_dir.to_str() {
+                extra_dirs = format!(",{}", path);
+            }
+        }
+
+        cmd.arg("--cmd").arg(format!("let &rtp.=',runtime{}'", extra_dirs));
     }
 
     if let Some(nvim_config) = NvimConfig::config_path() {
